@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  IconButton,
   Box,
   Paper,
   Fab,
@@ -14,12 +9,13 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation } from 'react-router-dom';
+import Header from './header'; // Import the new Header component
+import { Typography } from '@mui/material';
 
 function Dashboard() {
   const [showActions, setShowActions] = useState(false);
-  const [showFirst, setShowFirst] = useState(false);  // Appointment
+  const [showFirst, setShowFirst] = useState(false); // Appointment
   const [showSecond, setShowSecond] = useState(false); // Patient
   const [showLoginAlert, setShowLoginAlert] = useState(false);
   const [showPatientAdded, setShowPatientAdded] = useState(false);
@@ -52,12 +48,18 @@ function Dashboard() {
     }
   };
 
-  // Handler for Add Patient Record button
   const handleAddPatientRecord = () => {
     setShowActions(false);
     setShowFirst(false);
     setShowSecond(false);
     navigate('/add-patient');
+  };
+
+  const handleAddAppointment = () => {
+    setShowActions(false);
+    setShowFirst(false);
+    setShowSecond(false);
+    navigate('/add-appointment'); // Update this route if necessary
   };
 
   return (
@@ -70,72 +72,8 @@ function Dashboard() {
         position: 'relative', // for overlay stacking
       }}
     >
-      {/* Overlay when plus button is active */}
-      {(showActions || showFirst || showSecond) && (
-        <Box
-          onClick={() => {
-            if (showActions) toggleActions();
-          }}
-          sx={{
-            position: 'fixed',
-            zIndex: 1200,
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            pointerEvents: showActions ? 'auto' : 'none',
-            bgcolor: showActions
-              ? 'rgba(0,0,0,0.01)'
-              : 'rgba(0,0,0,0.45)',
-            animation: `${showActions ? 'fadeDarken' : 'fadeLighten'} 0.25s forwards`,
-            transition: 'background 0.25s',
-            '@keyframes fadeDarken': {
-              from: { backgroundColor: 'rgba(0,0,0,0.01)' },
-              to: { backgroundColor: 'rgba(0,0,0,0.45)' }
-            },
-            '@keyframes fadeLighten': {
-              from: { backgroundColor: 'rgba(0,0,0,0.45)' },
-              to: { backgroundColor: 'rgba(0,0,0,0.01)' }
-            }
-          }}
-        />
-      )}
-
-      {/* Header */}
-      <AppBar position="static" sx={{ bgcolor: 'white', color: 'black' }}>
-        <Toolbar>
-          <img
-            src="/White-Teeth-Logo.png"
-            alt="logo"
-            style={{ width: 40, marginRight: 8, cursor: 'pointer' }}
-            onClick={() => navigate('/dashboard')}
-          />
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            White Teeth Dental Clinic
-          </Typography>
-          {['Home', 'Records', 'Appointments', 'Invoice', 'Logs'].map((label) => (
-            <Button
-              key={label}
-              color="inherit"
-              sx={label === 'Home' ? {
-                bgcolor: '#1746A2',
-                color: 'white',
-                borderRadius: 2,
-                px: 2,
-                mx: 0.5,
-                '&:hover': {
-                  bgcolor: '#12357a',
-                }
-              } : { mx: 0.5 }}
-            >
-              {label}
-            </Button>
-          ))}
-          <IconButton color="inherit">
-            <SettingsIcon />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
+      {/* Use the extracted Header component */}
+      <Header />
 
       {/* Login Success Alert */}
       <Fade in={showLoginAlert} timeout={{ enter: 400, exit: 400 }}>
@@ -233,7 +171,12 @@ function Dashboard() {
             >
               Add Appointment
             </Typography>
-            <Fab size="large" color="primary" sx={{ zIndex: 1, width: 64, height: 64 }}>
+            <Fab
+              size="large"
+              color="primary"
+              sx={{ zIndex: 1, width: 64, height: 64 }}
+              onClick={handleAddAppointment}
+            >
               <EventAvailableIcon sx={{ fontSize: 36 }} />
             </Fab>
           </Box>

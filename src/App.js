@@ -159,7 +159,9 @@ function App() {
           </Box>
         }
       />
+      {/* Existing route for Dashboard */}
       <Route path="/dashboard" element={<Dashboard />} />
+      {/* Existing route for AddPatientRecord */}
       <Route path="/add-patient" element={<AddPatientRecord />} />
     </Routes>
   );
