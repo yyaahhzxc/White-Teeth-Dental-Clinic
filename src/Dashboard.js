@@ -73,7 +73,7 @@ function Dashboard() {
       }}
     >
       {/* Use the extracted Header component */}
-      <Header />
+    
 
       {/* Login Success Alert */}
       <Fade in={showLoginAlert} timeout={{ enter: 400, exit: 400 }}>

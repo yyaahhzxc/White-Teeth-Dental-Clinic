@@ -1,23 +1,18 @@
 import React, { useState, useRef } from 'react';
-import {
-  Box,
-  Button,
-  Paper,
-  TextField,
-  Typography,
-  InputAdornment
-} from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, InputAdornment } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import AddPatientRecord from './AddPatientRecord';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import Header from './header'; // Import the Header component
 
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const usernameRef = useRef();
   const passwordRef = useRef();
@@ -31,16 +26,10 @@ function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
         });
-        // Fix: Check if fetch actually connects, and handle CORS or server issues
         if (res.ok) {
           navigate('/dashboard', { state: { justLoggedIn: true } });
         } else {
-          let data = {};
-          try {
-            data = await res.json();
-          } catch {
-            data = {};
-          }
+          const data = await res.json();
           setLoginError(data.message || 'Login failed');
         }
       } catch (err) {
@@ -49,121 +38,109 @@ function App() {
     }
   };
 
+  // Determine if the current route is the login page
+  const isLoginPage = location.pathname === '/';
+
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <Box
-            sx={{
-              minHeight: '100vh',
-              width: '100vw',
-              backgroundImage: 'url("/White-Teeth-BG.png")',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              m: 0,
-              p: 0,
-              overflow: 'hidden',
-              boxSizing: 'border-box',
-            }}
-          >
-            <Paper
-              elevation={6}
+    <Box>
+      {/* Render Header only if not on the login page */}
+      {!isLoginPage && <Header />}
+
+      <Routes>
+        {/* Login Page */}
+        <Route
+          path="/"
+          element={
+            <Box
               sx={{
-                p: 4,
-                width: 350,
-                textAlign: 'center',
-                borderRadius: 3,
-                backdropFilter: 'blur(6px)',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#f5f5f5',
+                p: 3,
               }}
             >
-              <Box mb={3}>
-                <img
-                  src="/White-Teeth-Logo.png"
-                  alt="logo"
-                  style={{ width: 80, height: 80 }}
-                />
-              </Box>
-
-              <TextField
-                fullWidth
-                label="Username"
-                placeholder="Username"
-                variant="outlined"
-                margin="normal"
-                value={username}
-                inputRef={usernameRef}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    passwordRef.current?.focus();
-                  }
+              <Paper
+                elevation={3}
+                sx={{
+                  p: 4,
+                  width: 400,
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  backgroundColor: 'white',
                 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <TextField
-                fullWidth
-                label="Password"
-                placeholder="Password"
-                type="password"
-                variant="outlined"
-                margin="normal"
-                value={password}
-                inputRef={passwordRef}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleLogin();
-                  }
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <Button
-                variant="contained"
-                color="primary"
-                fullWidth
-                sx={{ mt: 2, height: 50 }}
-                onClick={handleLogin}
               >
-                LOGIN
-              </Button>
-
-              {loginError && (
-                <Typography sx={{ mt: 2, color: 'red', fontWeight: 500 }}>
-                  {loginError}
+                <Typography variant="h5" sx={{ mb: 3 }}>
+                  Login
                 </Typography>
-              )}
-
-              <Typography variant="body2" sx={{ mt: 2, color: '#666' }}>
-                Forgot password?
-              </Typography>
-            </Paper>
-          </Box>
-        }
-      />
-      {/* Existing route for Dashboard */}
-      <Route path="/dashboard" element={<Dashboard />} />
-      {/* Existing route for AddPatientRecord */}
-      <Route path="/add-patient" element={<AddPatientRecord />} />
-    </Routes>
+                <TextField
+                  fullWidth
+                  label="Username"
+                  variant="outlined"
+                  margin="normal"
+                  value={username}
+                  inputRef={usernameRef}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      passwordRef.current?.focus();
+                    }
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <TextField
+                  fullWidth
+                  label="Password"
+                  variant="outlined"
+                  margin="normal"
+                  type="password"
+                  value={password}
+                  inputRef={passwordRef}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleLogin();
+                    }
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  sx={{ mt: 2 }}
+                  onClick={handleLogin}
+                >
+                  Login
+                </Button>
+                {loginError && (
+                  <Typography color="error" sx={{ mt: 2 }}>
+                    {loginError}
+                  </Typography>
+                )}
+              </Paper>
+            </Box>
+          }
+        />
+        {/* Dashboard Page */}
+        <Route path="/dashboard" element={<Dashboard />} />
+        {/* Add Patient Record Page */}
+        <Route path="/add-patient" element={<AddPatientRecord />} />
+      </Routes>
+    </Box>
   );
 }
 

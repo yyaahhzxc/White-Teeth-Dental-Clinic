@@ -36,8 +36,7 @@ function AddPatientRecord() {
   return (
     <Box>
       {/* Add the Header component */}
-      <Header />
-
+    
       {/* Main content */}
       <Box
         sx={{
