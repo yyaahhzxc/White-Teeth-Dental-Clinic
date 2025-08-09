@@ -42,7 +42,17 @@ function App() {
   const isLoginPage = location.pathname === '/';
 
   return (
-    <Box>
+    <Box
+      sx={{
+        height: '100vh', // Full viewport height
+        overflow: 'hidden', // Prevent scrolling
+        backgroundImage: 'url("/White-Teeth-BG.png")', // Add the background image
+        backgroundSize: 'cover', // Ensure the image covers the entire viewport
+        backgroundPosition: 'center', // Center the background image
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {/* Render Header only if not on the login page */}
       {!isLoginPage && <Header />}
 
@@ -57,7 +67,6 @@ function App() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#f5f5f5',
                 p: 3,
               }}
             >
@@ -71,9 +80,14 @@ function App() {
                   backgroundColor: 'white',
                 }}
               >
-                <Typography variant="h5" sx={{ mb: 3 }}>
-                  Login
-                </Typography>
+                {/* Replace "Login" text with the White-Teeth-Logo */}
+                <Box sx={{ mb: 3 }}>
+                  <img
+                    src="/White-Teeth-Logo.png"
+                    alt="White Teeth Logo"
+                    style={{ height: '60px' }} // Adjust the height of the logo
+                  />
+                </Box>
                 <TextField
                   fullWidth
                   label="Username"
