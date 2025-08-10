@@ -5,6 +5,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden; /* Prevent vertical and horizontal scrolling */
 }
 
 code {
@@ -15,6 +16,8 @@ code {
 html, body {
   margin: 0;
   padding: 0;
+  overflow: hidden; /* Prevent vertical and horizontal scrolling */
+  box-sizing: border-box;
   height: 100%;
   overflow: hidden; /* Prevent scrolling */
 }

@@ -4,8 +4,9 @@ import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './Dashboard';
-import AddPatientRecord from './add-record';
+import AddPatientRecord from './add-record'; // Import the AddPatientRecord component
 import Header from './header'; // Import the Header component
+import PatientList from './Records';
 
 function App() {
   const [username, setUsername] = useState('');
@@ -156,7 +157,7 @@ function App() {
         {/* Dashboard Page */}
         <Route path="/dashboard" element={<Dashboard />} />
         {/* Add Patient Record Page */}
-        <Route path="/add-patient" element={<AddPatientRecord />} />
+        <Route path="/add-patient" element={<PatientList />} />
       </Routes>
     </Box>
   );

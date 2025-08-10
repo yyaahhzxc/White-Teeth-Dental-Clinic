@@ -16,12 +16,13 @@ db.run(`
   CREATE TABLE IF NOT EXISTS patients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    sex TEXT,
     age INTEGER,
-    contact TEXT
+    contact TEXT,
+    dateCreated TEXT
   )
 `);
 
-// Create users table and insert default admin user if not exists
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -39,8 +40,6 @@ db.serialize(() => {
   });
 });
 
-
-
 app.get('/patients', (req, res) => {
   db.all('SELECT * FROM patients', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -49,6 +48,19 @@ app.get('/patients', (req, res) => {
 });
 
 // Login
+app.post('/patients', (req, res) => {
+  const { name, sex, age, contact } = req.body;
+  const dateCreated = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  db.run(
+    'INSERT INTO patients (name, sex, age, contact, dateCreated) VALUES (?, ?, ?, ?, ?)',
+    [name, sex, age, contact, dateCreated],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, name, sex, age, contact, dateCreated });
+    }
+  );
+});
+
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   db.get(
