@@ -25,7 +25,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import { useNavigate } from 'react-router-dom';
 import Header from './header';
 
-function AddPatientRecord() {
+function PatientList() {
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [search, setSearch] = useState('');
@@ -78,8 +78,8 @@ function AddPatientRecord() {
     }
   };
 
-  const handleAddPatientRecord = () => {
-    alert('Add Patient Record clicked!');
+  const handleAddPatientList = () => {
+    alert('Add Patient List clicked!');
   };
 
   const handleAddAppointment = () => {
@@ -139,8 +139,6 @@ function AddPatientRecord() {
 
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-     
-
       <Box sx={{ p: 3 }}>
         <Paper sx={{ p: 2, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -207,7 +205,7 @@ function AddPatientRecord() {
             </Table>
           </TableContainer>
 
-          {/* Custom Pagination at bottom-left (matches screenshot) */}
+          {/* Custom Pagination at bottom-left */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mt: 2 }}>
             <Button
               size="small"
@@ -219,7 +217,6 @@ function AddPatientRecord() {
               Previous
             </Button>
 
-            {/* Page number buttons with ellipsis */}
             {pageItems.map((item, idx) => {
               if (item === 'ellipsis') {
                 return (
@@ -229,7 +226,7 @@ function AddPatientRecord() {
                 );
               }
 
-              const pageNumber = Number(item); // 1-based
+              const pageNumber = Number(item);
               const zeroBased = pageNumber - 1;
               const isActive = zeroBased === page;
 
@@ -272,7 +269,7 @@ function AddPatientRecord() {
         </Paper>
       </Box>
 
-      {/* Floating Buttons (unchanged) */}
+      {/* Floating Buttons */}
       <Box
         sx={{
           position: 'fixed',
@@ -340,13 +337,13 @@ function AddPatientRecord() {
                 fontSize: '1.15rem',
               }}
             >
-              Add Patient Record
+              Add Patient List
             </Typography>
             <Fab
               size="large"
               color="primary"
               sx={{ zIndex: 1, width: 64, height: 64 }}
-              onClick={handleAddPatientRecord}
+              onClick={handleAddPatientList}
             >
               <PersonAddIcon sx={{ fontSize: 36 }} />
             </Fab>
@@ -373,4 +370,4 @@ function AddPatientRecord() {
   );
 }
 
-export default AddPatientRecord;
+export default PatientList;
