@@ -13,11 +13,15 @@ code {
     monospace;
 }
 
-html, body, #root {
-  height: 100%;
-  width: 100%;
+html, body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* Prevent vertical and horizontal scrolling */
   box-sizing: border-box;
+  height: 100%;
+  overflow: hidden; /* Prevent scrolling */
+}
+
+#root {
+  height: 100%; /* Ensure the root element takes the full height */
 }

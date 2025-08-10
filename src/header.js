@@ -11,7 +11,16 @@ function Header() {
   const activeRoute = location.pathname;
 
   return (
-    <AppBar position="static" sx={{ bgcolor: 'white', color: 'black', position: 'relative' }}>
+    <AppBar
+      position="static"
+      sx={{
+        bgcolor: 'white',
+        color: 'black',
+        position: 'relative',
+        boxShadow: 'none', // Remove shadow to avoid extra height
+        margin: 0, // Ensure no extra margins
+      }}
+    >
       <Toolbar>
         <img
           src="/White-Teeth-Logo.png"
