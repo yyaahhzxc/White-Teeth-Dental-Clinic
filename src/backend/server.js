@@ -6,6 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// confirm connecting SQL to server
 const db = new sqlite3.Database('./clinic.db', (err) => {
   if (err) return console.error(err.message);
   console.log('✅ Connected to SQLite database.');
@@ -30,6 +31,7 @@ db.serialize(() => {
     )
   `);
 
+  // Get list of users
   db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, row) => {
     if (!row) {
       db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', 'admin']);
@@ -46,6 +48,7 @@ app.get('/patients', (req, res) => {
   });
 });
 
+// Login
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   db.get(
