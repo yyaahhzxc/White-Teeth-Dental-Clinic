@@ -4,7 +4,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './Dashboard';
-import AddPatientRecord from './AddPatientRecord';
+import AddPatientRecord from './add-record';
 import Header from './header'; // Import the Header component
 
 function App() {
@@ -58,6 +58,9 @@ function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: '#f5f5f5',
+                backgroundImage: 'url("/White-Teeth-BG.png")',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'cover',
                 p: 3,
               }}
             >
