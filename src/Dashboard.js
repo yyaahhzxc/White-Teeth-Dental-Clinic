@@ -30,6 +30,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Header from './header'; // Import the new Header component
 import { Typography } from '@mui/material';
 import AddPatientRecord from './add-record';
+import AddService from './add-service';
 
 function Dashboard() {
   const [showActions, setShowActions] = useState(false);
