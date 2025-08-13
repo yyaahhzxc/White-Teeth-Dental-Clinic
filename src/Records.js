@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  TextField,
-  Typography,
   Paper,
+  Typography,
+  TextField,
   Table,
-  TableBody,
-  TableCell,
-  TableContainer,
   TableHead,
   TableRow,
-  IconButton,
-  Tooltip,
+  TableCell,
+  TableBody,
+  TableContainer,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
   Fab,
   Zoom,
-  Button
+  Tooltip
 } from '@mui/material';
-import { Search, FilterList, Download } from '@mui/icons-material';
+import { Search, FilterList } from '@mui/icons-material';
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import AddIcon from '@mui/icons-material/Add';
@@ -25,12 +31,30 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import { useNavigate } from 'react-router-dom';
 import Header from './header';
 
+// Utility function to compute age
+function computeAge(birthDate) {
+  if (!birthDate) return '';
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
 function PatientList() {
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage] = useState(5);
+
+  // Sort popup state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState('asc');
 
   // Floating button states
   const [showActions, setShowActions] = useState(false);
@@ -50,89 +74,67 @@ function PatientList() {
       .catch(err => console.error('Error fetching patients:', err));
   }, []);
 
-  // Filter patients by name
+  // Filter and sort patients
   useEffect(() => {
-    const result = patients.filter(patient =>
-      (patient.name || '').toLowerCase().includes(search.toLowerCase())
-    );
+    let result = patients.filter(patient => {
+      const fullName = [
+        patient.lastName,
+        patient.firstName,
+        patient.middleName ? patient.middleName.charAt(0) + '.' : '',
+        patient.suffix
+      ].filter(Boolean).join(' ').toLowerCase();
+      return fullName.includes(search.toLowerCase());
+    });
+
+    result.sort((a, b) => {
+      const nameA = [
+        a.lastName,
+        a.firstName,
+        a.middleName ? a.middleName.charAt(0) + '.' : '',
+        a.suffix
+      ].filter(Boolean).join(' ').toLowerCase();
+      const nameB = [
+        b.lastName,
+        b.firstName,
+        b.middleName ? b.middleName.charAt(0) + '.' : '',
+        b.suffix
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (sortOrder === 'asc') {
+        return nameA.localeCompare(nameB);
+      } else {
+        return nameB.localeCompare(nameA);
+      }
+    });
+
     setFilteredPatients(result);
-    // reset page if filter reduces total pages
-    setPage(0);
-  }, [search, patients]);
-
-  const handleExport = () => {
-    console.log('Export patients data');
-    // Implement CSV or Excel export logic here
-  };
-
-  // Floating button logic
-  const toggleActions = () => {
-    if (!showActions) {
-      setShowActions(true);
-      setTimeout(() => setShowSecond(true), 15);
-      setTimeout(() => setShowFirst(true), 75);
-    } else {
-      setShowFirst(false);
-      setTimeout(() => setShowSecond(false), 15);
-      setTimeout(() => setShowActions(false), 75);
-    }
-  };
-
-  const handleAddPatientList = () => {
-    alert('Add Patient List clicked!');
-  };
-
-  const handleAddAppointment = () => {
-    alert('Add Appointment clicked!');
-  };
+    setPage(0); // Reset to first page on filter/sort
+  }, [patients, search, sortOrder]);
 
   // Pagination helpers
-  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / rowsPerPage));
+  const totalPages = Math.ceil(filteredPatients.length / rowsPerPage);
 
-  // Keep current page within range if filtered list shrinks
-  useEffect(() => {
-    if (page > totalPages - 1) {
-      setPage(Math.max(0, totalPages - 1));
-    }
-  }, [totalPages, page]);
-
-  // Create page items with ellipsis logic
-  const getPageItems = (current, total) => {
+  function getPageItems(current, total) {
     const pages = [];
-
     if (total <= 7) {
       for (let i = 1; i <= total; i++) pages.push(i);
       return pages;
     }
-
-    // total > 7
     pages.push(1);
-
     if (current <= 4) {
-      // show 2..5
       for (let i = 2; i <= 5; i++) pages.push(i);
       pages.push('ellipsis');
       pages.push(total);
       return pages;
     }
-
     if (current >= total - 3) {
       pages.push('ellipsis');
       for (let i = total - 4; i <= total; i++) pages.push(i);
       return pages;
     }
-
-    // middle: show ... (cur-1, cur, cur+1) ...
-    pages.push('ellipsis');
-    pages.push(current); // will show as actual number in rendering as 1-based
-    pages.push('ellipsis');
-    pages.push(total);
-    // But we actually want to show current-1, current, current+1 for nicer UX:
-    // Let's return a more useful layout:
     return [1, 'ellipsis', current - 1, current, current + 1, 'ellipsis', total];
-  };
+  }
 
-  const pageItems = getPageItems(page + 1, totalPages); // page is zero-based, helper uses 1-based
+  const pageItems = getPageItems(page + 1, totalPages);
 
   // rows to display on current page
   const visibleRows = filteredPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -151,25 +153,34 @@ function PatientList() {
               placeholder="Search by name"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              sx={{ mr: 2, width: 240 }}
+              sx={{ mr: 2, width: 220 }}
               InputProps={{
-                startAdornment: (
-                  <IconButton>
-                    <Search />
-                  </IconButton>
-                ),
+                startAdornment: <Search sx={{ mr: 1 }} />
               }}
             />
-            <Tooltip title="Filter">
-              <IconButton>
-                <FilterList />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Export">
-              <IconButton onClick={handleExport}>
-                <Download />
-              </IconButton>
-            </Tooltip>
+            <Button
+              variant="outlined"
+              startIcon={<FilterList />}
+              onClick={() => setFilterOpen(true)}
+              sx={{ mr: 2 }}
+            >
+              Sort
+            </Button>
+            <Dialog open={filterOpen} onClose={() => setFilterOpen(false)}>
+              <DialogTitle>Sort by Name</DialogTitle>
+              <DialogContent>
+                <RadioGroup
+                  value={sortOrder}
+                  onChange={e => setSortOrder(e.target.value)}
+                >
+                  <FormControlLabel value="asc" control={<Radio />} label="A-Z (Ascending)" />
+                  <FormControlLabel value="desc" control={<Radio />} label="Z-A (Descending)" />
+                </RadioGroup>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setFilterOpen(false)}>Close</Button>
+              </DialogActions>
+            </Dialog>
           </Box>
 
           <TableContainer>
@@ -187,17 +198,19 @@ function PatientList() {
                 {visibleRows.length ? (
                   visibleRows.map((patient, index) => (
                     <TableRow key={index}>
-                      <TableCell>{patient.name}</TableCell>
+                      <TableCell>
+                        {`${patient.lastName || ''}, ${patient.firstName || ''}${patient.middleName ? ' ' + patient.middleName.charAt(0) + '.' : ''}${patient.suffix ? ' ' + patient.suffix : ''}`}
+                      </TableCell>
                       <TableCell>{patient.sex}</TableCell>
-                      <TableCell>{patient.age}</TableCell>
-                      <TableCell>{patient.contact}</TableCell>
+                      <TableCell>{computeAge(patient.dateOfBirth)}</TableCell>
+                      <TableCell>{patient.contact || patient.contactNumber || ''}</TableCell>
                       <TableCell>{patient.dateCreated}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                      No patients found
+                    <TableCell colSpan={5} align="center">
+                      No records found.
                     </TableCell>
                   </TableRow>
                 )}
@@ -205,8 +218,8 @@ function PatientList() {
             </Table>
           </TableContainer>
 
-          {/* Custom Pagination at bottom-left */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mt: 2 }}>
+          {/* Pagination */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 2 }}>
             <Button
               size="small"
               startIcon={<KeyboardArrowLeftIcon />}
@@ -216,7 +229,6 @@ function PatientList() {
             >
               Previous
             </Button>
-
             {pageItems.map((item, idx) => {
               if (item === 'ellipsis') {
                 return (
@@ -225,11 +237,9 @@ function PatientList() {
                   </Typography>
                 );
               }
-
               const pageNumber = Number(item);
               const zeroBased = pageNumber - 1;
               const isActive = zeroBased === page;
-
               return (
                 <Button
                   key={pageNumber}
@@ -255,7 +265,6 @@ function PatientList() {
                 </Button>
               );
             })}
-
             <Button
               size="small"
               endIcon={<KeyboardArrowRightIcon />}
@@ -279,80 +288,24 @@ function PatientList() {
           flexDirection: 'column',
           alignItems: 'center',
           gap: 1.5,
-          zIndex: 1300,
         }}
       >
-        <Zoom in={showFirst} timeout={{ enter: 150, exit: 150 }}>
-          <Box display="flex" alignItems="center" mb={1} sx={{ position: 'relative' }}>
-            <Typography
-              variant="body2"
-              sx={{
-                position: 'absolute',
-                right: '100%',
-                mr: 2,
-                bgcolor: 'white',
-                px: 1.5,
-                py: 0.5,
-                borderRadius: 1.5,
-                boxShadow: 1,
-                fontWeight: 500,
-                color: '#1746A2',
-                minWidth: 120,
-                whiteSpace: 'nowrap',
-                textAlign: 'center',
-                fontSize: '1.15rem',
-              }}
-            >
-              Add Appointment
-            </Typography>
-            <Fab
-              size="large"
-              color="primary"
-              sx={{ zIndex: 1, width: 64, height: 64 }}
-              onClick={handleAddAppointment}
-            >
-              <EventAvailableIcon sx={{ fontSize: 36 }} />
-            </Fab>
+        <Zoom in={showActions}>
+          <Box>
+            <Tooltip title="Add Patient">
+              <Fab
+                color="primary"
+                onClick={() => navigate('/add-patient')}
+                sx={{ mb: 1 }}
+              >
+                <PersonAddIcon sx={{ fontSize: 36 }} />
+              </Fab>
+            </Tooltip>
           </Box>
         </Zoom>
-
-        <Zoom in={showSecond} timeout={{ enter: 150, exit: 150 }}>
-          <Box display="flex" alignItems="center" mb={1} sx={{ position: 'relative' }}>
-            <Typography
-              variant="body2"
-              sx={{
-                position: 'absolute',
-                right: '100%',
-                mr: 2,
-                bgcolor: 'white',
-                px: 1.5,
-                py: 0.5,
-                borderRadius: 1.5,
-                boxShadow: 1,
-                fontWeight: 500,
-                color: '#1746A2',
-                minWidth: 120,
-                whiteSpace: 'nowrap',
-                textAlign: 'right',
-                fontSize: '1.15rem',
-              }}
-            >
-              Add Patient List
-            </Typography>
-            <Fab
-              size="large"
-              color="primary"
-              sx={{ zIndex: 1, width: 64, height: 64 }}
-              onClick={handleAddPatientList}
-            >
-              <PersonAddIcon sx={{ fontSize: 36 }} />
-            </Fab>
-          </Box>
-        </Zoom>
-
         <Fab
           color="default"
-          onClick={toggleActions}
+          onClick={() => setShowActions(!showActions)}
           sx={{
             transition: 'transform 0.2s ease-in-out',
             transform: showActions ? 'rotate(45deg)' : 'rotate(0deg)',

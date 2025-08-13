@@ -6,19 +6,30 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// confirm connecting SQL to server
+// Confirm connecting SQL to server
 const db = new sqlite3.Database('./clinic.db', (err) => {
   if (err) return console.error(err.message);
   console.log('✅ Connected to SQLite database.');
 });
 
+// Create patients table with all required fields
 db.run(`
   CREATE TABLE IF NOT EXISTS patients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    firstName TEXT,
+    lastName TEXT,
+    middleName TEXT,
+    suffix TEXT,
+    maritalStatus TEXT,
+    contactNumber TEXT,
+    occupation TEXT,
+    address TEXT,
+    dateOfBirth TEXT,
     sex TEXT,
-    age INTEGER,
-    contact TEXT,
+    contactPersonName TEXT,
+    contactPersonRelationship TEXT,
+    contactPersonNumber TEXT,
+    contactPersonAddress TEXT,
     dateCreated TEXT
   )
 `);
@@ -53,6 +64,20 @@ db.run(`
   )
 `);
 
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS ServiceTable (
+    serviceID INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    description TEXT,
+    price REAL,
+    duration INTEGER,
+    type TEXT,
+    status TEXT
+  )
+`);
+
+// Get all patients
 app.get('/patients', (req, res) => {
   db.all('SELECT * FROM patients', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -60,20 +85,71 @@ app.get('/patients', (req, res) => {
   });
 });
 
-// Login
+// Add a patient
 app.post('/patients', (req, res) => {
-  const { name, sex, age, contact } = req.body;
-  const dateCreated = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const {
+    firstName,
+    lastName,
+    middleName,
+    suffix,
+    maritalStatus,
+    contactNumber,
+    occupation,
+    address,
+    dateOfBirth,
+    sex,
+    contactPersonName,
+    contactPersonRelationship,
+    contactPersonNumber,
+    contactPersonAddress
+  } = req.body;
+  const dateCreated = new Date().toISOString().split('T')[0];
   db.run(
-    'INSERT INTO patients (name, sex, age, contact, dateCreated) VALUES (?, ?, ?, ?, ?)',
-    [name, sex, age, contact, dateCreated],
+    `INSERT INTO patients (
+      firstName, lastName, middleName, suffix, maritalStatus, contactNumber, occupation, address,
+      dateOfBirth, sex, contactPersonName, contactPersonRelationship, contactPersonNumber, contactPersonAddress, dateCreated
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      firstName,
+      lastName,
+      middleName,
+      suffix,
+      maritalStatus,
+      contactNumber,
+      occupation,
+      address,
+      dateOfBirth,
+      sex,
+      contactPersonName,
+      contactPersonRelationship,
+      contactPersonNumber,
+      contactPersonAddress,
+      dateCreated
+    ],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, name, sex, age, contact, dateCreated });
+      res.json({
+        id: this.lastID,
+        firstName,
+        lastName,
+        middleName,
+        suffix,
+        maritalStatus,
+        contactNumber,
+        occupation,
+        address,
+        dateOfBirth,
+        sex,
+        contactPersonName,
+        contactPersonRelationship,
+        contactPersonNumber,
+        contactPersonAddress,
+        dateCreated
+      });
     }
   );
 });
-
+// Login
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   db.get(
