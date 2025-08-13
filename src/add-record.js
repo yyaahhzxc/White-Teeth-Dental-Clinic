@@ -107,7 +107,19 @@ const AddPatientRecord = ({ open, onClose }) => {
                   <Grid item xs={8}><TextField fullWidth label="First Name" sx={{ width: 400, backgroundColor: '#ffffff9e' }} /></Grid>
                   <Grid item xs={4}><TextField fullWidth label="Suffix" sx={{ width: 90, backgroundColor: '#ffffff9e' }} /></Grid>
                   <Grid item xs={12}><TextField fullWidth label="Middle Name" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Last Name" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={12}><TextField fullWidth label="Last Name" sx={{ width: 350, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Marital Status"
+                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+                      defaultValue=""
+                    >
+                      <MenuItem value="Married">Married</MenuItem>
+                      <MenuItem value="Single">Single</MenuItem>
+                    </TextField>
+                  </Grid>
                   <Grid item xs={6}><TextField fullWidth label="Contact Number" sx={{ width: 245, backgroundColor: '#ffffff9e' }} /></Grid>
                   <Grid item xs={6}><TextField fullWidth label="Occupation" sx={{ width: 245, backgroundColor: '#ffffff9e' }} /></Grid>
                   <Grid item xs={12}><TextField fullWidth label="Address" multiline rows={3} sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
@@ -203,7 +215,22 @@ const AddPatientRecord = ({ open, onClose }) => {
                     </TextField>
                   </Grid>
                   <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ mb: 4, width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
+                 <Grid item xs={4} sx={{ ml: 3 }}>
+                    <Typography variant="body2">Blood Pressure</Typography>
+                    <RadioGroup row>
+                      <FormControlLabel value="High" control={<Radio />} label="High" />
+                      <FormControlLabel value="Normal" control={<Radio />} label="Normal" />
+                      <FormControlLabel value="Low" control={<Radio />} label="Low" />
+                    </RadioGroup>
+                  </Grid>
+                  <Grid item xs={4} sx={{ ml:6, mb: 4}}>
+                    <Typography variant="body2">Diabetic</Typography>
+                    <RadioGroup row>
+                      <FormControlLabel value="Yes" control={<Radio />} label="Yes" />
+                      <FormControlLabel value="No" control={<Radio />} label="No" />
+                    </RadioGroup>
+                  </Grid>
                 </Grid>
 
                 <Typography variant="subtitle1" fontWeight="bold" mb={2}>
