@@ -1,20 +1,29 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Confirm connecting SQL to server
-const db = new sqlite3.Database('./clinic.db', (err) => {
+const DB_FILE = './clinic.db';
+
+// 1️⃣ Delete the old database file if it exists
+if (fs.existsSync(DB_FILE)) {
+  fs.unlinkSync(DB_FILE);
+  console.log('🗑️ Old database deleted. Starting fresh...');
+}
+
+// 2️⃣ Create new database file and connect
+const db = new sqlite3.Database(DB_FILE, (err) => {
   if (err) return console.error(err.message);
-  console.log('✅ Connected to SQLite database.');
+  console.log('✅ Connected to fresh SQLite database.');
 });
 
-// Create patients table with all required fields
+// 3️⃣ Recreate tables
 db.run(`
-  CREATE TABLE IF NOT EXISTS patients (
+  CREATE TABLE patients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     firstName TEXT,
     lastName TEXT,
@@ -36,24 +45,19 @@ db.run(`
 
 db.serialize(() => {
   db.run(`
-    CREATE TABLE IF NOT EXISTS users (
+    CREATE TABLE users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL
     )
   `);
 
-  // Get list of users
-  db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, row) => {
-    if (!row) {
-      db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', 'admin']);
-    }
-  });
+  // Default admin account
+  db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', 'admin']);
 });
 
-// Create ServiceTable if it doesn't exist
 db.run(`
-  CREATE TABLE IF NOT EXISTS ServiceTable (
+  CREATE TABLE ServiceTable (
     serviceID INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     description TEXT,
@@ -64,18 +68,7 @@ db.run(`
   )
 `);
 
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS ServiceTable (
-    serviceID INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    description TEXT,
-    price REAL,
-    duration INTEGER,
-    type TEXT,
-    status TEXT
-  )
-`);
+// --- Your existing routes stay the same ---
 
 // Get all patients
 app.get('/patients', (req, res) => {
@@ -149,6 +142,7 @@ app.post('/patients', (req, res) => {
     }
   );
 });
+
 // Login
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
@@ -166,7 +160,7 @@ app.post('/login', (req, res) => {
   );
 });
 
-// Endpoint to add a service
+// Add a service
 app.post('/service-table', (req, res) => {
   const { name, description, price, duration, type, status } = req.body;
   db.run(
