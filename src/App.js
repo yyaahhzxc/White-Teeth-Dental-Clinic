@@ -162,8 +162,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         {/* Add Patient Record Page */}
         <Route path="/add-patient" element={<PatientList />} />
-        <Route path="/add-service" element={<AddService />} />
-        <Route path="/service-page" element={<ServiceList />} />
+        <Route path="/services" element={<ServiceList />} />
 
 
       </Routes>
