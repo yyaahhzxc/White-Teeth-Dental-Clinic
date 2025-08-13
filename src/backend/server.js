@@ -40,6 +40,19 @@ db.serialize(() => {
   });
 });
 
+// Create ServiceTable if it doesn't exist
+db.run(`
+  CREATE TABLE IF NOT EXISTS ServiceTable (
+    serviceID INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    description TEXT,
+    price REAL,
+    duration INTEGER,
+    type TEXT,
+    status TEXT
+  )
+`);
+
 app.get('/patients', (req, res) => {
   db.all('SELECT * FROM patients', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -75,6 +88,28 @@ app.post('/login', (req, res) => {
       }
     }
   );
+});
+
+// Endpoint to add a service
+app.post('/service-table', (req, res) => {
+  const { name, description, price, duration, type, status } = req.body;
+  db.run(
+    `INSERT INTO ServiceTable (name, description, price, duration, type, status)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [name, description, price, duration, type, status],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ serviceID: this.lastID, name, description, price, duration, type, status });
+    }
+  );
+});
+
+// Get all services
+app.get('/service-table', (req, res) => {
+  db.all('SELECT * FROM ServiceTable', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
 });
 
 app.listen(3001, () => console.log('🚀 Server running on http://localhost:3001'));
