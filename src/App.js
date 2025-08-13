@@ -7,6 +7,7 @@ import Dashboard from './Dashboard';
 import AddPatientRecord from './add-record'; // Import the AddPatientRecord component
 import Header from './header'; // Import the Header component
 import PatientList from './Records';
+import ServiceList from './service-page';
 
 function App() {
   const [username, setUsername] = useState('');
@@ -158,6 +159,8 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         {/* Add Patient Record Page */}
         <Route path="/add-patient" element={<PatientList />} />
+        {/* Service Page */}
+        <Route path="/service-page" element={<ServiceList />} />
       </Routes>
     </Box>
   );

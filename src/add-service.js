@@ -23,7 +23,7 @@ const statusOptions = [
   'Inactive'
 ];
 
-const AddService = ({ open, onClose }) => {
+const AddService = ({ open, onClose, handleAddService }) => {
   const [service, setService] = useState({
     name: '',
     description: '',
@@ -52,10 +52,18 @@ const AddService = ({ open, onClose }) => {
     setService(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddService = () => {
-    // Add your submit logic here
-    // e.g. send service to backend
-    onClose();
+  const submitService = async () => {
+    try {
+      await fetch('http://localhost:3001/service-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(service)
+      });
+      handleAddService(); // This will fetch the updated list
+      onClose();
+    } catch (err) {
+      alert('Failed to save service');
+    }
   };
 
   return (
@@ -175,7 +183,7 @@ const AddService = ({ open, onClose }) => {
         <Button
           variant="contained"
           color="primary"
-          onClick={handleAddService}
+          onClick={submitService}
           sx={{ borderRadius: 8, px: 2, fontWeight: 'bold', fontSize: 18, mb: 1, mr: 2, backgroundColor: '#ffffffff', color: '#2148C0' }}
         >
           Add Service
