@@ -6,7 +6,11 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import AddPatientRecord from './add-record'; // Import the AddPatientRecord component
 import Header from './header'; // Import the Header component
-import PatientList from './Records';
+import PatientList from './Records'
+import AddService from './add-service';
+import ServiceList from './service-page';
+
+
 
 function App() {
   const [username, setUsername] = useState('');
@@ -158,6 +162,10 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         {/* Add Patient Record Page */}
         <Route path="/add-patient" element={<PatientList />} />
+        <Route path="/add-service" element={<AddService />} />
+        <Route path="/service-page" element={<ServiceList />} />
+
+
       </Routes>
     </Box>
   );
