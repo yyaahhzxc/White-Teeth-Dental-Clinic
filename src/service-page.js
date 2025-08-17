@@ -11,26 +11,30 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Tooltip,
   Button,
   Fab,
   Zoom,
 } from '@mui/material';
-import { Search, FilterList } from '@mui/icons-material';
+import { Search } from '@mui/icons-material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import CloseIcon from '@mui/icons-material/Close';
-import Header from './header';
-import AddService from './add-service';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import AddPatientRecord from './add-record'; // If you want to show the modal
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import AddService from './add-service';
+import AddPatientRecord from './add-record';
+import ViewService from './view-service';
 
 function ServiceList() {
   const [services, setServices] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
   const [search, setSearch] = useState('');
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  // View dialog state
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
 
   // Fetch services from backend (replace with your actual endpoint)
   useEffect(() => {
@@ -51,13 +55,57 @@ function ServiceList() {
     setFilteredServices(result);
   }, [search, services]);
 
-  const handleExport = () => {
-    console.log('Export services data');
-    // Implement CSV or Excel export logic here
+  // Sorting logic
+  const sortedServices = React.useMemo(() => {
+    let sortable = [...filteredServices];
+    if (sortConfig.key) {
+      sortable.sort((a, b) => {
+        switch (sortConfig.key) {
+          case 'name':
+            if (a.name < b.name) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (a.name > b.name) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+          case 'price':
+            return sortConfig.direction === 'asc'
+              ? a.price - b.price
+              : b.price - a.price;
+          case 'duration':
+            return sortConfig.direction === 'asc'
+              ? a.duration - b.duration
+              : b.duration - a.duration;
+          case 'type':
+            // Single Treatment first, then Package Treatment
+            if (a.type === b.type) return 0;
+            if (sortConfig.direction === 'asc') {
+              return a.type === 'Single Treatment' ? -1 : 1;
+            } else {
+              return a.type === 'Package Treatment' ? -1 : 1;
+            }
+          case 'status':
+            // Active first, then Inactive
+            if (a.status === b.status) return 0;
+            if (sortConfig.direction === 'asc') {
+              return a.status === 'Active' ? -1 : 1;
+            } else {
+              return a.status === 'Inactive' ? -1 : 1;
+            }
+          default:
+            return 0;
+        }
+      });
+    }
+    return sortable;
+  }, [filteredServices, sortConfig]);
+
+  // Header click handler
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
   };
 
-  // Add new service (simulate backend add)
-  const handleAddService = (newService) => {
+  const handleAddService = () => {
     // After adding, fetch the updated list
     fetch('http://localhost:3001/service-table')
       .then(res => res.json())
@@ -66,16 +114,6 @@ function ServiceList() {
         setFilteredServices(data);
       });
     setServiceDialogOpen(false);
-  };
-
-  // Delete service
-  const handleDeleteService = (index) => {
-    setServices(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Edit service (for demo, just alert)
-  const handleEditService = (service) => {
-    alert(`Edit service: ${service.name}`);
   };
 
   // Floating button logic
@@ -110,9 +148,14 @@ function ServiceList() {
     // navigate to appointment page or show modal
   };
 
+  // View dialog handler
+  const handleEditService = (service) => {
+    setSelectedService(service);
+    setViewDialogOpen(true);
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-      
       <Box sx={{ p: 3 }}>
         <Paper sx={{ p: 2, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -134,11 +177,6 @@ function ServiceList() {
                 ),
               }}
             />
-            <Tooltip title="Filter">
-              <IconButton>
-                <FilterList />
-              </IconButton>
-            </Tooltip>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -150,21 +188,92 @@ function ServiceList() {
           </Box>
 
           <TableContainer sx={{ maxHeight: 680, overflowY: 'auto' }}>
-            <Table stickyHeader>
+            <Table
+              stickyHeader
+              sx={{
+                tableLayout: 'fixed',
+                minWidth: 900,
+                '& td, & th': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                },
+              }}
+            >
               <TableHead>
                 <TableRow>
-                  <TableCell><b>Name</b></TableCell>
-                  <TableCell><b>Description</b></TableCell>
-                  <TableCell><b>Price</b></TableCell>
-                  <TableCell><b>Duration</b></TableCell>
-                  <TableCell><b>Type</b></TableCell>
-                  <TableCell><b>Status</b></TableCell>
-                  <TableCell align="center"><b>Actions</b></TableCell>
+                  <TableCell
+                    sx={{
+                      width: 160,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'name' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('name')}
+                  >
+                    <b>Name</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 220,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'description' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('description')}
+                  >
+                    <b>Description</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 100,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'price' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('price')}
+                  >
+                    <b>Price</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 120,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'duration' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('duration')}
+                  >
+                    <b>Duration</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 160,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'type' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('type')}
+                  >
+                    <b>Type</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 100,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'status' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('status')}
+                  >
+                    <b>Status</b>
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 80 }}><b>View</b></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredServices.length ? (
-                  filteredServices.map((service, index) => (
+                {sortedServices.length ? (
+                  sortedServices.map((service, index) => (
                     <TableRow key={index}>
                       <TableCell>{service.name}</TableCell>
                       <TableCell>{service.description}</TableCell>
@@ -174,14 +283,15 @@ function ServiceList() {
                       <TableCell
                         sx={{
                           color: service.status === 'Active' ? 'green' : 'red',
-                          fontWeight: 'bold'
+                          fontWeight: 'bold',
+                          borderRadius: 2
                         }}
                       >
                         {service.status}
                       </TableCell>
                       <TableCell align="center">
                         <IconButton onClick={() => handleEditService(service)}>
-                          <EditIcon fontSize="small" />
+                          <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -248,13 +358,19 @@ function ServiceList() {
           <AddIcon sx={{ fontSize: 40 }} />
         </Fab>
       </Box>
-      
+
       {/* Patient Modal */}
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
       <AddService
         open={serviceDialogOpen}
         onClose={() => setServiceDialogOpen(false)}
         handleAddService={handleAddService}
+      />
+      <ViewService
+        open={viewDialogOpen}
+        onClose={() => setViewDialogOpen(false)}
+        service={selectedService}
+        onServiceUpdated={handleAddService} // This will refresh the list after edit
       />
     </Box>
   );
