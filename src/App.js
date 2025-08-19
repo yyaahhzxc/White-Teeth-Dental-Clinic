@@ -11,8 +11,7 @@ import AddService from './add-service';
 import ServiceList from './service-page';
 
 
-import PatientList from './Records';
-import ServiceList from './service-page';
+
 
 function App() {
   const [username, setUsername] = useState('');
