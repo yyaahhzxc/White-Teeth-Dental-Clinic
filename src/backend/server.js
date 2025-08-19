@@ -188,4 +188,17 @@ app.get('/service-table', (req, res) => {
   });
 });
 
+app.put('/service-table/:id', (req, res) => {
+  const id = req.params.id;
+  const { name, description, price, duration, type, status } = req.body;
+  db.run(
+    `UPDATE ServiceTable SET name=?, description=?, price=?, duration=?, type=?, status=? WHERE serviceID=?`,
+    [name, description, price, duration, type, status, id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+
 app.listen(3001, () => console.log('🚀 Server running on http://localhost:3001'));
