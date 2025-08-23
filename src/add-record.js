@@ -16,7 +16,6 @@ import {
   Paper,
   Box,
   IconButton,
-  Divider,
   MenuItem
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,68 +24,101 @@ import CloseIcon from '@mui/icons-material/Close';
 const AddPatientRecord = ({ open, onClose }) => {
   const [tabIndex, setTabIndex] = useState(0);
 
-// Add state for every field
-const [firstName, setFirstName] = useState('');
-const [lastName, setLastName] = useState('');
-const [middleName, setMiddleName] = useState('');
-const [suffix, setSuffix] = useState('');
-const [maritalStatus, setMaritalStatus] = useState('');
-const [contactNumber, setContactNumber] = useState('');
-const [occupation, setOccupation] = useState('');
-const [address, setAddress] = useState('');
-const [dateOfBirth, setDateOfBirth] = useState('');
-const [sex, setSex] = useState('');
-const [contactPersonName, setContactPersonName] = useState('');
-const [contactPersonRelationship, setContactPersonRelationship] = useState('');
-const [contactPersonNumber, setContactPersonNumber] = useState('');
-const [contactPersonAddress, setContactPersonAddress] = useState('');
+  // Patient Information states
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [suffix, setSuffix] = useState('');
+  const [maritalStatus, setMaritalStatus] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [occupation, setOccupation] = useState('');
+  const [address, setAddress] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [sex, setSex] = useState('');
+  const [contactPersonName, setContactPersonName] = useState('');
+  const [contactPersonRelationship, setContactPersonRelationship] = useState('');
+  const [contactPersonNumber, setContactPersonNumber] = useState('');
+  const [contactPersonAddress, setContactPersonAddress] = useState('');
 
-const handleTabChange = (event, newValue) => setTabIndex(newValue);
+  // Medical Information states
+  const [allergies, setAllergies] = useState('');
+  const [bloodType, setBloodType] = useState('');
+  const [bloodborneDiseases, setBloodborneDiseases] = useState('');
+  const [pregnancyStatus, setPregnancyStatus] = useState('');
+  const [medications, setMedications] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [bloodPressure, setBloodPressure] = useState('');
+  const [diabetic, setDiabetic] = useState('');
 
-useEffect(() => {
-  if (open) setTabIndex(0);
-}, [open]);
+  const handleTabChange = (event, newValue) => setTabIndex(newValue);
 
-// Backend connection for Add Patient button
-const handleAddPatient = async () => {
-  const patient = {
-    firstName,
-    lastName,
-    middleName,
-    suffix,
-    maritalStatus,
-    contactNumber,
-    occupation,
-    address,
-    dateOfBirth,
-    sex,
-    contactPersonName,
-    contactPersonRelationship,
-    contactPersonNumber,
-    contactPersonAddress
+  useEffect(() => {
+    if (open) setTabIndex(0);
+  }, [open]);
+
+  // Save Patient + Medical Info
+  const handleAddPatient = async () => {
+    try {
+      // 1. Save patient info
+      const patient = {
+        firstName,
+        lastName,
+        middleName,
+        suffix,
+        maritalStatus,
+        contactNumber,
+        occupation,
+        address,
+        dateOfBirth,
+        sex,
+        contactPersonName,
+        contactPersonRelationship,
+        contactPersonNumber,
+        contactPersonAddress,
+        dateCreated: new Date().toISOString()
+      };
+
+      const res = await fetch('http://localhost:3001/patients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patient),
+      });
+
+      const savedPatient = await res.json();
+
+      // 2. Save medical info linked with patientId
+      const medicalInfo = {
+        patientId: savedPatient.id,
+        allergies,
+        bloodType,
+        bloodborneDiseases,
+        pregnancyStatus,
+        medications,
+        additionalNotes,
+        bloodPressure,
+        diabetic
+      };
+
+      await fetch('http://localhost:3001/medical-information', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(medicalInfo),
+      });
+
+      // 3. Reset form + close
+      onClose();
+      setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
+      setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
+      setDateOfBirth(''); setSex('');
+      setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
+      setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
+      setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
+      setTabIndex(0);
+
+    } catch (err) {
+      console.error("Error adding patient:", err);
+    }
   };
-  await fetch('http://localhost:3001/patients', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patient),
-  });
-  onClose();
-  setFirstName('');
-  setLastName('');
-  setMiddleName('');
-  setSuffix('');
-  setMaritalStatus('');
-  setContactNumber('');
-  setOccupation('');
-  setAddress('');
-  setDateOfBirth('');
-  setSex('');
-  setContactPersonName('');
-  setContactPersonRelationship('');
-  setContactPersonNumber('');
-  setContactPersonAddress('');
-  setTabIndex(0);
-};
 
   return (
     <Dialog
@@ -336,14 +368,15 @@ const handleAddPatient = async () => {
                   Health Profile
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: '#ffffff9e' }}value={allergies} onChange={(e) => setAllergies(e.target.value)} /></Grid>
                   <Grid item xs={4}>
                     <TextField
                       select
                       fullWidth
                       label="Blood Type"
                       sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      defaultValue=""
+                      value={bloodType} 
+                      onChange={(e) => setBloodType(e.target.value)}
                     >
                       <MenuItem value="A+">A+</MenuItem>
                       <MenuItem value="A-">A-</MenuItem>
@@ -355,24 +388,25 @@ const handleAddPatient = async () => {
                       <MenuItem value="O-">O-</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: '#ffffff9e' }} value={bloodborneDiseases} onChange={(e) => setBloodborneDiseases(e.target.value)} /></Grid>
                   <Grid item xs={12}>
                     <TextField
                       select
                       fullWidth
                       label="Pregnancy Status"
                       sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      defaultValue=""
+                      value={pregnancyStatus} 
+                      onChange={(e) => setPregnancyStatus(e.target.value)}
                     >
                       <MenuItem value="Pregnant">Pregnant</MenuItem>
                       <MenuItem value="Not Pregnant">Not Pregnant</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
                  <Grid item xs={4} sx={{ ml: 3 }}>
                     <Typography variant="body2">Blood Pressure</Typography>
-                    <RadioGroup row>
+                    <RadioGroup row value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)}>
                       <FormControlLabel value="High" control={<Radio />} label="High" />
                       <FormControlLabel value="Normal" control={<Radio />} label="Normal" />
                       <FormControlLabel value="Low" control={<Radio />} label="Low" />
@@ -380,7 +414,7 @@ const handleAddPatient = async () => {
                   </Grid>
                   <Grid item xs={4} sx={{ ml:6, mb: 4}}>
                     <Typography variant="body2">Diabetic</Typography>
-                    <RadioGroup row>
+                    <RadioGroup row value={diabetic} onChange={(e) => setDiabetic(e.target.value)}>
                       <FormControlLabel value="Yes" control={<Radio />} label="Yes" />
                       <FormControlLabel value="No" control={<Radio />} label="No" />
                     </RadioGroup>

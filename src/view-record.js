@@ -61,6 +61,8 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   useEffect(() => {
     if (open) setTabIndex(0);
     setEditMode(false);
+
+    // Fill patient info
     setFirstName(patient?.firstName || '');
     setLastName(patient?.lastName || '');
     setMiddleName(patient?.middleName || '');
@@ -76,6 +78,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
     setContactPersonNumber(patient?.contactPersonNumber || '');
     setContactPersonAddress(patient?.contactPersonAddress || '');
 
+    // Fill medical info
     setAllergies(medInfo?.allergies || '');
     setBloodType(medInfo?.bloodType || '');
     setBloodborneDiseases(medInfo?.bloodborneDiseases || '');
@@ -103,15 +106,19 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
           contactPersonName, contactPersonRelationship, contactPersonNumber, contactPersonAddress
         })
       });
-      // Update medical info
-      await fetch(`http://localhost:3001/medinfo/${medInfo.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-          medications, additionalNotes, bloodPressure, diabetic, xrayFile
-        })
-      });
+
+      // Update medical info (✅ fixed route)
+      if (medInfo?.id) {
+        await fetch(`http://localhost:3001/medical-information/${medInfo.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+            medications, additionalNotes, bloodPressure, diabetic, xrayFile
+          })
+        });
+      }
+
       setEditMode(false);
       if (onRecordUpdated) onRecordUpdated();
     } catch (err) {
@@ -138,7 +145,6 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
     setEditMode(false);
     onClose();
   };
-
   return (
     <Dialog
       open={open}

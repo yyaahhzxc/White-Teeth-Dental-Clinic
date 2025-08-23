@@ -68,6 +68,8 @@ function PatientList() {
   // View dialog state
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [medInfo, setMedInfo] = useState(null); // ⭐ MODIFIED
+
 
   // Fetch patients from backend
   useEffect(() => {
@@ -173,11 +175,21 @@ function PatientList() {
   };
 
   // View handler
-  const handleViewPatient = (patient) => {
-    setSelectedPatient(patient);
-    setViewDialogOpen(true);
-  };
+ // ⭐ MODIFIED: fetch med info too when viewing a patient
+ const handleViewPatient = async (patient) => {
+  setSelectedPatient(patient);
 
+  try {
+    const res = await fetch(`http://localhost:3001/medical-information/${patient.id}`);
+    const data = await res.json();
+    setMedInfo(data || null);
+  } catch (err) {
+    console.error("Error fetching medical info:", err);
+    setMedInfo(null);
+  }
+
+  setViewDialogOpen(true);
+};
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <Box sx={{ p: 3 }}>
@@ -389,6 +401,7 @@ function PatientList() {
         open={viewDialogOpen}
         onClose={() => setViewDialogOpen(false)}
         patient={selectedPatient}
+        medInfo={medInfo} // ⭐ MODIFIED
         onRecordUpdated={() => {
           // Refresh the list after edit
           fetch('http://localhost:3001/patients')
