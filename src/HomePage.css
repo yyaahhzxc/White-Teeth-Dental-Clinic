@@ -1,0 +1,139 @@
+/* General Styles */
+body {
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+  background-color: #f4f4f4;
+}
+
+.homepage {
+  text-align: center;
+}
+
+/* Header Styles */
+.homepage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background-color: #ffffff;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.homepage-logo {
+  height: 50px;
+}
+
+.homepage-nav a {
+  margin: 0 15px;
+  text-decoration: none;
+  color: #2148c0;
+  font-weight: bold;
+}
+
+/* Intro Section */
+.homepage-intro {
+  background-color: #e3f2fd;
+  padding: 50px 20px;
+}
+
+.homepage-intro h1 {
+  font-size: 2.5rem;
+  color: #2148c0;
+}
+
+.homepage-intro p {
+  font-size: 1.2rem;
+  color: #2148c0;
+}
+
+.homepage-intro button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  color: #ffffff;
+  background-color: #2148c0;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Expert Section */
+.homepage-expert {
+  padding: 40px 20px;
+  background-color: #ffffff;
+}
+
+.homepage-expert h2 {
+  font-size: 2rem;
+  color: #2148c0;
+}
+
+.homepage-expert p {
+  font-size: 1.2rem;
+  color: #333333;
+}
+
+/* Services Section */
+.homepage-services {
+  padding: 40px 20px;
+  background-color: #e3f2fd;
+}
+
+.homepage-services h2 {
+  font-size: 2rem;
+  color: #2148c0;
+}
+
+.homepage-services ul {
+  list-style: none;
+  padding: 0;
+}
+
+.homepage-services li {
+  font-size: 1.2rem;
+  color: #333333;
+  margin: 10px 0;
+}
+
+/* Location Section */
+.homepage-location {
+  padding: 40px 20px;
+  background-color: #ffffff;
+}
+
+.homepage-location h2 {
+  font-size: 2rem;
+  color: #2148c0;
+}
+
+.homepage-location p {
+  font-size: 1.2rem;
+  color: #333333;
+}
+
+/* Contact Section */
+.homepage-contact {
+  padding: 40px 20px;
+  background-color: #e3f2fd;
+}
+
+.homepage-contact h2 {
+  font-size: 2rem;
+  color: #2148c0;
+}
+
+.homepage-contact p {
+  font-size: 1.2rem;
+  color: #333333;
+}
+
+.homepage-contact button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  color: #ffffff;
+  background-color: #2148c0;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
