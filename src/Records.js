@@ -31,10 +31,13 @@ import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // ⭐ 1. ENSURE THIS IMPORT EXISTS
+
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
 import ViewRecord from './view-record';
+import AddPatientRecord from './add-record'; // ⭐ 1. IMPORT THE PATIENT MODAL
+
 
 // Utility function to compute age
 function computeAge(birthDate) {
@@ -62,8 +65,8 @@ function PatientList() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   // Floating button state is handled by QuickActionButton
-
   const navigate = useNavigate();
+  const [showPatientModal, setShowPatientModal] = useState(false);
 
   // View dialog state
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -97,6 +100,8 @@ function PatientList() {
     setPage(0);
   }, [search, patients]);
 
+  const handleAddPatientRecord = () => setShowPatientModal(true);
+ 
   // Sorting logic
   const sortedPatients = React.useMemo(() => {
     let sortable = [...filteredPatients];
@@ -190,6 +195,9 @@ function PatientList() {
 
   setViewDialogOpen(true);
 };
+
+
+const handleAddAppointment = () => navigate('/add-appointment');
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <Header />
@@ -414,8 +422,12 @@ function PatientList() {
         }}
       />
 
-  <QuickActionButton onAddPatientRecord={() => navigate('/add-patient')} onAddAppointment={() => navigate('/add-appointment')} />
-    </Box>
+<QuickActionButton
+        onAddPatientRecord={handleAddPatientRecord}
+      />  
+      
+       {/* Patient Modal */}
+       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />  </Box>
   );
 }
 

@@ -90,11 +90,17 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
     setXrayFile(medInfo?.xrayFile || '');
   }, [open, patient, medInfo]);
 
+  
+
   const handleTabChange = (event, newValue) => setTabIndex(newValue);
 
   const handleEditClick = () => setEditMode(true);
 
   const handleSaveClick = async () => {
+    if (!patient || !patient.id) {
+      alert('Cannot save. No patient selected.');
+      return;
+    }
     try {
       // Update patient info
       await fetch(`http://localhost:3001/patients/${patient.id}`, {
@@ -107,22 +113,23 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
         })
       });
 
-      // Update medical info (✅ fixed route)
-      if (medInfo?.id) {
-        await fetch(`http://localhost:3001/medical-information/${medInfo.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-            medications, additionalNotes, bloodPressure, diabetic, xrayFile
-          })
-        });
-      }
+      // Update medical info using the patient's ID
+      await fetch(`http://localhost:3001/medical-information/${patient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        })
+      });
 
-      setEditMode(false);
-      if (onRecordUpdated) onRecordUpdated();
+      setEditMode(false); // Exit edit mode on successful save
+      
+      if (onRecordUpdated) onRecordUpdated(); // Refresh the list in the parent component
+
     } catch (err) {
-      alert('Failed to save changes');
+      console.error("Save Error:", err);
+      alert('Failed to save changes. Please try again.');
     }
   };
 
@@ -141,6 +148,34 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   };
 
   const handleConfirmDiscard = () => {
+    // Revert changes by re-populating state from original props
+    if (patient) {
+      setFirstName(patient?.firstName || '');
+    setLastName(patient?.lastName || '');
+    setMiddleName(patient?.middleName || '');
+    setSuffix(patient?.suffix || '');
+    setMaritalStatus(patient?.maritalStatus || '');
+    setContactNumber(patient?.contactNumber || '');
+    setOccupation(patient?.occupation || '');
+    setAddress(patient?.address || '');
+    setDateOfBirth(patient?.dateOfBirth || '');
+    setSex(patient?.sex || '');
+    setContactPersonName(patient?.contactPersonName || '');
+    setContactPersonRelationship(patient?.contactPersonRelationship || '');
+    setContactPersonNumber(patient?.contactPersonNumber || '');
+    setContactPersonAddress(patient?.contactPersonAddress || '');
+    }
+    if (medInfo) {
+      setAllergies(medInfo?.allergies || '');
+    setBloodType(medInfo?.bloodType || '');
+    setBloodborneDiseases(medInfo?.bloodborneDiseases || '');
+    setPregnancyStatus(medInfo?.pregnancyStatus || '');
+    setMedications(medInfo?.medications || '');
+    setAdditionalNotes(medInfo?.additionalNotes || '');
+    setBloodPressure(medInfo?.bloodPressure || '');
+    setDiabetic(medInfo?.diabetic || '');
+    setXrayFile(medInfo?.xrayFile || '');
+    }
     setConfirmOpen(false);
     setEditMode(false);
     onClose();
