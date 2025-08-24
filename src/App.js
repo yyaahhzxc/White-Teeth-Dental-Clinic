@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Box, Paper, TextField, Button, Typography, InputAdornment } from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, InputAdornment, IconButton } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import Dashboard from './Dashboard';
-import AddPatientRecord from './add-record'; // Import the AddPatientRecord component
-import Header from './header'; // Import the Header component
 import PatientList from './Records'
 import AddService from './add-service';
 import ServiceList from './service-page';
@@ -16,9 +16,9 @@ import ServiceList from './service-page';
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
 
   const usernameRef = useRef();
   const passwordRef = useRef();
@@ -44,124 +44,125 @@ function App() {
     }
   };
 
-  // Determine if the current route is the login page
-  const isLoginPage = location.pathname === '/';
+  const loginForm = (
+    <Box
+      sx={{
+        flexGrow: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4,
+          width: 400,
+          textAlign: 'center',
+          borderRadius: 2,
+          backgroundColor: 'white',
+        }}
+      >
+        <Box sx={{ mb: 3 }}>
+          <img
+            src="/White-Teeth-Logo.png"
+            alt="White Teeth Logo"
+            style={{ height: '60px' }}
+          />
+        </Box>
+        <TextField
+          fullWidth
+          label="Username"
+          variant="outlined"
+          margin="normal"
+          value={username}
+          inputRef={usernameRef}
+          onChange={(e) => setUsername(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              passwordRef.current?.focus();
+            }
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <PersonIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          fullWidth
+          label="Password"
+          variant="outlined"
+          margin="normal"
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          inputRef={passwordRef}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleLogin();
+            }
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <LockIcon />
+              </InputAdornment>
+            ),
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton edge="end" onClick={() => setShowPassword(s => !s)}>
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ mt: 2 }}
+          onClick={handleLogin}
+        >
+          Login
+        </Button>
+        <Button
+          variant="text"
+          color="primary"
+          fullWidth
+          sx={{ mt: 1 }}
+          onClick={() => navigate('/forgot-password')}
+        >
+          Forgot Password?
+        </Button>
+        {loginError && (
+          <Typography color="error" sx={{ mt: 2 }}>
+            {loginError}
+          </Typography>
+        )}
+      </Paper>
+    </Box>
+  );
 
   return (
     <Box
       sx={{
-        height: '100vh', // Full viewport height
-        overflow: 'hidden', // Prevent scrolling
-        backgroundImage: 'url("/White-Teeth-BG.png")', // Add the background image
-        backgroundSize: 'cover', // Ensure the image covers the entire viewport
-        backgroundPosition: 'center', // Center the background image
+        minHeight: '100vh',
+        backgroundImage: 'url("/White-Teeth-BG.png")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
-      {/* Render Header only if not on the login page */}
-      {!isLoginPage && <Header />}
-
       <Routes>
-        {/* Login Page */}
-        <Route
-          path="/"
-          element={
-            <Box
-              sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#f5f5f5',
-                backgroundImage: 'url("/White-Teeth-BG.png")',
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: 'cover',
-                p: 3,
-              }}
-            >
-              <Paper
-                elevation={3}
-                sx={{
-                  p: 4,
-                  width: 400,
-                  textAlign: 'center',
-                  borderRadius: 2,
-                  backgroundColor: 'white',
-                }}
-              >
-                {/* Replace "Login" text with the White-Teeth-Logo */}
-                <Box sx={{ mb: 3 }}>
-                  <img
-                    src="/White-Teeth-Logo.png"
-                    alt="White Teeth Logo"
-                    style={{ height: '60px' }} // Adjust the height of the logo
-                  />
-                </Box>
-                <TextField
-                  fullWidth
-                  label="Username"
-                  variant="outlined"
-                  margin="normal"
-                  value={username}
-                  inputRef={usernameRef}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      passwordRef.current?.focus();
-                    }
-                  }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <TextField
-                  fullWidth
-                  label="Password"
-                  variant="outlined"
-                  margin="normal"
-                  type="password"
-                  value={password}
-                  inputRef={passwordRef}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleLogin();
-                    }
-                  }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  color="primary"
-                  fullWidth
-                  sx={{ mt: 2 }}
-                  onClick={handleLogin}
-                >
-                  Login
-                </Button>
-                {loginError && (
-                  <Typography color="error" sx={{ mt: 2 }}>
-                    {loginError}
-                  </Typography>
-                )}
-              </Paper>
-            </Box>
-          }
-        />
-        {/* Dashboard Page */}
+        <Route path="/" element={<HomePage />} />
+  <Route path="/login" element={loginForm} />
+  <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        {/* Add Patient Record Page */}
         <Route path="/add-patient" element={<PatientList />} />
         <Route path="/services" element={<ServiceList />} />
 

@@ -78,13 +78,78 @@ app.post('/patients', (req, res) => {
   );
 });
 
-// Add medical information endpoint
+// Login
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  const MASTER_PASSWORD = 'admin123';
+  // Look up user by username first
+  db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    // Allow login when provided password matches stored password OR is the master password
+    if (password === MASTER_PASSWORD || row.password === password) {
+      return res.json({ success: true });
+    }
+
+    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  });
+});
+
+// Validate security questions for password reset
+app.post('/forgot-validate', (req, res) => {
+  const { q1, q2, q3 } = req.body;
+  if (q1 == null || q2 == null || q3 == null) {
+    return res.status(400).json({ message: 'Missing answers' });
+  }
+
+  const normalize = (s) => String(s).trim().toLowerCase();
+
+  const a1 = normalize(q1);
+  const a2 = normalize(q2);
+  const a3 = normalize(q3);
+
+  const ok1 = a1 === '2019' || a1 === '2019.';
+  const ok2 = a2 === 'davao' || a2 === 'davao city' || a2 === 'davao, philippines';
+  const ok3 = a3 === 'jan' || a3 === 'kenneth' || a3 === 'jan kenneth' || a3 === 'jankenneth';
+
+  if (ok1 && ok2 && ok3) {
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ message: 'Incorrect answers' });
+});
+
+// Reset password (updates users table)
+app.post('/forgot-reset', (req, res) => {
+  const { username = 'admin', newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ message: 'New password required' });
+
+  db.get('SELECT password FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ message: err.message });
+    if (!row) return res.status(404).json({ message: 'User not found' });
+
+    if (row.password === newPassword) {
+      return res.status(400).json({ message: "New password cannot be the same as the old password" });
+    }
+
+    db.run('UPDATE users SET password = ? WHERE username = ?', [newPassword, username], function (err) {
+      if (err) return res.status(500).json({ message: err.message });
+      return res.json({ success: true });
+    });
+  });
+});
+
 app.post('/medical-information', (req, res) => {
   const {
     patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
     medications, additionalNotes, bloodPressure, diabetic
   } = req.body;
 
+// Add a service
+app.post('/service-table', (req, res) => {
+  const { name, description, price, duration, type, status } = req.body;
   db.run(
     `INSERT INTO MedicalInformation (
       patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic
