@@ -20,16 +20,24 @@ import {
   FormControlLabel,
   Fab,
   Zoom,
-  Tooltip
+  Tooltip,
+  IconButton,
+  MenuItem
 } from '@mui/material';
 import { Search, FilterList } from '@mui/icons-material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // ⭐ 1. ENSURE THIS IMPORT EXISTS
+
 import Header from './header';
+import QuickActionButton from './QuickActionButton';
+import ViewRecord from './view-record';
+import AddPatientRecord from './add-record'; // ⭐ 1. IMPORT THE PATIENT MODAL
+
 
 // Utility function to compute age
 function computeAge(birthDate) {
@@ -52,16 +60,19 @@ function PatientList() {
   const [page, setPage] = useState(0);
   const [rowsPerPage] = useState(5);
 
-  // Sort popup state
+  // Sort/filter state
   const [filterOpen, setFilterOpen] = useState(false);
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Floating button states
-  const [showActions, setShowActions] = useState(false);
-  const [showFirst, setShowFirst] = useState(false);
-  const [showSecond, setShowSecond] = useState(false);
-
+  // Floating button state is handled by QuickActionButton
   const navigate = useNavigate();
+  const [showPatientModal, setShowPatientModal] = useState(false);
+
+  // View dialog state
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [medInfo, setMedInfo] = useState(null); // ⭐ MODIFIED
+
 
   // Fetch patients from backend
   useEffect(() => {
@@ -74,7 +85,7 @@ function PatientList() {
       .catch(err => console.error('Error fetching patients:', err));
   }, []);
 
-  // Filter and sort patients
+  // Search filter
   useEffect(() => {
     let result = patients.filter(patient => {
       const fullName = [
@@ -85,33 +96,54 @@ function PatientList() {
       ].filter(Boolean).join(' ').toLowerCase();
       return fullName.includes(search.toLowerCase());
     });
-
-    result.sort((a, b) => {
-      const nameA = [
-        a.lastName,
-        a.firstName,
-        a.middleName ? a.middleName.charAt(0) + '.' : '',
-        a.suffix
-      ].filter(Boolean).join(' ').toLowerCase();
-      const nameB = [
-        b.lastName,
-        b.firstName,
-        b.middleName ? b.middleName.charAt(0) + '.' : '',
-        b.suffix
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (sortOrder === 'asc') {
-        return nameA.localeCompare(nameB);
-      } else {
-        return nameB.localeCompare(nameA);
-      }
-    });
-
     setFilteredPatients(result);
-    setPage(0); // Reset to first page on filter/sort
-  }, [patients, search, sortOrder]);
+    setPage(0);
+  }, [search, patients]);
+
+  const handleAddPatientRecord = () => setShowPatientModal(true);
+ 
+  // Sorting logic
+  const sortedPatients = React.useMemo(() => {
+    let sortable = [...filteredPatients];
+    if (sortConfig.key) {
+      sortable.sort((a, b) => {
+        switch (sortConfig.key) {
+          case 'name': {
+            const nameA = [
+              a.lastName,
+              a.firstName,
+              a.middleName ? a.middleName.charAt(0) + '.' : '',
+              a.suffix
+            ].filter(Boolean).join(' ').toLowerCase();
+            const nameB = [
+              b.lastName,
+              b.firstName,
+              b.middleName ? b.middleName.charAt(0) + '.' : '',
+              b.suffix
+            ].filter(Boolean).join(' ').toLowerCase();
+            if (nameA < nameB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (nameA > nameB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+          }
+          case 'age':
+            return sortConfig.direction === 'asc'
+              ? computeAge(a.dateOfBirth) - computeAge(b.dateOfBirth)
+              : computeAge(b.dateOfBirth) - computeAge(a.dateOfBirth);
+          case 'sex':
+            if (a.sex < b.sex) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (a.sex > b.sex) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+          // Removed contactNumber and address sorting
+          default:
+            return 0;
+        }
+      });
+    }
+    return sortable;
+  }, [filteredPatients, sortConfig]);
 
   // Pagination helpers
-  const totalPages = Math.ceil(filteredPatients.length / rowsPerPage);
+  const totalPages = Math.ceil(sortedPatients.length / rowsPerPage);
 
   function getPageItems(current, total) {
     const pages = [];
@@ -137,10 +169,38 @@ function PatientList() {
   const pageItems = getPageItems(page + 1, totalPages);
 
   // rows to display on current page
-  const visibleRows = filteredPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const visibleRows = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
+  // Sorting handler
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // View handler
+ // ⭐ MODIFIED: fetch med info too when viewing a patient
+ const handleViewPatient = async (patient) => {
+  setSelectedPatient(patient);
+
+  try {
+    const res = await fetch(`http://localhost:3001/medical-information/${patient.id}`);
+    const data = await res.json();
+    setMedInfo(data || null);
+  } catch (err) {
+    console.error("Error fetching medical info:", err);
+    setMedInfo(null);
+  }
+
+  setViewDialogOpen(true);
+};
+
+
+const handleAddAppointment = () => navigate('/add-appointment');
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <Header />
       <Box sx={{ p: 3 }}>
         <Paper sx={{ p: 2, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -164,18 +224,20 @@ function PatientList() {
               onClick={() => setFilterOpen(true)}
               sx={{ mr: 2 }}
             >
-              Sort
+              Filter
             </Button>
             <Dialog open={filterOpen} onClose={() => setFilterOpen(false)}>
-              <DialogTitle>Sort by Name</DialogTitle>
+              <DialogTitle>Sort/Filter Columns</DialogTitle>
               <DialogContent>
-                <RadioGroup
-                  value={sortOrder}
-                  onChange={e => setSortOrder(e.target.value)}
-                >
-                  <FormControlLabel value="asc" control={<Radio />} label="A-Z (Ascending)" />
-                  <FormControlLabel value="desc" control={<Radio />} label="Z-A (Descending)" />
-                </RadioGroup>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <Button onClick={() => handleSort('name')}>Name</Button>
+                  <Button onClick={() => handleSort('age')}>Age</Button>
+                  <Button onClick={() => handleSort('sex')}>Sex</Button>
+                  {/* Remove these:
+                  <Button onClick={() => handleSort('contactNumber')}>Contact Number</Button>
+                  <Button onClick={() => handleSort('address')}>Address</Button>
+                  */}
+                </Box>
               </DialogContent>
               <DialogActions>
                 <Button onClick={() => setFilterOpen(false)}>Close</Button>
@@ -183,15 +245,75 @@ function PatientList() {
             </Dialog>
           </Box>
 
-          <TableContainer>
-            <Table>
+          <TableContainer sx={{ maxHeight: 400, overflowY: 'auto' }}>
+            <Table
+              stickyHeader
+              sx={{
+                tableLayout: 'fixed',
+                minWidth: 900,
+                '& td, & th': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                },
+              }}
+            >
               <TableHead>
                 <TableRow>
-                  <TableCell><b>NAME</b></TableCell>
-                  <TableCell><b>SEX</b></TableCell>
-                  <TableCell><b>AGE</b></TableCell>
-                  <TableCell><b>CONTACT</b></TableCell>
-                  <TableCell><b>DATE CREATED</b></TableCell>
+                  <TableCell
+                    sx={{
+                      width: 200,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'name' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('name')}
+                  >
+                    <b>Full Name</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 80,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'age' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('age')}
+                  >
+                    <b>Age</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 80,
+                      cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'sex' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                    onClick={() => handleSort('sex')}
+                  >
+                    <b>Sex</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 140,
+                      // cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'contactNumber' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                  >
+                    <b>Contact Number</b>
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: 220,
+                      // cursor: 'pointer',
+                      backgroundColor: sortConfig.key === 'address' ? '#e0e0e0' : 'inherit',
+                      borderRadius: 2
+                    }}
+                  >
+                    <b>Address</b>
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 80 }}><b>View</b></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -201,15 +323,20 @@ function PatientList() {
                       <TableCell>
                         {`${patient.lastName || ''}, ${patient.firstName || ''}${patient.middleName ? ' ' + patient.middleName.charAt(0) + '.' : ''}${patient.suffix ? ' ' + patient.suffix : ''}`}
                       </TableCell>
-                      <TableCell>{patient.sex}</TableCell>
                       <TableCell>{computeAge(patient.dateOfBirth)}</TableCell>
-                      <TableCell>{patient.contact || patient.contactNumber || ''}</TableCell>
-                      <TableCell>{patient.dateCreated}</TableCell>
+                      <TableCell>{patient.sex}</TableCell>
+                      <TableCell>{patient.contactNumber || patient.contact || ''}</TableCell>
+                      <TableCell>{patient.address || ''}</TableCell>
+                      <TableCell align="center">
+                        <IconButton onClick={() => handleViewPatient(patient)}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       No records found.
                     </TableCell>
                   </TableRow>
@@ -278,48 +405,29 @@ function PatientList() {
         </Paper>
       </Box>
 
-      {/* Floating Buttons */}
-      <Box
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 1.5,
+      {/* View Patient Dialog */}
+      <ViewRecord
+        open={viewDialogOpen}
+        onClose={() => setViewDialogOpen(false)}
+        patient={selectedPatient}
+        medInfo={medInfo} // ⭐ MODIFIED
+        onRecordUpdated={() => {
+          // Refresh the list after edit
+          fetch('http://localhost:3001/patients')
+            .then(res => res.json())
+            .then(data => {
+              setPatients(data);
+              setFilteredPatients(data);
+            });
         }}
-      >
-        <Zoom in={showActions}>
-          <Box>
-            <Tooltip title="Add Patient">
-              <Fab
-                color="primary"
-                onClick={() => navigate('/add-patient')}
-                sx={{ mb: 1 }}
-              >
-                <PersonAddIcon sx={{ fontSize: 36 }} />
-              </Fab>
-            </Tooltip>
-          </Box>
-        </Zoom>
-        <Fab
-          color="default"
-          onClick={() => setShowActions(!showActions)}
-          sx={{
-            transition: 'transform 0.2s ease-in-out',
-            transform: showActions ? 'rotate(45deg)' : 'rotate(0deg)',
-            width: 72,
-            height: 72,
-            bgcolor: '#888',
-            color: 'white',
-            '&:hover': { bgcolor: '#666' },
-          }}
-        >
-          <AddIcon sx={{ fontSize: 40 }} />
-        </Fab>
-      </Box>
-    </Box>
+      />
+
+<QuickActionButton
+        onAddPatientRecord={handleAddPatientRecord}
+      />  
+      
+       {/* Patient Modal */}
+       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />  </Box>
   );
 }
 

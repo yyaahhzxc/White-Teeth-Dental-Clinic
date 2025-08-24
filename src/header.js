@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { AppBar, Toolbar, Typography, Button, IconButton, Box } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation } from 'react-router-dom';
-import AddService from './add-service'; // Import your AddService dialog
 
 function Header() {
   const navigate = useNavigate();
@@ -42,7 +41,7 @@ function Header() {
                 Appointments: '/appointments',
                 Invoice: '/invoice',
                 Logs: '/logs',
-                Services: '/services',
+                Services: '/service-page',
               };
               const isActive = activeRoute === routeMap[label];
               return (
@@ -68,12 +67,11 @@ function Header() {
               );
             })}
           </Box>
-          <IconButton color="inherit" onClick={() => setServiceDialogOpen(true)}>
+          <IconButton color="inherit">
             <SettingsIcon />
           </IconButton>
         </Toolbar>
       </AppBar>
-      <AddService open={serviceDialogOpen} onClose={() => setServiceDialogOpen(false)} />
     </>
   );
 }
