@@ -60,7 +60,7 @@ function Dashboard() {
   const handleAddAppointment = () => navigate('/add-appointment');
 
   return (
-    <Box sx={{ height: '100vh', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
+    <Box sx={{ height: '100vh', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative', userSelect: 'none' }}>
   {/* Site header */}
   <Header />
   {/* Overlay for quick actions was removed; quick-action state now lives inside `QuickActionButton`. */}

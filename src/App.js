@@ -9,6 +9,8 @@ import Dashboard from './Dashboard';
 import PatientList from './Records'
 import AddService from './add-service';
 import ServiceList from './service-page';
+import HomePage from './HomePage';
+import ForgotPassword from './ForgotPassword';
 
 
 
