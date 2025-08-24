@@ -33,6 +33,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import { useNavigate } from 'react-router-dom';
 import Header from './header';
+import QuickActionButton from './QuickActionButton';
 import ViewRecord from './view-record';
 
 // Utility function to compute age
@@ -60,8 +61,7 @@ function PatientList() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Floating button states
-  const [showActions, setShowActions] = useState(false);
+  // Floating button state is handled by QuickActionButton
 
   const navigate = useNavigate();
 
@@ -180,6 +180,7 @@ function PatientList() {
 
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <Header />
       <Box sx={{ p: 3 }}>
         <Paper sx={{ p: 2, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -400,47 +401,7 @@ function PatientList() {
         }}
       />
 
-      {/* Floating Buttons */}
-      <Box
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 1.5,
-        }}
-      >
-        <Zoom in={showActions}>
-          <Box>
-            <Tooltip title="Add Patient">
-              <Fab
-                color="primary"
-                onClick={() => navigate('/add-patient')}
-                sx={{ mb: 1 }}
-              >
-                <PersonAddIcon sx={{ fontSize: 36 }} />
-              </Fab>
-            </Tooltip>
-          </Box>
-        </Zoom>
-        <Fab
-          color="default"
-          onClick={() => setShowActions(!showActions)}
-          sx={{
-            transition: 'transform 0.2s ease-in-out',
-            transform: showActions ? 'rotate(45deg)' : 'rotate(0deg)',
-            width: 72,
-            height: 72,
-            bgcolor: '#888',
-            color: 'white',
-            '&:hover': { bgcolor: '#666' },
-          }}
-        >
-          <AddIcon sx={{ fontSize: 40 }} />
-        </Fab>
-      </Box>
+  <QuickActionButton onAddPatientRecord={() => navigate('/add-patient')} onAddAppointment={() => navigate('/add-appointment')} />
     </Box>
   );
 }

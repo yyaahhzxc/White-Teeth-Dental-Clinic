@@ -24,6 +24,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import AddService from './add-service';
 import AddPatientRecord from './add-record';
 import ViewService from './view-service';
+import QuickActionButton from './QuickActionButton';
 
 function ServiceList() {
   const [services, setServices] = useState([]);
@@ -116,37 +117,7 @@ function ServiceList() {
     setServiceDialogOpen(false);
   };
 
-  // Floating button logic
-  const [showActions, setShowActions] = useState(false);
-  const [showFirst, setShowFirst] = useState(false);
-  const [showSecond, setShowSecond] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
-
-  const toggleActions = () => {
-    if (!showActions) {
-      setShowActions(true);
-      setTimeout(() => setShowSecond(true), 15);
-      setTimeout(() => setShowFirst(true), 75);
-    } else {
-      setShowFirst(false);
-      setTimeout(() => setShowSecond(false), 15);
-      setTimeout(() => setShowActions(false), 75);
-    }
-  };
-
-  const handleAddPatientRecord = () => {
-    setShowActions(false);
-    setShowFirst(false);
-    setShowSecond(false);
-    setShowPatientModal(true);
-  };
-
-  const handleAddAppointment = () => {
-    setShowActions(false);
-    setShowFirst(false);
-    setShowSecond(false);
-    // navigate to appointment page or show modal
-  };
 
   // View dialog handler
   const handleEditService = (service) => {
@@ -309,55 +280,7 @@ function ServiceList() {
         </Paper>
       </Box>
 
-      {/* Floating Plus Button */}
-      <Box sx={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, zIndex: 1300 }}>
-        <Zoom in={showFirst} timeout={{ enter: 150, exit: 150 }}>
-          <Box display="flex" alignItems="center" mb={1} sx={{ position: 'relative' }}>
-            <Typography
-              variant="body2"
-              sx={{
-                position: 'absolute',
-                right: '100%',
-                mr: 2,
-                bgcolor: 'white',
-                px: 1.5,
-                py: 0.5,
-                borderRadius: 1.5,
-                boxShadow: 1,
-                fontWeight: 500,
-                color: '#1746A2',
-                minWidth: 120,
-                whiteSpace: 'nowrap',
-                textAlign: 'center',
-                fontSize: '1.15rem',
-              }}
-            >
-              Add Appointment
-            </Typography>
-            <Fab
-              size="large"
-              color="primary"
-              sx={{ zIndex: 1, width: 64, height: 64 }}
-              onClick={handleAddAppointment}
-            >
-              <EventAvailableIcon sx={{ fontSize: 36 }} />
-            </Fab>
-          </Box>
-        </Zoom>
-
-        <Zoom in={showSecond} timeout={{ enter: 150, exit: 150 }}>
-          <Box display="flex" alignItems="center" mb={1} sx={{ position: 'relative' }}>
-            <Typography variant="body2" sx={{ position: 'absolute', right: '100%', mr: 2, bgcolor: 'white', px: 1.5, py: 0.5, borderRadius: 1.5, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: 120, whiteSpace: 'nowrap', textAlign: 'right', fontSize: '1.15rem' }}>Add Patient Record</Typography>
-            <Fab size="large" color="primary" sx={{ zIndex: 1, width: 64, height: 64 }} onClick={handleAddPatientRecord}>
-              <PersonAddIcon sx={{ fontSize: 36 }} />
-            </Fab>
-          </Box>
-        </Zoom>
-
-        <Fab color="primary" onClick={toggleActions} sx={{ transition: 'transform 0.2s ease-in-out', transform: showActions ? 'rotate(45deg)' : 'rotate(0deg)', width: 72, height: 72 }}>
-          <AddIcon sx={{ fontSize: 40 }} />
-        </Fab>
-      </Box>
+  <QuickActionButton onAddPatientRecord={() => setShowPatientModal(true)} onAddAppointment={() => {/* navigate if needed */}} />
 
       {/* Patient Modal */}
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />

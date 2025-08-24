@@ -1,16 +1,20 @@
 import React, { useState, useRef } from 'react';
-import { Box, Paper, TextField, Button, Typography, InputAdornment } from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, InputAdornment, IconButton } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import PatientList from './Records';
 import ServiceList from './service-page';
 import HomePage from './HomePage.js';
+import ForgotPassword from './ForgotPassword';
 
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const navigate = useNavigate();
 
@@ -90,7 +94,7 @@ function App() {
           label="Password"
           variant="outlined"
           margin="normal"
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           value={password}
           inputRef={passwordRef}
           onChange={(e) => setPassword(e.target.value)}
@@ -105,6 +109,13 @@ function App() {
                 <LockIcon />
               </InputAdornment>
             ),
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton edge="end" onClick={() => setShowPassword(s => !s)}>
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
           }}
         />
         <Button
@@ -115,6 +126,15 @@ function App() {
           onClick={handleLogin}
         >
           Login
+        </Button>
+        <Button
+          variant="text"
+          color="primary"
+          fullWidth
+          sx={{ mt: 1 }}
+          onClick={() => navigate('/forgot-password')}
+        >
+          Forgot Password?
         </Button>
         {loginError && (
           <Typography color="error" sx={{ mt: 2 }}>
@@ -138,7 +158,8 @@ function App() {
     >
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={loginForm} />
+  <Route path="/login" element={loginForm} />
+  <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/add-patient" element={<PatientList />} />
         <Route path="/service-page" element={<ServiceList />} />
