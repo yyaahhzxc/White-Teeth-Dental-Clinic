@@ -7,10 +7,11 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 
 function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = () => {} }) {
-  const MAIN_SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.12; // 12% of smaller viewport dimension (doubled)  
-  const ACTION_SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.106; // ~10.6% of smaller viewport dimension (doubled)                                                                                                                          
-  const GAP = Math.min(window.innerWidth, window.innerHeight) * 0.014; // ~1.4% gap (doubled)
-  const MARGIN = Math.min(window.innerWidth, window.innerHeight) * 0.04; // 4% margin (doubled)
+  // Make size calculations dynamic functions instead of constants
+  const getMainSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.12;
+  const getActionSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.106;
+  const getGap = () => Math.min(window.innerWidth, window.innerHeight) * 0.014;
+  const getMargin = () => Math.min(window.innerWidth, window.innerHeight) * 0.04;
 
 
   const nodeRef = useRef(null);
@@ -25,6 +26,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
   // determine initial position synchronously so first paint shows bottom-right
   const computeInitial = () => {
     if (typeof window !== 'undefined') {
+      const MAIN_SIZE = getMainSize();
+      const MARGIN = getMargin();
       // try to account for the site header so top snaps sit below it
       const headerEl = document.querySelector('header');
       const headerHeight = headerEl?.getBoundingClientRect().height || 0;
@@ -34,13 +37,13 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
         y: Math.max(topOffset, window.innerHeight - MAIN_SIZE - MARGIN),
       };
     }
-    return { x: MARGIN, y: MARGIN };
+    return { x: getMargin(), y: getMargin() };
   };
 
   const initPos = computeInitial();
   const [position, setPosition] = useState(initPos);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [bounds, setBounds] = useState({ left: MARGIN, top: MARGIN, right: initPos.x, bottom: initPos.y });
+  const [bounds, setBounds] = useState({ left: getMargin(), top: getMargin(), right: initPos.x, bottom: initPos.y });
   const [isDragging, setIsDragging] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
@@ -49,6 +52,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
 
   // ensure the initial placement is bottom-right before first paint to avoid visual jump
   useLayoutEffect(() => {
+  const MAIN_SIZE = getMainSize();
+  const MARGIN = getMargin();
   const headerEl = document.querySelector('header');
   const headerHeight = headerEl?.getBoundingClientRect().height || 0;
   const topOffset = Math.max(MARGIN, headerHeight + Math.min(window.innerWidth, window.innerHeight) * 0.007);
@@ -63,6 +68,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
   // update bounds on resize and maintain current corner
   useEffect(() => {
     const updateBounds = () => {
+      const MAIN_SIZE = getMainSize();
+      const MARGIN = getMargin();
       const headerEl = document.querySelector('header');
       const headerHeight = headerEl?.getBoundingClientRect().height || 0;
       const topOffset = Math.max(MARGIN, headerHeight + Math.min(window.innerWidth, window.innerHeight) * 0.007);
@@ -131,6 +138,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
     }
 
     // Decide nearest corner based on final center point
+    const MAIN_SIZE = getMainSize();
     const centerX = data.x + MAIN_SIZE / 2;
     const centerY = data.y + MAIN_SIZE / 2;
     const midX = window.innerWidth / 2;
@@ -152,6 +160,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
 
   // helper to compute corner booleans from current position
   const cornerFromPos = () => {
+    const MAIN_SIZE = getMainSize();
     const centerX = position.x + MAIN_SIZE / 2;
     const centerY = position.y + MAIN_SIZE / 2;
     const midX = window.innerWidth / 2;
@@ -189,6 +198,9 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
 
   // compute action position styles relative to the main FAB container
   const getActionStyle = (index, forTopVariant, isLeft) => {
+    const MAIN_SIZE = getMainSize();
+    const ACTION_SIZE = getActionSize();
+    const GAP = getGap();
     const centerOffset = (MAIN_SIZE - ACTION_SIZE) / 2; // px to align centers
     const adjacentDistance = MAIN_SIZE / 2 + ACTION_SIZE / 2 + GAP; // px from center to center
     const distance = adjacentDistance + index * (ACTION_SIZE + GAP);
@@ -253,8 +265,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
               position: 'fixed',
               left: 0,
               top: 0,
-              width: MAIN_SIZE,
-              height: MAIN_SIZE,
+              width: getMainSize(),
+              height: getMainSize(),
               pointerEvents: 'auto', // allow interactions with the button
               cursor: isDragging ? 'grabbing' : 'grab',
               // quick but eased snap transition when not dragging
@@ -265,6 +277,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
             {/* action buttons (appear relative to the main FAB) */}
             {(() => {
               const { isTop, isLeft } = cornerFromPos();
+              const MAIN_SIZE = getMainSize();
 
               // Visibility logic:
               // - topGroupVisible: Show buttons ABOVE the main FAB (when main FAB is on bottom half).
@@ -280,6 +293,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                 <>
                   <Box sx={{ position: 'relative', width: MAIN_SIZE, height: MAIN_SIZE, overflow: 'visible' }}>
                     {[0, 1].map((i) => {
+                      const ACTION_SIZE = getActionSize();
                       const labelText = i === 0 ? 'Add Appointment' : 'Add Patient Record';
                       const openDelay = `${i * openDelayMs}ms`;
                       const closeDelay = `${(maxIndex - i) * openDelayMs}ms`;
