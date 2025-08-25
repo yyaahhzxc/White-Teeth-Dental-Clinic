@@ -1,0 +1,21 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.whiteteeth.dentalclinic
+productName: White Teeth Dental Clinic
+files:
+  - filter:
+      - dist/**/*
+      - electron.js
+      - src/backend/**/*
+      - package.json
+win:
+  target: portable
+  icon: public/White-Teeth-Logo.png
+  forceCodeSigning: false
+portable:
+  artifactName: ${productName}-${version}-portable.exe
+nsis: null
+compression: store
+publish: null
+electronVersion: 37.3.1

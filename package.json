@@ -58,7 +58,7 @@
     "appId": "com.whiteteeth.dentalclinic",
     "productName": "White Teeth Dental Clinic",
     "directories": {
-      "output": "release"
+      "output": "dist-electron"
     },
     "files": [
       "dist/**/*",
