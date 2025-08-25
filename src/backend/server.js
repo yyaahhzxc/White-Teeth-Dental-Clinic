@@ -51,6 +51,43 @@ db.run(`
   )
 `);
 
+// Create services table
+db.run(`
+  CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    description TEXT,
+    price REAL,
+    duration TEXT,
+    type TEXT,
+    status TEXT
+  )
+`);
+
+// Create users table
+db.run(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
+  )
+`);
+
+// Insert default admin user if not exists
+db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, row) => {
+  if (err) {
+    console.error('Error checking for admin user:', err);
+  } else if (!row) {
+    db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', 'admin123'], (err) => {
+      if (err) {
+        console.error('Error creating admin user:', err);
+      } else {
+        console.log('✅ Default admin user created');
+      }
+    });
+  }
+});
+
 // Add patient endpoint
 app.post('/patients', (req, res) => {
   const {
@@ -147,14 +184,24 @@ app.post('/medical-information', (req, res) => {
     medications, additionalNotes, bloodPressure, diabetic
   } = req.body;
 
-// Add a service
-app.post('/service-table', (req, res) => {
-  const { name, description, price, duration, type, status } = req.body;
   db.run(
     `INSERT INTO MedicalInformation (
       patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID });
+    }
+  );
+});
+
+// Add a service
+app.post('/service-table', (req, res) => {
+  const { name, description, price, duration, type, status } = req.body;
+  db.run(
+    `INSERT INTO services (name, description, price, duration, type, status) VALUES (?, ?, ?, ?, ?, ?)`,
+    [name, description, price, duration, type, status],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID });
@@ -181,6 +228,14 @@ app.get('/medical-information/:patientId', (req, res) => {
       res.json(row);
     }
   );
+});
+
+// Get all services
+app.get('/service-table', (req, res) => {
+  db.all('SELECT * FROM services', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
 });
 
 const PORT = process.env.PORT || 3001;
