@@ -280,7 +280,11 @@ function ServiceList() {
         </Paper>
       </Box>
 
-  <QuickActionButton onAddPatientRecord={() => setShowPatientModal(true)} onAddAppointment={() => {/* navigate if needed */}} />
+  <QuickActionButton 
+    onAddPatientRecord={() => setShowPatientModal(true)} 
+    onAddAppointment={() => {/* navigate if needed */}} 
+    modalOpen={showPatientModal || serviceDialogOpen || viewDialogOpen}
+  />
 
       {/* Patient Modal */}
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />

@@ -401,8 +401,18 @@ function PatientList() {
         }}
       />
 
+<<<<<<< Updated upstream
   <QuickActionButton onAddPatientRecord={() => navigate('/add-patient')} onAddAppointment={() => navigate('/add-appointment')} />
     </Box>
+=======
+<QuickActionButton
+        onAddPatientRecord={handleAddPatientRecord}
+        modalOpen={showPatientModal || viewDialogOpen}
+      />  
+      
+       {/* Patient Modal */}
+       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />  </Box>
+>>>>>>> Stashed changes
   );
 }
 

@@ -93,7 +93,7 @@ function Dashboard() {
         </Paper>
       </Box>
 
-  <QuickActionButton onAddPatientRecord={handleAddPatientRecord} onAddAppointment={handleAddAppointment} />
+  <QuickActionButton onAddPatientRecord={handleAddPatientRecord} onAddAppointment={handleAddAppointment} modalOpen={showPatientModal} />
 
       {/* Patient Modal */}
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />

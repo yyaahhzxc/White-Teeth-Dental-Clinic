@@ -6,11 +6,20 @@ import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 
+<<<<<<< Updated upstream
 function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = () => {} }) {
   const MAIN_SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.12; // 12% of smaller viewport dimension (doubled)
   const ACTION_SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.106; // ~10.6% of smaller viewport dimension (doubled)
   const GAP = Math.min(window.innerWidth, window.innerHeight) * 0.014; // ~1.4% gap (doubled)
   const MARGIN = Math.min(window.innerWidth, window.innerHeight) * 0.04; // 4% margin (doubled)
+=======
+function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = () => {}, modalOpen = false }) {
+  // Make size calculations dynamic functions instead of constants
+  const getMainSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.12;
+  const getActionSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.106;
+  const getGap = () => Math.min(window.innerWidth, window.innerHeight) * 0.014;
+  const getMargin = () => Math.min(window.innerWidth, window.innerHeight) * 0.04;
+>>>>>>> Stashed changes
 
 
   const nodeRef = useRef(null);
@@ -231,6 +240,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
               // quick but eased snap transition when not dragging
               transition: isDragging ? 'none' : 'transform 180ms cubic-bezier(.2,.9,.2,1)',
               zIndex: 9999, // sit above the overlay
+              // Apply backdrop-level dimming when modal is open (matches Material-UI backdrop)
+              opacity: modalOpen ? 0.46 : 1,
             }}
           >
             {/* action buttons (appear relative to the main FAB) */}
