@@ -7,10 +7,11 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 
 function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = () => {} }) {
-  const MAIN_SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.12; // 12% of smaller viewport dimension (doubled)
-  const ACTION_SIZE = Math.min(window.innerWidth, window.innerHeight) * 0.106; // ~10.6% of smaller viewport dimension (doubled)
-  const GAP = Math.min(window.innerWidth, window.innerHeight) * 0.014; // ~1.4% gap (doubled)
-  const MARGIN = Math.min(window.innerWidth, window.innerHeight) * 0.04; // 4% margin (doubled)
+  // Make size calculations dynamic functions instead of constants
+  const getMainSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.12;
+  const getActionSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.106;
+  const getGap = () => Math.min(window.innerWidth, window.innerHeight) * 0.014;
+  const getMargin = () => Math.min(window.innerWidth, window.innerHeight) * 0.04;
 
 
   const nodeRef = useRef(null);
@@ -25,6 +26,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
   // determine initial position synchronously so first paint shows bottom-right
   const computeInitial = () => {
     if (typeof window !== 'undefined') {
+      const MAIN_SIZE = getMainSize();
+      const MARGIN = getMargin();
       // try to account for the site header so top snaps sit below it
       const headerEl = document.querySelector('header');
       const headerHeight = headerEl?.getBoundingClientRect().height || 0;
@@ -34,20 +37,23 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
         y: Math.max(topOffset, window.innerHeight - MAIN_SIZE - MARGIN),
       };
     }
-    return { x: MARGIN, y: MARGIN };
+    return { x: getMargin(), y: getMargin() };
   };
 
   const initPos = computeInitial();
   const [position, setPosition] = useState(initPos);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [bounds, setBounds] = useState({ left: MARGIN, top: MARGIN, right: initPos.x, bottom: initPos.y });
+  const [bounds, setBounds] = useState({ left: getMargin(), top: getMargin(), right: initPos.x, bottom: initPos.y });
   const [isDragging, setIsDragging] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [toggleWillOpen, setToggleWillOpen] = useState(false);
+  const [currentCorner, setCurrentCorner] = useState('bottom-right'); // track which corner we're in
 
   // ensure the initial placement is bottom-right before first paint to avoid visual jump
   useLayoutEffect(() => {
+  const MAIN_SIZE = getMainSize();
+  const MARGIN = getMargin();
   const headerEl = document.querySelector('header');
   const headerHeight = headerEl?.getBoundingClientRect().height || 0;
   const topOffset = Math.max(MARGIN, headerHeight + Math.min(window.innerWidth, window.innerHeight) * 0.007);
@@ -59,26 +65,52 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
   setIsInitialized(true);
   }, []);
 
-  // update bounds on resize and clamp position
+  // update bounds on resize and maintain current corner
   useEffect(() => {
     const updateBounds = () => {
+      const MAIN_SIZE = getMainSize();
+      const MARGIN = getMargin();
       const headerEl = document.querySelector('header');
       const headerHeight = headerEl?.getBoundingClientRect().height || 0;
       const topOffset = Math.max(MARGIN, headerHeight + Math.min(window.innerWidth, window.innerHeight) * 0.007);
-      const right = Math.max(MARGIN, window.innerWidth - MAIN_SIZE - MARGIN);
-      const bottom = Math.max(topOffset, window.innerHeight - MAIN_SIZE - MARGIN);
-      setBounds({ left: MARGIN, top: topOffset, right, bottom });
+      const newRight = Math.max(MARGIN, window.innerWidth - MAIN_SIZE - MARGIN);
+      const newBottom = Math.max(topOffset, window.innerHeight - MAIN_SIZE - MARGIN);
+      
+      // calculate new bounds first
+      const newBounds = { left: MARGIN, top: topOffset, right: newRight, bottom: newBottom };
+      setBounds(newBounds);
 
-      // clamp current position so it doesn't sit outside new bounds
-      setPosition((p) => ({
-        x: Math.max(MARGIN, Math.min(p.x || 0, right)),
-        y: Math.max(topOffset, Math.min(p.y || 0, bottom)),
-      }));
+      // then use the fresh bounds to set position
+      setPosition(() => {
+        let targetX, targetY;
+        
+        switch (currentCorner) {
+          case 'top-left':
+            targetX = newBounds.left;
+            targetY = newBounds.top;
+            break;
+          case 'top-right':
+            targetX = newBounds.right;
+            targetY = newBounds.top;
+            break;
+          case 'bottom-left':
+            targetX = newBounds.left;
+            targetY = newBounds.bottom;
+            break;
+          case 'bottom-right':
+          default:
+            targetX = newBounds.right;
+            targetY = newBounds.bottom;
+            break;
+        }
+
+        return { x: targetX, y: targetY };
+      });
     };
 
     window.addEventListener('resize', updateBounds);
     return () => window.removeEventListener('resize', updateBounds);
-  }, []);
+  }, [currentCorner]);
 
   const handleStart = (_, data) => {
     setIsDragging(true);
@@ -106,6 +138,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
     }
 
     // Decide nearest corner based on final center point
+    const MAIN_SIZE = getMainSize();
     const centerX = data.x + MAIN_SIZE / 2;
     const centerY = data.y + MAIN_SIZE / 2;
     const midX = window.innerWidth / 2;
@@ -117,12 +150,17 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
     const targetX = isLeft ? bounds.left : bounds.right;
     const targetY = isTop ? bounds.top : bounds.bottom;
 
+    // update current corner state
+    const newCorner = `${isTop ? 'top' : 'bottom'}-${isLeft ? 'left' : 'right'}`;
+    setCurrentCorner(newCorner);
+
     // snap to the computed corner
     setPosition({ x: targetX, y: targetY });
   };
 
   // helper to compute corner booleans from current position
   const cornerFromPos = () => {
+    const MAIN_SIZE = getMainSize();
     const centerX = position.x + MAIN_SIZE / 2;
     const centerY = position.y + MAIN_SIZE / 2;
     const midX = window.innerWidth / 2;
@@ -160,6 +198,9 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
 
   // compute action position styles relative to the main FAB container
   const getActionStyle = (index, forTopVariant, isLeft) => {
+    const MAIN_SIZE = getMainSize();
+    const ACTION_SIZE = getActionSize();
+    const GAP = getGap();
     const centerOffset = (MAIN_SIZE - ACTION_SIZE) / 2; // px to align centers
     const adjacentDistance = MAIN_SIZE / 2 + ACTION_SIZE / 2 + GAP; // px from center to center
     const distance = adjacentDistance + index * (ACTION_SIZE + GAP);
@@ -189,7 +230,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
   return (
     // full-viewport container for bounding calculations.
     // pointerEvents toggles so the overlay can capture clicks only when actions are open.
-    <Box ref={containerRef} sx={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', pointerEvents: showActions ? 'auto' : 'none', zIndex: 1300 }}>
+    <Box ref={containerRef} sx={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', pointerEvents: showActions ? 'auto' : 'none', zIndex: 1300 }}>                                                                                         
       {/* backdrop shown only while actions are open; sits beneath the FAB/action buttons */}
       <Box
         onClick={(e) => { e.stopPropagation(); setShowActions(false); }}
@@ -224,8 +265,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
               position: 'fixed',
               left: 0,
               top: 0,
-              width: MAIN_SIZE,
-              height: MAIN_SIZE,
+              width: getMainSize(),
+              height: getMainSize(),
               pointerEvents: 'auto', // allow interactions with the button
               cursor: isDragging ? 'grabbing' : 'grab',
               // quick but eased snap transition when not dragging
@@ -236,6 +277,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
             {/* action buttons (appear relative to the main FAB) */}
             {(() => {
               const { isTop, isLeft } = cornerFromPos();
+              const MAIN_SIZE = getMainSize();
 
               // Visibility logic:
               // - topGroupVisible: Show buttons ABOVE the main FAB (when main FAB is on bottom half).
@@ -251,23 +293,21 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                 <>
                   <Box sx={{ position: 'relative', width: MAIN_SIZE, height: MAIN_SIZE, overflow: 'visible' }}>
                     {[0, 1].map((i) => {
+                      const ACTION_SIZE = getActionSize();
                       const labelText = i === 0 ? 'Add Appointment' : 'Add Patient Record';
                       const openDelay = `${i * openDelayMs}ms`;
                       const closeDelay = `${(maxIndex - i) * openDelayMs}ms`;
-                      
+
                       // --- Top Group (appears when main FAB is at the bottom) ---
                       const topStyle = getActionStyle(i, true, isLeft);
                       const topTransitionDelay = toggleWillOpen ? openDelay : closeDelay;
-                      const topTransform = `scale(${topGroupVisible ? 1 : 0.6}) translateY(${topGroupVisible ? '0' : `${-Math.min(window.innerWidth, window.innerHeight) * 0.007}px`})`;
-                      
+                      const topTransform = `scale(${topGroupVisible ? 1 : 0.6}) translateY(${topGroupVisible ? '0' : `${-Math.min(window.innerWidth, window.innerHeight) * 0.007}px`})`;                                                                
                       // --- Bottom Group (appears when main FAB is at the top) ---
                       const bottomStyle = getActionStyle(i, false, isLeft);
                       const bottomTransitionDelay = toggleWillOpen ? openDelay : closeDelay;
-                      const bottomTransform = `scale(${bottomGroupVisible ? 1 : 0.6}) translateY(${bottomGroupVisible ? '0' : `${Math.min(window.innerWidth, window.innerHeight) * 0.007}px`})`;
-
-                      const leftLabelTransform = (!isLeft && showActions) ? 'translateX(0)' : `translateX(${-Math.min(window.innerWidth, window.innerHeight) * 0.007}px)`;
-                      const rightLabelTransform = (isLeft && showActions) ? 'translateX(0)' : `translateX(${Math.min(window.innerWidth, window.innerHeight) * 0.007}px)`;
-
+                      const bottomTransform = `scale(${bottomGroupVisible ? 1 : 0.6}) translateY(${bottomGroupVisible ? '0' : `${Math.min(window.innerWidth, window.innerHeight) * 0.007}px`})`;                                                        
+                      const leftLabelTransform = (!isLeft && showActions) ? 'translateX(0)' : `translateX(${-Math.min(window.innerWidth, window.innerHeight) * 0.007}px)`;                                                                                                    
+                      const rightLabelTransform = (isLeft && showActions) ? 'translateX(0)' : `translateX(${Math.min(window.innerWidth, window.innerHeight) * 0.007}px)`;                                                                               
                       return (
                         <React.Fragment key={i}>
                           {/* Top Group Renderer */}
@@ -278,14 +318,14 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                               pointerEvents: topGroupVisible ? 'auto' : 'none',
                               zIndex: 1,
                               transformOrigin: 'bottom center',
-                              transition: `opacity 200ms ease ${topTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${topTransitionDelay}`,
+                              transition: `opacity 200ms ease ${topTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${topTransitionDelay}`,                                                                                                                                 
                               transform: topTransform,
                             }}
                           >
-                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && topGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>
-                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && topGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>
-                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => { e.stopPropagation(); setShowActions(false); if (i === 0) onAddAppointment(); else onAddPatientRecord(); }}>
-                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}
+                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && topGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                              
+                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && topGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                                
+                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => { e.stopPropagation(); setShowActions(false); if (i === 0) onAddAppointment(); else onAddPatientRecord(); }}>                                            
+                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}                                                                                                      
                             </Fab>
                           </Box>
 
@@ -297,14 +337,14 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                               pointerEvents: bottomGroupVisible ? 'auto' : 'none',
                               zIndex: 1,
                               transformOrigin: 'top center',
-                              transition: `opacity 200ms ease ${bottomTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${bottomTransitionDelay}`,
+                              transition: `opacity 200ms ease ${bottomTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${bottomTransitionDelay}`,                                                                                                                           
                               transform: bottomTransform,
                             }}
                           >
-                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && bottomGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>
-                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && bottomGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>
-                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => { e.stopPropagation(); setShowActions(false); if (i === 0) onAddAppointment(); else onAddPatientRecord(); }}>
-                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}
+                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && bottomGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                           
+                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && bottomGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                             
+                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => { e.stopPropagation(); setShowActions(false); if (i === 0) onAddAppointment(); else onAddPatientRecord(); }}>                                            
+                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}                                                                                                      
                             </Fab>
                           </Box>
                         </React.Fragment>
@@ -313,7 +353,7 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                   </Box>
 
                   {/* Main FAB */}
-                  <Box sx={{ position: 'absolute', left: 0, top: 0, width: MAIN_SIZE, height: MAIN_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Box sx={{ position: 'absolute', left: 0, top: 0, width: MAIN_SIZE, height: MAIN_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>                                                                                                
                     <Fab
                       data-testid="quick-main-fab"
                       color="primary"
@@ -323,12 +363,12 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                         if (movedRef.current) { movedRef.current = false; return; }
                         toggleActions();
                       }}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleActions(); } }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleActions(); } }}                                                                                                                                                 
                       aria-expanded={showActions}
                       aria-controls="quick-action-group"
                       title={showActions ? 'Close quick actions' : 'Open quick actions'}
                     >
-                      <AddIcon sx={{ fontSize: `${MAIN_SIZE * 0.56}px`, transform: showActions ? 'rotate(45deg)' : 'none', transition: 'transform 200ms cubic-bezier(.2,.9,.2,1)' }} />
+                      <AddIcon sx={{ fontSize: `${MAIN_SIZE * 0.56}px`, transform: showActions ? 'rotate(45deg)' : 'none', transition: 'transform 200ms cubic-bezier(.2,.9,.2,1)' }} />                                                                                     
                     </Fab>
                   </Box>
                 </>
@@ -340,5 +380,6 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
       )}
     </Box>
   );
-}export default QuickActionButton;
+}
 
+export default QuickActionButton;

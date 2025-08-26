@@ -404,7 +404,7 @@ export default function HomePage() {
 
                                 <Box
                                     component="img"
-                                    src={encodeURI('/Dr Sarah Gerona.png')}
+                                    src={encodeURI('/Dr-Sarah-Gerona.png')}
                                     alt="Dr sarah gerona"
                                     sx={{
                                         display: 'block',
@@ -556,7 +556,7 @@ export default function HomePage() {
                         <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-end' }, position: 'relative', height: '100%', alignItems: 'center' }}>
                             <Box
                                 component="img"
-                                src="/Clinic Location.png"
+                                src="/Clinic-Location.png"
                                 alt="Clinic Location"
                                 sx={{
                                     width: { xs: '90%', md: '100%' },
