@@ -51,6 +51,19 @@ db.run(`
   )
 `);
 
+// Create services table
+db.run(`
+  CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    description TEXT,
+    price REAL,
+    duration TEXT,
+    type TEXT,
+    status TEXT
+  )
+`);
+
 // Add patient endpoint
 app.post('/patients', (req, res) => {
   const {
@@ -82,14 +95,13 @@ app.post('/patients', (req, res) => {
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   const MASTER_PASSWORD = 'admin123';
-  // Look up user by username first
+
   db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    // Allow login when provided password matches stored password OR is the master password
     if (password === MASTER_PASSWORD || row.password === password) {
       return res.json({ success: true });
     }
@@ -121,7 +133,7 @@ app.post('/forgot-validate', (req, res) => {
   return res.status(401).json({ message: 'Incorrect answers' });
 });
 
-// Reset password (updates users table)
+// Reset password
 app.post('/forgot-reset', (req, res) => {
   const { username = 'admin', newPassword } = req.body;
   if (!newPassword) return res.status(400).json({ message: 'New password required' });
@@ -141,20 +153,34 @@ app.post('/forgot-reset', (req, res) => {
   });
 });
 
+// Add medical information
 app.post('/medical-information', (req, res) => {
   const {
     patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
     medications, additionalNotes, bloodPressure, diabetic
   } = req.body;
 
-// Add a service
-app.post('/service-table', (req, res) => {
-  const { name, description, price, duration, type, status } = req.body;
   db.run(
     `INSERT INTO MedicalInformation (
       patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID });
+    }
+  );
+});
+
+// Add a service
+app.post('/service-table', (req, res) => {
+  const { name, description, price, duration, type, status } = req.body;
+
+  db.run(
+    `INSERT INTO services (
+      name, description, price, duration, type, status
+    ) VALUES (?, ?, ?, ?, ?, ?)`,
+    [name, description, price, duration, type, status],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID });
@@ -170,6 +196,50 @@ app.get('/patients', (req, res) => {
   });
 });
 
+// Get all patients
+app.get('/patients', (req, res) => {
+  db.all('SELECT * FROM patients', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// ⭐ ADD THIS ENDPOINT TO UPDATE PATIENT DETAILS
+app.put('/patients/:id', (req, res) => {
+  const { id } = req.params;
+  const {
+    firstName, lastName, middleName, suffix, maritalStatus,
+    contactNumber, occupation, address, dateOfBirth, sex,
+    contactPersonName, contactPersonRelationship, contactPersonNumber,
+    contactPersonAddress
+  } = req.body;
+
+  db.run(
+    `UPDATE patients SET
+      firstName = ?, lastName = ?, middleName = ?, suffix = ?, maritalStatus = ?,
+      contactNumber = ?, occupation = ?, address = ?, dateOfBirth = ?, sex = ?,
+      contactPersonName = ?, contactPersonRelationship = ?, contactPersonNumber = ?,
+      contactPersonAddress = ?
+    WHERE id = ?`,
+    [
+      firstName, lastName, middleName, suffix, maritalStatus,
+      contactNumber, occupation, address, dateOfBirth, sex,
+      contactPersonName, contactPersonRelationship, contactPersonNumber,
+      contactPersonAddress,
+      id
+    ],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+      res.json({ updated: this.changes });
+    }
+  );
+});
+
 // Get medical information by patientId
 app.get('/medical-information/:patientId', (req, res) => {
   const patientId = req.params.patientId;
@@ -183,6 +253,77 @@ app.get('/medical-information/:patientId', (req, res) => {
   );
 });
 
+
+app.put('/medical-information/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const {
+    allergies,
+    bloodType,
+    bloodborneDiseases,
+    pregnancyStatus,
+    medications,
+    additionalNotes,
+    bloodPressure,
+    diabetic
+    // add healthProfile or other fields if needed
+  } = req.body;
+
+  db.run(
+    `UPDATE MedicalInformation SET
+      allergies = ?,
+      bloodType = ?,
+      bloodborneDiseases = ?,
+      pregnancyStatus = ?,
+      medications = ?,
+      additionalNotes = ?,
+      bloodPressure = ?,
+      diabetic = ?
+      WHERE patientId = ?`,
+    [
+      allergies,
+      bloodType,
+      bloodborneDiseases,
+      pregnancyStatus,
+      medications,
+      additionalNotes,
+      bloodPressure,
+      diabetic,
+      patientId
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ updated: this.changes });
+    }
+  );
+});
+
+app.put('/service-table/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, description, price, duration, type, status } = req.body;
+
+  db.run(
+    `UPDATE services SET name = ?, description = ?, price = ?, duration = ?, type = ?, status = ? WHERE id = ?`,
+    [name, description, price, duration, type, status, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ updated: this.changes });
+    }
+  );
+}); // This brace closes the app.put endpoint
+
+// Get all services
+app.get('/service-table', (req, res) => {
+  db.all('SELECT * FROM services', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+}); // This brace closes the app.get endpoint
+
+// The rest of your file
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
