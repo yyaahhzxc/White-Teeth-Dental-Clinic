@@ -238,6 +238,101 @@ app.get('/service-table', (req, res) => {
   });
 });
 
+// Update service
+app.put('/service-table/:id', (req, res) => {
+  const serviceId = req.params.id;
+  const { name, description, price, duration, type, status } = req.body;
+
+  db.run(
+    `UPDATE services SET 
+      name = ?, description = ?, price = ?, duration = ?, type = ?, status = ?
+     WHERE id = ?`,
+    [name, description, price, duration, type, status, serviceId],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      res.json({ message: 'Service updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update patient information
+app.put('/patients/:id', (req, res) => {
+  const patientId = req.params.id;
+  const {
+    firstName, lastName, middleName, suffix, maritalStatus,
+    contactNumber, occupation, address, dateOfBirth, sex,
+    contactPersonName, contactPersonRelationship, contactPersonNumber,
+    contactPersonAddress
+  } = req.body;
+
+  db.run(
+    `UPDATE patients SET 
+      firstName = ?, lastName = ?, middleName = ?, suffix = ?, maritalStatus = ?,
+      contactNumber = ?, occupation = ?, address = ?, dateOfBirth = ?, sex = ?,
+      contactPersonName = ?, contactPersonRelationship = ?, contactPersonNumber = ?, 
+      contactPersonAddress = ?
+     WHERE id = ?`,
+    [
+      firstName, lastName, middleName, suffix, maritalStatus,
+      contactNumber, occupation, address, dateOfBirth, sex,
+      contactPersonName, contactPersonRelationship, contactPersonNumber,
+      contactPersonAddress, patientId
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Patient not found' });
+      }
+      res.json({ message: 'Patient updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update medical information
+app.put('/medical-information/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const {
+    allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+    medications, additionalNotes, bloodPressure, diabetic
+  } = req.body;
+
+  // First check if medical information exists for this patient
+  db.get('SELECT id FROM MedicalInformation WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing record
+      db.run(
+        `UPDATE MedicalInformation SET 
+          allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
+          medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
+         WHERE patientId = ?`,
+        [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information updated successfully', changes: this.changes });
+        }
+      );
+    } else {
+      // Create new record if none exists
+      db.run(
+        `INSERT INTO MedicalInformation (
+          patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information created successfully', id: this.lastID });
+        }
+      );
+    }
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

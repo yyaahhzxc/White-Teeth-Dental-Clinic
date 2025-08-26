@@ -43,7 +43,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
   const handleSaveClick = async () => {
     // Send PUT request to backend to update service
     try {
-      await fetch(`http://localhost:3001/service-table/${editedService.serviceID}`, {
+      await fetch(`http://localhost:3001/service-table/${editedService.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editedService)
@@ -51,6 +51,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
       setIsEditing(false);
       if (onServiceUpdated) onServiceUpdated();
     } catch (err) {
+      console.error('Save Error:', err);
       alert('Failed to save changes');
     }
   };
