@@ -36,6 +36,7 @@ import AddService from './add-service';
 function Dashboard() {
   // quick-action state moved into shared QuickActionButton
   const [showLoginAlert, setShowLoginAlert] = useState(false);
+  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
   const [showPatientAdded, setShowPatientAdded] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
@@ -44,15 +45,34 @@ function Dashboard() {
   const location = useLocation();
 
   useEffect(() => {
-    if (window.history.state?.usr?.justLoggedIn) {
+    const justLoggedIn = sessionStorage.getItem('justLoggedIn') || location.state?.usr?.justLoggedIn || window.history.state?.usr?.justLoggedIn;
+    if (justLoggedIn) {
       setShowLoginAlert(true);
       setTimeout(() => setShowLoginAlert(false), 1500);
+      // clear navigation + session flag so this only shows once per successful login
+      try { sessionStorage.removeItem('justLoggedIn'); } catch (e) {}
+      try { navigate(location.pathname, { replace: true, state: {} }); } catch (e) {}
+      try { window.history.replaceState({}, document.title, location.pathname); } catch (e) {}
     }
     if (location.state?.patientAdded) {
       setShowPatientAdded(true);
       setTimeout(() => setShowPatientAdded(false), 1500);
       navigate(location.pathname, { replace: true, state: {} });
     }
+    // listen for login/logout changes so we can show a logout snackbar and clear the login alert
+    const onUserChanged = () => {
+      // hide any lingering login alert
+      setShowLoginAlert(false);
+      try {
+        const raw = localStorage.getItem('user');
+        if (!raw) {
+          setShowLogoutAlert(true);
+          setTimeout(() => setShowLogoutAlert(false), 1500);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('userChanged', onUserChanged);
+    return () => window.removeEventListener('userChanged', onUserChanged);
   }, [location, navigate]);
 
   // handlers to pass down to QuickActionButton
@@ -69,6 +89,11 @@ function Dashboard() {
       <Fade in={showLoginAlert} timeout={{ enter: 400, exit: 400 }}>
         <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: '#C8E6C9', color: '#38883C', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Login successful!
+        </Box>
+      </Fade>
+      <Fade in={showLogoutAlert} timeout={{ enter: 400, exit: 400 }}>
+        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: '#FFE0B2', color: '#8A4B00', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
+          Logged out
         </Box>
       </Fade>
       <Fade in={showPatientAdded} timeout={{ enter: 400, exit: 400 }}>

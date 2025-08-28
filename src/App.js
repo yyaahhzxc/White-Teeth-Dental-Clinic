@@ -11,6 +11,13 @@ import AddService from './add-service';
 import ServiceList from './service-page';
 import HomePage from './HomePage';
 import ForgotPassword from './ForgotPassword';
+import Appointments from './Appointments';
+import Invoice from './Invoice';
+import Accounting from './Accounting';
+import Profile from './Profile';
+import Settings from './Settings';
+import Logs from './Logs';
+import Accounts from './Accounts';
 
 
 
@@ -35,6 +42,22 @@ function App() {
           body: JSON.stringify({ username, password }),
         });
         if (res.ok) {
+          // parse response and store user/token for header and protected requests
+          try {
+            const data = await res.json();
+            if (data && data.token) {
+              localStorage.setItem('token', data.token);
+            }
+            if (data && data.user) {
+              localStorage.setItem('user', JSON.stringify(data.user));
+              // notify other parts of the app that user changed
+              try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
+            }
+          } catch (e) {
+            // ignore parse errors and continue
+          }
+          // mark that we just logged in so Dashboard shows a one-time alert
+          try { sessionStorage.setItem('justLoggedIn', '1'); } catch (e) {}
           navigate('/dashboard', { state: { justLoggedIn: true } });
         } else {
           const data = await res.json();
@@ -165,12 +188,18 @@ function App() {
   <Route path="/login" element={loginForm} />
   <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/add-patient" element={<PatientList />} />
-        <Route path="/services" element={<ServiceList />} />
+  <Route path="/add-patient" element={<PatientList />} />
+  <Route path="/services" element={<ServiceList />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/logs" element={<Logs />} />
+        <Route path="/accounts" element={<Accounts />} />
+  <Route path="/appointments" element={<Appointments />} />
+  <Route path="/invoice" element={<Invoice />} />
+  <Route path="/accounting" element={<Accounting />} />
 
-
-        {/* Service Page */}
-        <Route path="/service-page" element={<ServiceList />} />
+  {/* Service Page */}
+  <Route path="/service-page" element={<ServiceList />} />
       </Routes>
     </Box>
   );

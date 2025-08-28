@@ -1,13 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connect to database
-const db = new sqlite3.Database('./clinic.db', (err) => {
+// Connect to database (use backend clinic.db to avoid duplicate DB files)
+const DB_PATH = path.resolve(__dirname, 'clinic.db');
+console.log('Using SQLite DB at', DB_PATH);
+const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) return console.error(err.message);
   console.log('✅ Connected to SQLite database.');
 });
@@ -64,29 +67,76 @@ db.run(`
   )
 `);
 
-// Create users table
+// Create users table (with role column defaulting to 'user')
 db.run(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE,
-    password TEXT
+    password TEXT,
+    role TEXT DEFAULT 'user'
   )
 `);
 
-// Insert default admin user if not exists
-db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, row) => {
-  if (err) {
-    console.error('Error checking for admin user:', err);
-  } else if (!row) {
-    db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', 'admin123'], (err) => {
-      if (err) {
-        console.error('Error creating admin user:', err);
-      } else {
-        console.log('✅ Default admin user created');
-      }
+// Ensure default users exist (admin and regular user) with role
+function ensureDefaultUsers() {
+  const defaults = [
+    { username: 'admin', password: 'admin123', role: 'admin', label: 'admin' },
+    { username: 'user', password: 'user', role: 'user', label: 'user' },
+  ];
+
+  // Ensure the users table has a 'role' column; if not, add it (SQLite supports ADD COLUMN)
+  db.all("PRAGMA table_info(users)", [], (err, cols) => {
+    if (err) {
+      console.error('Error checking users table schema', err);
+      // proceed with seeding; inserts that reference role may fail but we'll attempt safe inserts below
+      seedDefaults();
+      return;
+    }
+    const hasRole = Array.isArray(cols) && cols.some((c) => c && c.name === 'role');
+    if (!hasRole) {
+      db.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'", [], (alterErr) => {
+        if (alterErr) console.error('Error adding role column to users table', alterErr);
+        seedDefaults();
+      });
+    } else {
+      seedDefaults();
+    }
+  });
+
+  function seedDefaults() {
+    defaults.forEach((u) => {
+      db.get('SELECT * FROM users WHERE username = ?', [u.username], (err, row) => {
+        if (err) {
+          console.error('Error checking for user', u.username, err);
+          return;
+        }
+        if (!row) {
+          // Insert including role now that schema should be up-to-date
+          db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [u.username, u.password, u.role], (insertErr) => {
+            if (insertErr) {
+              // Try fallback insert without role (for very old schema)
+              console.error('Error creating default user with role', u.username, insertErr);
+              db.run('INSERT INTO users (username, password) VALUES (?, ?)', [u.username, u.password], (fallbackErr) => {
+                if (fallbackErr) console.error('Fallback insert failed for', u.username, fallbackErr);
+                else console.log('✅ Default', u.label, 'user created (fallback):', u.username);
+              });
+            } else {
+              console.log('✅ Default', u.label, 'user created:', u.username);
+            }
+          });
+        } else if (!row.role) {
+          db.run('UPDATE users SET role = ? WHERE username = ?', [u.role, u.username], (updateErr) => {
+            if (updateErr) console.error('Error updating role for', u.username, updateErr);
+            else console.log('✅ Updated role for existing user', u.username);
+          });
+        }
+      });
     });
   }
-});
+}
+
+// Create default users now that the table exists
+ensureDefaultUsers();
 
 // Add patient endpoint
 app.post('/patients', (req, res) => {
@@ -115,24 +165,83 @@ app.post('/patients', (req, res) => {
   );
 });
 
-// Login
+// Simple in-memory session store (suitable for local/desktop app)
+const sessions = {}; // token -> { id, username, role }
+function createToken() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// Master password (dev convenience). Kept here so admin routes can accept a dev bypass header.
+const MASTER_PASSWORD = 'admin123';
+
+// Authenticate middleware: looks for Bearer <token> in Authorization header or x-access-token
+function authenticateToken(req, res, next) {
+  const auth = req.headers['authorization'] || req.headers['x-access-token'];
+  let token = null;
+  if (auth && typeof auth === 'string') {
+    if (auth.startsWith('Bearer ')) token = auth.slice(7).trim();
+    else token = auth.trim();
+  }
+  if (!token) return res.status(401).json({ message: 'Missing token' });
+  const session = sessions[token];
+  if (!session) return res.status(401).json({ message: 'Invalid or expired token' });
+  req.user = session;
+  next();
+}
+
+// Role check middleware factory
+function requireRole(required) {
+  return (req, res, next) => {
+    // Dev bypass: accept x-master-password header equal to MASTER_PASSWORD
+    const masterHeader = req.headers['x-master-password'];
+    if (masterHeader && masterHeader === MASTER_PASSWORD) {
+      req.user = { id: 0, username: 'master', role: 'admin' };
+      return next();
+    }
+
+    authenticateToken(req, res, () => {
+      const role = req.user && req.user.role;
+      if (!role) return res.status(403).json({ message: 'Forbidden' });
+      if (Array.isArray(required)) {
+        if (!required.includes(role)) return res.status(403).json({ message: 'Forbidden' });
+      } else {
+        if (role !== required) return res.status(403).json({ message: 'Forbidden' });
+      }
+      next();
+    });
+  };
+}
+
+// Login (returns token and user info including role)
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   const MASTER_PASSWORD = 'admin123';
-  // Look up user by username first
   db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (!row) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
+    if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
-    // Allow login when provided password matches stored password OR is the master password
     if (password === MASTER_PASSWORD || row.password === password) {
-      return res.json({ success: true });
+      const token = createToken();
+      sessions[token] = { id: row.id, username: row.username, role: row.role || 'user' };
+      return res.json({ success: true, token, user: sessions[token] });
     }
 
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   });
+});
+
+// Logout (revokes token)
+app.post('/logout', authenticateToken, (req, res) => {
+  // Get token from header
+  const auth = req.headers['authorization'] || req.headers['x-access-token'];
+  const token = auth && auth.startsWith('Bearer ') ? auth.slice(7).trim() : auth;
+  if (token && sessions[token]) delete sessions[token];
+  res.json({ success: true });
+});
+
+// Return current authenticated user
+app.get('/me', authenticateToken, (req, res) => {
+  res.json({ user: req.user });
 });
 
 // Validate security questions for password reset
@@ -256,6 +365,16 @@ app.put('/service-table/:id', (req, res) => {
       res.json({ message: 'Service updated successfully', changes: this.changes });
     }
   );
+});
+
+// Admin-only: delete a service
+app.delete('/service-table/:id', requireRole('admin'), (req, res) => {
+  const serviceId = req.params.id;
+  db.run('DELETE FROM services WHERE id = ?', [serviceId], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'Service not found' });
+    res.json({ message: 'Service deleted', changes: this.changes });
+  });
 });
 
 // Update patient information

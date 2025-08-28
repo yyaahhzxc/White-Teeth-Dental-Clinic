@@ -25,6 +25,7 @@ import AddService from './add-service';
 import AddPatientRecord from './add-record';
 import ViewService from './view-service';
 import QuickActionButton from './QuickActionButton';
+import Header from './header';
 
 function ServiceList() {
   const [services, setServices] = useState([]);
@@ -127,6 +128,7 @@ function ServiceList() {
 
   return (
     <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <Header />
       <Box sx={{ p: 3 }}>
         <Paper sx={{ p: 2, borderRadius: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
