@@ -14,6 +14,7 @@ import {
   Divider,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
+import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BookmarksIcon from '@mui/icons-material/Bookmarks';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -120,7 +121,6 @@ function Header() {
             {/* Navigation items in specific order. 'Logs' kept in routeMap but not shown. */}
             {(
               ['Home', 'Records', 'Appointments', 'Invoice', 'Services', 'Accounting']
-              .concat(isAdmin ? ['Users'] : [])
             ).map((label) => {
               const routeMap = {
                 Home: '/dashboard',
@@ -208,6 +208,14 @@ function Header() {
               </ListItemIcon>
               <ListItemText>Settings</ListItemText>
             </MenuItem>
+            {isAdmin && (
+              <MenuItem onClick={() => { navigateTo('/accounts'); }}>
+                <ListItemIcon>
+                  <PeopleIcon sx={{ color: '#6A1B9A' }} fontSize="small" />
+                </ListItemIcon>
+                <ListItemText sx={{ color: '#6A1B9A' }}>Users</ListItemText>
+              </MenuItem>
+            )}
             <MenuItem onClick={() => navigateTo('/logs')}>
               <ListItemIcon>
                 <BookmarksIcon fontSize="small" />
