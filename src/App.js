@@ -22,15 +22,26 @@ import Accounts from './Accounts';
 
 
 
+
 function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const navigate = useNavigate();
-
   const usernameRef = useRef();
   const passwordRef = useRef();
+
+  // Clear login fields when navigating to /login (after logout or manual nav)
+  const { pathname } = window.location;
+  React.useEffect(() => {
+    if (pathname === '/login') {
+      setUsername('');
+      setPassword('');
+      setLoginError('');
+      setShowPassword(false);
+    }
+  }, [pathname]);
 
   const handleLogin = async () => {
     setLoginError('');

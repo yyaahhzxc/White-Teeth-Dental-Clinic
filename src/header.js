@@ -27,6 +27,7 @@ function Header() {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const handleAvatarClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -43,11 +44,14 @@ function Header() {
       if (raw) {
         const u = JSON.parse(raw);
         setIsAdmin(u && u.role === 'admin');
+        setCurrentUser(u);
       } else {
         setIsAdmin(false);
+        setCurrentUser(null);
       }
     } catch (e) {
       setIsAdmin(false);
+      setCurrentUser(null);
     }
   // If there's a token but the stored user might be stale, try to refresh from server
     try {
@@ -65,6 +69,7 @@ function Header() {
             if (data && data.user) {
               localStorage.setItem('user', JSON.stringify(data.user));
               setIsAdmin(data.user.role === 'admin');
+              setCurrentUser(data.user);
             }
           })
           .catch(() => {
@@ -81,11 +86,14 @@ function Header() {
         if (raw2) {
           const u2 = JSON.parse(raw2);
           setIsAdmin(u2 && u2.role === 'admin');
+          setCurrentUser(u2);
         } else {
           setIsAdmin(false);
+          setCurrentUser(null);
         }
       } catch (e) {
         setIsAdmin(false);
+        setCurrentUser(null);
       }
     };
     window.addEventListener('userChanged', onUserChanged);
@@ -197,8 +205,15 @@ function Header() {
                 <PersonIcon sx={{ color: 'white' }} />
               </Avatar>
               <Box>
-                <Typography variant="subtitle1">Last, First</Typography>
-                <Typography variant="caption" color="text.secondary">username</Typography>
+                <Typography variant="subtitle1">
+                  {currentUser && currentUser.firstName && currentUser.lastName 
+                    ? `${currentUser.lastName}, ${currentUser.firstName}`
+                    : 'User Name'
+                  }
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {currentUser && currentUser.username ? currentUser.username : 'username'}
+                </Typography>
               </Box>
             </Box>
             <Divider />

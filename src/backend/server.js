@@ -67,36 +67,91 @@ db.run(`
   )
 `);
 
-// Create users table (with role column defaulting to 'user')
+// Create users table (with all required columns)
 db.run(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE,
     password TEXT,
-    role TEXT DEFAULT 'user'
+    role TEXT DEFAULT 'user',
+    firstName TEXT,
+    lastName TEXT,
+    employeeRole TEXT,
+    userRole TEXT,
+    status TEXT DEFAULT 'enabled',
+    photo TEXT
   )
-`);
+`, [], (err) => {
+  if (err) {
+    console.error('Error creating users table:', err);
+  } else {
+    ensureDefaultUsers();
+  }
+});
 
-// Ensure default users exist (admin and regular user) with role
+// Ensure default users exist with complete information
 function ensureDefaultUsers() {
   const defaults = [
-    { username: 'admin', password: 'admin123', role: 'admin', label: 'admin' },
-    { username: 'user', password: 'user', role: 'user', label: 'user' },
+    { 
+      username: 'admin', 
+      password: 'admin', 
+      role: 'admin',
+      firstName: 'Jan',
+      lastName: 'Gerona',
+      employeeRole: 'Dentist',
+      userRole: 'Administrator',
+      status: 'enabled',
+      label: 'admin' 
+    },
+    { 
+      username: 'user', 
+      password: 'user', 
+      role: 'user',
+      firstName: 'Patrick',
+      lastName: 'Star',
+      employeeRole: 'Receptionist',
+      userRole: 'User',
+      status: 'enabled',
+      label: 'user' 
+    },
   ];
 
-  // Ensure the users table has a 'role' column; if not, add it (SQLite supports ADD COLUMN)
+  // Ensure the users table has all required columns
   db.all("PRAGMA table_info(users)", [], (err, cols) => {
     if (err) {
       console.error('Error checking users table schema', err);
-      // proceed with seeding; inserts that reference role may fail but we'll attempt safe inserts below
       seedDefaults();
       return;
     }
-    const hasRole = Array.isArray(cols) && cols.some((c) => c && c.name === 'role');
-    if (!hasRole) {
-      db.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'", [], (alterErr) => {
-        if (alterErr) console.error('Error adding role column to users table', alterErr);
+    
+    const columnNames = cols.map(col => col.name);
+  const requiredColumns = ['role', 'firstName', 'lastName', 'employeeRole', 'userRole', 'status', 'photo'];
+    const missingColumns = requiredColumns.filter(col => !columnNames.includes(col));
+    
+    // Add missing columns
+    if (missingColumns.length > 0) {
+      let alterPromises = missingColumns.map(colName => {
+        return new Promise((resolve, reject) => {
+          let defaultValue = colName === 'role' || colName === 'status' ? "'user'" : "''";
+          if (colName === 'status') defaultValue = "'enabled'";
+          if (colName === 'photo') defaultValue = "''";
+          
+          db.run(`ALTER TABLE users ADD COLUMN ${colName} TEXT DEFAULT ${defaultValue}`, [], (alterErr) => {
+            if (alterErr) {
+              console.error(`Error adding ${colName} column:`, alterErr);
+              reject(alterErr);
+            } else {
+              console.log(`✅ Added ${colName} column to users table`);
+              resolve();
+            }
+          });
+        });
+      });
+      
+      Promise.all(alterPromises).then(() => {
         seedDefaults();
+      }).catch(() => {
+        seedDefaults(); // Try seeding anyway
       });
     } else {
       seedDefaults();
@@ -111,24 +166,58 @@ function ensureDefaultUsers() {
           return;
         }
         if (!row) {
-          // Insert including role now that schema should be up-to-date
-          db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [u.username, u.password, u.role], (insertErr) => {
-            if (insertErr) {
-              // Try fallback insert without role (for very old schema)
-              console.error('Error creating default user with role', u.username, insertErr);
-              db.run('INSERT INTO users (username, password) VALUES (?, ?)', [u.username, u.password], (fallbackErr) => {
-                if (fallbackErr) console.error('Fallback insert failed for', u.username, fallbackErr);
-                else console.log('✅ Default', u.label, 'user created (fallback):', u.username);
-              });
-            } else {
-              console.log('✅ Default', u.label, 'user created:', u.username);
+          // Insert new user with all fields
+          db.run(
+            'INSERT INTO users (username, password, role, firstName, lastName, employeeRole, userRole, status, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+            [u.username, u.password, u.role, u.firstName, u.lastName, u.employeeRole, u.userRole, u.status, ''], 
+            (insertErr) => {
+              if (insertErr) {
+                console.error('Error creating default user', u.username, insertErr);
+              } else {
+                console.log('✅ Default', u.label, 'user created:', u.username);
+              }
             }
-          });
-        } else if (!row.role) {
-          db.run('UPDATE users SET role = ? WHERE username = ?', [u.role, u.username], (updateErr) => {
-            if (updateErr) console.error('Error updating role for', u.username, updateErr);
-            else console.log('✅ Updated role for existing user', u.username);
-          });
+          );
+        } else {
+          // Update existing user with new fields if they're missing
+          const updateFields = [];
+          const updateValues = [];
+          
+          if (!row.firstName && u.firstName) {
+            updateFields.push('firstName = ?');
+            updateValues.push(u.firstName);
+          }
+          if (!row.lastName && u.lastName) {
+            updateFields.push('lastName = ?');
+            updateValues.push(u.lastName);
+          }
+          if (!row.employeeRole && u.employeeRole) {
+            updateFields.push('employeeRole = ?');
+            updateValues.push(u.employeeRole);
+          }
+          if (!row.userRole && u.userRole) {
+            updateFields.push('userRole = ?');
+            updateValues.push(u.userRole);
+          }
+          if (!row.status && u.status) {
+            updateFields.push('status = ?');
+            updateValues.push(u.status);
+          }
+          
+          if (updateFields.length > 0) {
+            updateValues.push(u.username);
+            db.run(
+              `UPDATE users SET ${updateFields.join(', ')} WHERE username = ?`, 
+              updateValues, 
+              (updateErr) => {
+                if (updateErr) {
+                  console.error('Error updating user', u.username, updateErr);
+                } else {
+                  console.log('✅ Updated existing user', u.username);
+                }
+              }
+            );
+          }
         }
       });
     });
@@ -137,6 +226,28 @@ function ensureDefaultUsers() {
 
 // Create default users now that the table exists
 ensureDefaultUsers();
+
+// Get user photo by username
+app.get('/user-photo/:username', (req, res) => {
+  const { username } = req.params;
+  db.get('SELECT photo FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    res.json({ photo: row.photo || '' });
+  });
+});
+
+// Update user photo by username
+app.post('/user-photo/:username', (req, res) => {
+  const { username } = req.params;
+  const { photo } = req.body;
+  if (!photo) return res.status(400).json({ error: 'Photo required' });
+  db.run('UPDATE users SET photo = ? WHERE username = ?', [photo, username], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ success: true });
+  });
+});
 
 // Add patient endpoint
 app.post('/patients', (req, res) => {
@@ -449,6 +560,144 @@ app.put('/medical-information/:patientId', (req, res) => {
         }
       );
     }
+  });
+});
+
+// ===== USER MANAGEMENT ENDPOINTS =====
+
+// Get all users
+app.get('/users', (req, res) => {
+  // Build dynamic WHERE clause based on query params
+  const allowedFilters = ['employeeRole', 'userRole', 'status'];
+  const filters = [];
+  const values = [];
+  allowedFilters.forEach(key => {
+    if (req.query[key]) {
+      filters.push(`${key} = ?`);
+      values.push(req.query[key]);
+    }
+  });
+  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  db.all(`SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users ${whereClause}`, values, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Get single user by ID
+app.get('/users/:id', (req, res) => {
+  const userId = req.params.id;
+  db.get('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    res.json(row);
+  });
+});
+
+// Add new user
+app.post('/users', requireRole('admin'), (req, res) => {
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+  
+  if (!username || !password || !firstName || !lastName) {
+    return res.status(400).json({ error: 'Username, password, firstName, and lastName are required' });
+  }
+
+  db.run(
+    'INSERT INTO users (username, password, firstName, lastName, employeeRole, userRole, status, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [username, password, firstName, lastName, employeeRole, userRole, status || 'enabled', userRole?.toLowerCase() || 'user'],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ id: this.lastID, message: 'User created successfully' });
+    }
+  );
+});
+
+// Update user
+app.put('/users/:id', requireRole('admin'), (req, res) => {
+  const userId = req.params.id;
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+
+  let updateFields = [];
+  let updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+  if (password !== undefined) {
+    updateFields.push('password = ?');
+    updateValues.push(password);
+  }
+  if (firstName !== undefined) {
+    updateFields.push('firstName = ?');
+    updateValues.push(firstName);
+  }
+  if (lastName !== undefined) {
+    updateFields.push('lastName = ?');
+    updateValues.push(lastName);
+  }
+  if (employeeRole !== undefined) {
+    updateFields.push('employeeRole = ?');
+    updateValues.push(employeeRole);
+  }
+  if (userRole !== undefined) {
+    updateFields.push('userRole = ?');
+    updateValues.push(userRole);
+    updateFields.push('role = ?');
+    updateValues.push(userRole?.toLowerCase() || 'user');
+  }
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updateValues.push(userId);
+
+  db.run(
+    `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+    updateValues,
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json({ message: 'User updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Delete user (admin only)
+app.delete('/users/:id', requireRole('admin'), (req, res) => {
+  const userId = req.params.id;
+  
+  // Prevent deleting admin user
+  db.get('SELECT username FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    
+    if (row.username === 'admin') {
+      return res.status(400).json({ error: 'Cannot delete admin user' });
+    }
+
+    db.run('DELETE FROM users WHERE id = ?', [userId], function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+      res.json({ message: 'User deleted successfully', changes: this.changes });
+    });
   });
 });
 
