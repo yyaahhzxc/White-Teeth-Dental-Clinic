@@ -13,6 +13,13 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    watch: {
+      // Ignore backend runtime artifacts and sqlite DB to prevent endless reloads
+      ignored: [
+        '**/src/backend/**',
+        '**/*.db'
+      ]
+    }
   },
   optimizeDeps: {
     esbuildOptions: {

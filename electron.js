@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu } = require('electron');
+~const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -37,8 +37,8 @@ const mimeTypes = {
 
 function initializeDatabase() {
   return new Promise((resolve, reject) => {
-    // Create database in the app's data directory
-    const dbPath = isDev ? './clinic.db' : path.join(process.resourcesPath, 'clinic.db');
+  // Create database in the app's data directory. In dev, use backend clinic.db to avoid duplicates.
+  const dbPath = isDev ? path.join(__dirname, 'src', 'backend', 'clinic.db') : path.join(process.resourcesPath, 'clinic.db');
     console.log('Database path:', dbPath);
     
     db = new sqlite3.Database(dbPath, (err) => {

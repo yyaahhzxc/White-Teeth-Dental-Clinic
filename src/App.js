@@ -11,6 +11,15 @@ import AddService from './add-service';
 import ServiceList from './service-page';
 import HomePage from './HomePage';
 import ForgotPassword from './ForgotPassword';
+import Appointments from './Appointments';
+import Invoice from './Invoice';
+import Accounting from './Accounting';
+import Profile from './Profile';
+import Settings from './Settings';
+import Logs from './Logs';
+import Accounts from './Accounts';
+import { API_BASE } from './apiConfig';
+
 
 
 
@@ -21,27 +30,53 @@ function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const navigate = useNavigate();
-
   const usernameRef = useRef();
   const passwordRef = useRef();
+
+  // Clear login fields when navigating to /login (after logout or manual nav)
+  const { pathname } = window.location;
+  React.useEffect(() => {
+    if (pathname === '/login') {
+      setUsername('');
+      setPassword('');
+      setLoginError('');
+      setShowPassword(false);
+    }
+  }, [pathname]);
 
   const handleLogin = async () => {
     setLoginError('');
     if (username && password) {
       try {
-        const res = await fetch('http://localhost:3001/login', {
+  const res = await fetch(`${API_BASE}/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
         });
         if (res.ok) {
+          // parse response and store user/token for header and protected requests
+          try {
+            const data = await res.json();
+            if (data && data.token) {
+              localStorage.setItem('token', data.token);
+            }
+            if (data && data.user) {
+              localStorage.setItem('user', JSON.stringify(data.user));
+              // notify other parts of the app that user changed
+              try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
+            }
+          } catch (e) {
+            // ignore parse errors and continue
+          }
+          // mark that we just logged in so Dashboard shows a one-time alert
+          try { sessionStorage.setItem('justLoggedIn', '1'); } catch (e) {}
           navigate('/dashboard', { state: { justLoggedIn: true } });
         } else {
           const data = await res.json();
           setLoginError(data.message || 'Login failed');
         }
       } catch (err) {
-        setLoginError('Unable to connect to server. Is the backend running on http://localhost:3001?');
+  setLoginError(`Unable to connect to server. Is the backend running on ${API_BASE}?`);
       }
     }
   };
@@ -165,12 +200,18 @@ function App() {
   <Route path="/login" element={loginForm} />
   <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/add-patient" element={<PatientList />} />
-        <Route path="/services" element={<ServiceList />} />
+  <Route path="/add-patient" element={<PatientList />} />
+  <Route path="/services" element={<ServiceList />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/logs" element={<Logs />} />
+        <Route path="/accounts" element={<Accounts />} />
+  <Route path="/appointments" element={<Appointments />} />
+  <Route path="/invoice" element={<Invoice />} />
+  <Route path="/accounting" element={<Accounting />} />
 
-
-        {/* Service Page */}
-        <Route path="/service-page" element={<ServiceList />} />
+  {/* Service Page */}
+  <Route path="/service-page" element={<ServiceList />} />
       </Routes>
     </Box>
   );
