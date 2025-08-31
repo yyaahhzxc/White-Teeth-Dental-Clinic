@@ -5,10 +5,41 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for photo uploads
+
+// Connect to database (use backend c// Authenticate middleware: looks for Bearer <token> in Authorization header or x-access-token
+function authenticateToken(req, res, next) {
+  const auth = req.headers['authorization'] || req.headers['x-access-token'];
+  let token = null;
+  if (auth && typeof auth === 'string') {
+    if (auth.startsWith('Bearer ')) token = auth.slice(7).trim();
+    else token = auth.trim();
+  }
+  
+  console.log('🔐 Authentication attempt:');
+  console.log('  - Token provided:', !!token);
+  console.log('  - Token length:', token ? token.length : 0);
+  console.log('  - Active sessions:', Object.keys(sessions).length);
+  
+  if (!token) {
+    console.log('❌ Authentication failed: Missing token');
+    return res.status(401).json({ message: 'Missing token' });
+  }
+  
+  const session = sessions[token];
+  if (!session) {
+    console.log('❌ Authentication failed: Invalid or expired token');
+    console.log('  - Token not found in sessions');
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+  
+  console.log('✅ Authentication successful:', session);
+  req.user = session;
+  next();
+}
 
 // Connect to database (use backend clinic.db to avoid duplicate DB files)
-const DB_PATH = path.resolve(__dirname, 'clinic.db');
+const DB_PATH = path.join(__dirname, 'clinic.db');
 console.log('Using SQLite DB at', DB_PATH);
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) return console.error(err.message);
@@ -95,7 +126,7 @@ function ensureDefaultUsers() {
     { 
       username: 'admin', 
       password: 'admin', 
-      role: 'admin',
+      role: 'Administrator', // Changed from 'admin' to 'Administrator'
       firstName: 'Jan',
       lastName: 'Gerona',
       employeeRole: 'Dentist',
@@ -106,7 +137,7 @@ function ensureDefaultUsers() {
     { 
       username: 'user', 
       password: 'user', 
-      role: 'user',
+      role: 'User', // Changed from 'user' to 'User'
       firstName: 'Patrick',
       lastName: 'Star',
       employeeRole: 'Receptionist',
@@ -227,6 +258,110 @@ function ensureDefaultUsers() {
 // Create default users now that the table exists
 ensureDefaultUsers();
 
+// Migrate old role values to new consistent format
+function migrateRoleValues() {
+  console.log('🔄 Ensuring role consistency...');
+  
+  // Comprehensive role normalization
+  const migrations = [
+    {
+      name: 'Normalize role "admin" to "Administrator"',
+      sql: 'UPDATE users SET role = "Administrator" WHERE role IN ("admin", "Admin")'
+    },
+    {
+      name: 'Normalize userRole "admin" to "Administrator"',
+      sql: 'UPDATE users SET userRole = "Administrator" WHERE userRole IN ("admin", "Admin")'
+    },
+    {
+      name: 'Normalize role "user" to "User"',
+      sql: 'UPDATE users SET role = "User" WHERE role = "user"'
+    },
+    {
+      name: 'Normalize userRole "user" to "User"',
+      sql: 'UPDATE users SET userRole = "User" WHERE userRole = "user"'
+    },
+    {
+      name: 'Sync Administrator roles',
+      sql: 'UPDATE users SET role = "Administrator" WHERE userRole = "Administrator" AND role != "Administrator"'
+    },
+    {
+      name: 'Sync User roles',
+      sql: 'UPDATE users SET role = "User" WHERE userRole = "User" AND role != "User"'
+    },
+    {
+      name: 'Sync Administrator userRoles',
+      sql: 'UPDATE users SET userRole = "Administrator" WHERE role = "Administrator" AND userRole != "Administrator"'
+    },
+    {
+      name: 'Sync User userRoles',
+      sql: 'UPDATE users SET userRole = "User" WHERE role = "User" AND userRole != "User"'
+    },
+    {
+      name: 'Set default roles for null/empty values',
+      sql: 'UPDATE users SET role = "User", userRole = "User" WHERE role IS NULL OR role = "" OR userRole IS NULL OR userRole = ""'
+    }
+  ];
+  
+  let completed = 0;
+  function runNext() {
+    if (completed >= migrations.length) {
+      console.log('✅ Role consistency check completed');
+      return;
+    }
+    
+    const migration = migrations[completed];
+    db.run(migration.sql, [], function(err) {
+      if (err) {
+        console.error(`❌ Error in ${migration.name}:`, err);
+      } else if (this.changes > 0) {
+        console.log(`✅ ${migration.name}: ${this.changes} rows updated`);
+      }
+      completed++;
+      runNext();
+    });
+  }
+  
+  runNext();
+}
+
+// Helper function to normalize roles
+function normalizeRoles(role, userRole) {
+  // Convert old 'admin' variants to 'Administrator'
+  if (role && (role.toLowerCase() === 'admin' || role === 'Admin')) {
+    role = 'Administrator';
+  }
+  if (userRole && (userRole.toLowerCase() === 'admin' || userRole === 'Admin')) {
+    userRole = 'Administrator';
+  }
+  
+  // Convert old 'user' to 'User'
+  if (role === 'user') role = 'User';
+  if (userRole === 'user') userRole = 'User';
+  
+  // Ensure consistency between role and userRole
+  if (userRole === 'Administrator' && role !== 'Administrator') {
+    role = 'Administrator';
+  }
+  if (role === 'Administrator' && userRole !== 'Administrator') {
+    userRole = 'Administrator';
+  }
+  if (userRole === 'User' && role !== 'User') {
+    role = 'User';
+  }
+  if (role === 'User' && userRole !== 'User') {
+    userRole = 'User';
+  }
+  
+  // Default to User if not specified
+  if (!role || role === '') role = 'User';
+  if (!userRole || userRole === '') userRole = 'User';
+  
+  return { role, userRole };
+}
+
+// Run migration
+migrateRoleValues();
+
 // Get user photo by username
 app.get('/user-photo/:username', (req, res) => {
   const { username } = req.params;
@@ -241,8 +376,30 @@ app.get('/user-photo/:username', (req, res) => {
 app.post('/user-photo/:username', (req, res) => {
   const { username } = req.params;
   const { photo } = req.body;
-  if (!photo) return res.status(400).json({ error: 'Photo required' });
+  console.log(`📸 Photo upload request for user: ${username}`);
+  console.log(`📸 Photo data length: ${photo ? photo.length : 0}`);
+  if (!photo) {
+    console.log('❌ Photo upload failed: No photo provided');
+    return res.status(400).json({ error: 'Photo required' });
+  }
   db.run('UPDATE users SET photo = ? WHERE username = ?', [photo, username], function (err) {
+    if (err) {
+      console.log('❌ Photo upload failed: Database error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      console.log('❌ Photo upload failed: User not found');
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.log('✅ Photo upload successful for user:', username);
+    res.json({ success: true });
+  });
+});
+
+// Delete user photo by username
+app.delete('/user-photo/:username', (req, res) => {
+  const { username } = req.params;
+  db.run('UPDATE users SET photo = ? WHERE username = ?', ['', username], function (err) {
     if (err) return res.status(500).json({ error: err.message });
     if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ success: true });
@@ -306,7 +463,7 @@ function requireRole(required) {
     // Dev bypass: accept x-master-password header equal to MASTER_PASSWORD
     const masterHeader = req.headers['x-master-password'];
     if (masterHeader && masterHeader === MASTER_PASSWORD) {
-      req.user = { id: 0, username: 'master', role: 'admin' };
+      req.user = { id: 0, username: 'master', role: 'Administrator' };
       return next();
     }
 
@@ -316,6 +473,12 @@ function requireRole(required) {
       if (Array.isArray(required)) {
         if (!required.includes(role)) return res.status(403).json({ message: 'Forbidden' });
       } else {
+        // Handle both old 'admin' and new 'Administrator' for backward compatibility
+        const normalizedRole = role.toLowerCase();
+        const normalizedRequired = required.toLowerCase();
+        if (normalizedRequired === 'admin' && (normalizedRole === 'admin' || normalizedRole === 'administrator')) {
+          return next();
+        }
         if (role !== required) return res.status(403).json({ message: 'Forbidden' });
       }
       next();
@@ -327,13 +490,17 @@ function requireRole(required) {
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
   const MASTER_PASSWORD = 'admin123';
+  
   db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
-    if (password === MASTER_PASSWORD || row.password === password) {
+    // Check user's actual password first, then master password as fallback
+    if (row.password === password || password === MASTER_PASSWORD) {
       const token = createToken();
-      sessions[token] = { id: row.id, username: row.username, role: row.role || 'user' };
+      // Normalize role to use 'Administrator' instead of 'admin' for consistency
+      const normalizedRole = row.role === 'admin' ? 'Administrator' : (row.role || 'User');
+      sessions[token] = { id: row.id, username: row.username, role: normalizedRole };
       return res.json({ success: true, token, user: sessions[token] });
     }
 
@@ -604,7 +771,7 @@ app.post('/users', requireRole('admin'), (req, res) => {
 
   db.run(
     'INSERT INTO users (username, password, firstName, lastName, employeeRole, userRole, status, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [username, password, firstName, lastName, employeeRole, userRole, status || 'enabled', userRole?.toLowerCase() || 'user'],
+    [username, password, firstName, lastName, employeeRole, userRole, status || 'enabled', normalizeRoles('', userRole).role],
     function (err) {
       if (err) {
         if (err.message.includes('UNIQUE constraint failed')) {
@@ -646,10 +813,11 @@ app.put('/users/:id', requireRole('admin'), (req, res) => {
     updateValues.push(employeeRole);
   }
   if (userRole !== undefined) {
+    const normalized = normalizeRoles('', userRole);
     updateFields.push('userRole = ?');
-    updateValues.push(userRole);
+    updateValues.push(normalized.userRole);
     updateFields.push('role = ?');
-    updateValues.push(userRole?.toLowerCase() || 'user');
+    updateValues.push(normalized.role);
   }
   if (status !== undefined) {
     updateFields.push('status = ?');
@@ -678,6 +846,146 @@ app.put('/users/:id', requireRole('admin'), (req, res) => {
       res.json({ message: 'User updated successfully', changes: this.changes });
     }
   );
+});
+
+// Update own profile (authenticated users can update their own profile)
+app.put('/profile', authenticateToken, (req, res) => {
+  const userId = req.user.id; // Get user ID from authenticated session
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+
+  console.log('📝 Profile update request:');
+  console.log('  - User ID:', userId);
+  console.log('  - Update data:', { username, firstName, lastName, employeeRole, userRole, status });
+
+  let updateFields = [];
+  let updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+  if (password !== undefined) {
+    updateFields.push('password = ?');
+    updateValues.push(password);
+  }
+  if (firstName !== undefined) {
+    updateFields.push('firstName = ?');
+    updateValues.push(firstName);
+  }
+  if (lastName !== undefined) {
+    updateFields.push('lastName = ?');
+    updateValues.push(lastName);
+  }
+  if (employeeRole !== undefined) {
+    updateFields.push('employeeRole = ?');
+    updateValues.push(employeeRole);
+  }
+  if (userRole !== undefined) {
+    const normalized = normalizeRoles('', userRole);
+    updateFields.push('userRole = ?');
+    updateValues.push(normalized.userRole);
+    updateFields.push('role = ?');
+    updateValues.push(normalized.role);
+  }
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updateValues.push(userId);
+
+  console.log('  - SQL fields to update:', updateFields);
+  console.log('  - SQL values:', updateValues);
+
+  db.run(
+    `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+    updateValues,
+    function (err) {
+      if (err) {
+        console.log('❌ Profile update failed:', err.message);
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        console.log('❌ Profile update failed: User not found');
+        return res.status(404).json({ error: 'User not found' });
+      }
+      console.log('✅ Profile update successful. Changes:', this.changes);
+      
+      // Verify the update by fetching the updated user
+      db.get('SELECT * FROM users WHERE id = ?', [userId], (selectErr, updatedUser) => {
+        if (!selectErr && updatedUser) {
+          console.log('✅ Updated user data:', {
+            id: updatedUser.id,
+            username: updatedUser.username,
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            employeeRole: updatedUser.employeeRole,
+            userRole: updatedUser.userRole,
+            status: updatedUser.status
+          });
+        }
+      });
+      
+      res.json({ message: 'Profile updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Get distinct role options from database
+app.get('/role-options', (req, res) => {
+  const employeeRolesQuery = 'SELECT DISTINCT employeeRole FROM users WHERE employeeRole IS NOT NULL AND employeeRole != ""';
+  const userRolesQuery = 'SELECT DISTINCT userRole FROM users WHERE userRole IS NOT NULL AND userRole != ""';
+  
+  db.all(employeeRolesQuery, [], (err, employeeRows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    db.all(userRolesQuery, [], (err, userRows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      const employeeRoles = employeeRows.map(row => row.employeeRole).filter(Boolean);
+      const userRoles = userRows.map(row => row.userRole).filter(Boolean);
+      
+      // Add standardized default options if not present
+      const defaultEmployeeRoles = [
+        'Dentist', 
+        'Assistant Dentist', 
+        'Receptionist'
+      ];
+      const defaultUserRoles = ['User', 'Administrator'];
+      
+      defaultEmployeeRoles.forEach(role => {
+        if (!employeeRoles.includes(role)) {
+          employeeRoles.push(role);
+        }
+      });
+      
+      defaultUserRoles.forEach(role => {
+        if (!userRoles.includes(role)) {
+          userRoles.push(role);
+        }
+      });
+      
+      res.json({
+        employeeRoles: employeeRoles.sort(),
+        userRoles: userRoles.sort()
+      });
+    });
+  });
+});
+
+// Debug endpoint to check user data (remove in production)
+app.get('/debug/users', (req, res) => {
+  db.all('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
 });
 
 // Delete user (admin only)

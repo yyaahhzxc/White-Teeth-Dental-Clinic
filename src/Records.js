@@ -76,7 +76,7 @@ function PatientList() {
 
   // Fetch patients from backend
   useEffect(() => {
-    fetch('http://localhost:3001/patients')
+  fetch(`${API_BASE}/patients`)
       .then(res => res.json())
       .then(data => {
         setPatients(data);
@@ -185,7 +185,7 @@ function PatientList() {
   setSelectedPatient(patient);
 
   try {
-    const res = await fetch(`http://localhost:3001/medical-information/${patient.id}`);
+  const res = await fetch(`${API_BASE}/medical-information/${patient.id}`);
     const data = await res.json();
     setMedInfo(data || null);
   } catch (err) {
@@ -413,7 +413,7 @@ const handleAddAppointment = () => navigate('/add-appointment');
         medInfo={medInfo} // ⭐ MODIFIED
         onRecordUpdated={() => {
           // Refresh the list after edit
-          fetch('http://localhost:3001/patients')
+          fetch(`${API_BASE}/patients`)
             .then(res => res.json())
             .then(data => {
               setPatients(data);

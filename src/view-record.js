@@ -30,6 +30,14 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   const [tabIndex, setTabIndex] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMsg, setSnackbarMsg] = useState('');
+
+  const showSnackbar = (msg) => {
+    setSnackbarMsg(msg);
+    setSnackbarOpen(true);
+    setTimeout(() => setSnackbarOpen(false), 2000);
+  };
 
   // Patient Info State
   const [firstName, setFirstName] = useState('');
@@ -98,12 +106,12 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
 
   const handleSaveClick = async () => {
     if (!patient || !patient.id) {
-      alert('Cannot save. No patient selected.');
+  showSnackbar('Cannot save. No patient selected.');
       return;
     }
     try {
       // Update patient info
-      await fetch(`http://localhost:3001/patients/${patient.id}`, {
+  await fetch(`${API_BASE}/patients/${patient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +122,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
       });
 
       // Update medical info using the patient's ID
-      await fetch(`http://localhost:3001/medical-information/${patient.id}`, {
+  await fetch(`${API_BASE}/medical-information/${patient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -129,7 +137,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
 
     } catch (err) {
       console.error("Save Error:", err);
-      alert('Failed to save changes. Please try again.');
+  showSnackbar('Failed to save changes. Please try again.');
     }
   };
 
@@ -579,6 +587,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
       >
         <DialogTitle>Save changes?</DialogTitle>
         <DialogContent>
+      <Snackbar open={snackbarOpen} message={snackbarMsg} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
           <Typography>Do you want to save your changes before closing?</Typography>
         </DialogContent>
         <DialogActions>

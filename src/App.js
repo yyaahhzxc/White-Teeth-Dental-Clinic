@@ -18,6 +18,7 @@ import Profile from './Profile';
 import Settings from './Settings';
 import Logs from './Logs';
 import Accounts from './Accounts';
+import { API_BASE } from './apiConfig';
 
 
 
@@ -47,7 +48,7 @@ function App() {
     setLoginError('');
     if (username && password) {
       try {
-        const res = await fetch('http://localhost:3001/login', {
+  const res = await fetch(`${API_BASE}/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
@@ -75,7 +76,7 @@ function App() {
           setLoginError(data.message || 'Login failed');
         }
       } catch (err) {
-        setLoginError('Unable to connect to server. Is the backend running on http://localhost:3001?');
+  setLoginError(`Unable to connect to server. Is the backend running on ${API_BASE}?`);
       }
     }
   };

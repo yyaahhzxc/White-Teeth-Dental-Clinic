@@ -23,7 +23,9 @@ const statusOptions = [
   'Inactive'
 ];
 
-const AddService = ({ open, onClose, handleAddService }) => {
+import { API_BASE } from './apiConfig';
+
+const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
   const [service, setService] = useState({
     name: '',
     description: '',
@@ -54,7 +56,7 @@ const AddService = ({ open, onClose, handleAddService }) => {
 
   const submitService = async () => {
     try {
-      await fetch('http://localhost:3001/service-table', {
+  await fetch(`${API_BASE}/service-table`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(service)
@@ -62,7 +64,7 @@ const AddService = ({ open, onClose, handleAddService }) => {
       handleAddService(); // This will fetch the updated list
       onClose();
     } catch (err) {
-      alert('Failed to save service');
+  if (typeof showSnackbar === 'function') showSnackbar('Failed to save service', { error: true });
     }
   };
 

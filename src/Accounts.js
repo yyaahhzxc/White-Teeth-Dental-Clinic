@@ -22,8 +22,10 @@ import {
   Select,
   MenuItem,
   Chip,
+  InputAdornment,
 } from '@mui/material';
 import { Search, FilterList, Add, Edit } from '@mui/icons-material';
+import TuneIcon from '@mui/icons-material/Tune';
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
 import Snackbar from '@mui/material/Snackbar';
@@ -32,6 +34,7 @@ import Fade from '@mui/material/Fade';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import Collapse from '@mui/material/Collapse';
+import { API_BASE, MASTER_PASSWORD } from './apiConfig';
 
 export default function Accounts() {
   const [users, setUsers] = useState([]);
@@ -44,6 +47,65 @@ export default function Accounts() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isDetailsEditing, setIsDetailsEditing] = useState(false);
   const [detailsFormData, setDetailsFormData] = useState({});
+
+  // Helper to extract a useful error message from a response
+  const parseError = async (response) => {
+    try {
+      const data = await response.json();
+      return (data && (data.error || data.message)) || JSON.stringify(data) || response.statusText || 'Unknown error';
+    } catch (e) {
+      return response.statusText || 'Unknown error';
+    }
+  };
+
+  // Snackbar helper for success/error messages
+  const showSnackbar = (message, options = {}) => {
+    setSnackbarMessage(message);
+    setSnackbarColor(options.color || (options.error ? '#FFCDD2' : '#C8E6C9'));
+    setSnackbarTextColor(options.textColor || (options.error ? '#B71C1C' : '#38883C'));
+    setSnackbarOpen(true);
+    if (options.duration !== 0) setTimeout(() => setSnackbarOpen(false), options.duration || 2000);
+  };
+
+  // Helper to send a request with token if available, retry with master password on 401/403
+  const sendAuthenticatedRequest = async (url, fetchOptions = {}) => {
+    const token = localStorage.getItem('token');
+
+    const baseHeaders = Object.assign({}, fetchOptions.headers || {});
+
+    if (token) {
+      const headersWithToken = Object.assign({}, baseHeaders, { 'Authorization': `Bearer ${token}` });
+      let res = await fetch(url, Object.assign({}, fetchOptions, { headers: headersWithToken }));
+      if (res.status === 401 || res.status === 403) {
+        // retry with master password
+        const headersWithMaster = Object.assign({}, baseHeaders, { 'x-master-password': MASTER_PASSWORD });
+        res = await fetch(url, Object.assign({}, fetchOptions, { headers: headersWithMaster }));
+      }
+      return res;
+    }
+
+    // No token: use master password directly
+    const headersWithMaster = Object.assign({}, baseHeaders, { 'x-master-password': MASTER_PASSWORD });
+    return await fetch(url, Object.assign({}, fetchOptions, { headers: headersWithMaster }));
+  };
+
+  // Update stored `user` in localStorage if the saved/edited user matches the current stored user
+  const updateStoredUser = (updates = {}) => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (!raw) return;
+      const stored = JSON.parse(raw);
+      if (!stored || !stored.id) return;
+      // if updates contain an id and it doesn't match, skip
+      if (updates.id && String(updates.id) !== String(stored.id)) return;
+      const merged = { ...stored, ...updates };
+      localStorage.setItem('user', JSON.stringify(merged));
+  try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
+  try { if (typeof window.__forceReloadUser === 'function') window.__forceReloadUser(); } catch (e) {}
+    } catch (e) {
+      // ignore
+    }
+  };
   
   // Form state for adding/editing users
   const [formData, setFormData] = useState({
@@ -93,7 +155,7 @@ export default function Accounts() {
   const fetchUsers = async (filters = activeFilters) => {
     try {
       const query = buildFilterQuery(filters);
-      const response = await fetch(`http://localhost:3001/users${query}`);
+  const response = await fetch(`${API_BASE}/users${query}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -127,12 +189,9 @@ export default function Accounts() {
 
   const handleAddUser = async () => {
     try {
-      const response = await fetch('http://localhost:3001/users', {
+  const response = await sendAuthenticatedRequest(`${API_BASE}/users`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-master-password': 'admin123' // For now, using master password
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 
@@ -140,24 +199,22 @@ export default function Accounts() {
         await fetchUsers();
         setAddUserOpen(false);
         resetForm();
+        showSnackbar('User added successfully!');
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        const errMsg = await parseError(response);
+        showSnackbar(`Error: ${errMsg}`, { error: true, duration: 3000 });
       }
     } catch (error) {
       console.error('Error adding user:', error);
-      alert('Error adding user');
+  showSnackbar('Error adding user', { error: true });
     }
   };
 
   const handleEditUser = async () => {
     try {
-      const response = await fetch(`http://localhost:3001/users/${selectedUser.id}`, {
+  const response = await sendAuthenticatedRequest(`${API_BASE}/users/${selectedUser.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-master-password': 'admin123' // For now, using master password
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 
@@ -166,35 +223,45 @@ export default function Accounts() {
         setEditUserOpen(false);
         resetForm();
         setSelectedUser(null);
+        showSnackbar('User updated successfully');
+        try { updateStoredUser({ ...formData }); } catch (e) {}
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        const errMsg = await parseError(response);
+        showSnackbar(`Error: ${errMsg}`, { error: true, duration: 3000 });
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Error updating user');
+      showSnackbar('Error updating user', { error: true });
     }
   };
 
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        const response = await fetch(`http://localhost:3001/users/${userId}`, {
-          method: 'DELETE',
-          headers: {
-            'x-master-password': 'admin123'
-          }
+  const response = await sendAuthenticatedRequest(`${API_BASE}/users/${userId}`, {
+          method: 'DELETE'
         });
 
         if (response.ok) {
           await fetchUsers();
+          showSnackbar('User deleted');
+          try {
+            const raw = localStorage.getItem('user');
+            if (raw) {
+              const s = JSON.parse(raw);
+              if (s && String(s.id) === String(userId)) {
+                localStorage.removeItem('user');
+                try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
+              }
+            }
+          } catch (e) {}
         } else {
-          const error = await response.json();
-          alert(`Error: ${error.error}`);
+          const errMsg = await parseError(response);
+          showSnackbar(`Error: ${errMsg}`, { error: true, duration: 3000 });
         }
       } catch (error) {
         console.error('Error deleting user:', error);
-        alert('Error deleting user');
+        showSnackbar('Error deleting user', { error: true });
       }
     }
   };
@@ -217,33 +284,38 @@ export default function Accounts() {
     setIsDetailsEditing(true);
   };
 
+  // Update details form state when editing user details
+  const handleDetailsFormChange = (field, value) => {
+    setDetailsFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleDetailsSave = async () => {
     try {
-      const response = await fetch(`http://localhost:3001/users/${selectedUser.id}`, {
+      if (!selectedUser || !selectedUser.id) {
+        showSnackbar('No user selected', { error: true });
+        return;
+      }
+
+  const response = await sendAuthenticatedRequest(`${API_BASE}/users/${selectedUser.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-master-password': 'admin123'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(detailsFormData)
       });
 
       if (response.ok) {
         await fetchUsers();
         setSelectedUser(prev => ({ ...prev, ...detailsFormData }));
+        setDetailsFormData(prev => ({ ...prev, ...detailsFormData }));
         setIsDetailsEditing(false);
-        setSnackbarMessage('Change successful!');
-        setSnackbarColor('#C8E6C9');
-        setSnackbarTextColor('#38883C');
-        setSnackbarOpen(true);
-        setTimeout(() => setSnackbarOpen(false), 1500);
+        showSnackbar('Change successful!');
+        try { updateStoredUser({ ...detailsFormData }); } catch (e) {}
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        const errMsg = await parseError(response);
+        showSnackbar(`Error: ${errMsg}`, { error: true, duration: 3000 });
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Error updating user');
+      showSnackbar('Error updating user', { error: true });
     }
   };
 
@@ -271,12 +343,9 @@ export default function Accounts() {
   const handleToggleStatus = async (userId, currentStatus) => {
     const newStatus = currentStatus === 'enabled' ? 'disabled' : 'enabled';
     try {
-      const response = await fetch(`http://localhost:3001/users/${userId}`, {
+  const response = await sendAuthenticatedRequest(`${API_BASE}/users/${userId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-master-password': 'admin123'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
 
@@ -286,13 +355,15 @@ export default function Accounts() {
         if (selectedUser && selectedUser.id === userId) {
           setSelectedUser(prev => ({ ...prev, status: newStatus }));
         }
+        showSnackbar(`User ${newStatus} successfully!`);
+        try { updateStoredUser({ status: newStatus }); } catch (e) {}
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        const errMsg = await parseError(response);
+        showSnackbar(`Error: ${errMsg}`, { error: true, duration: 3000 });
       }
     } catch (error) {
       console.error('Error updating user status:', error);
-      alert('Error updating user status');
+      showSnackbar('Error updating user status', { error: true });
     }
   };
 
@@ -329,80 +400,165 @@ export default function Accounts() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundImage: 'url("/White-Teeth-BG.png")',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundColor: '#2148c0',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
       <Header />
       
-      {/* Blue header section */}
+      {/* Users Title and Controls */}
       <Box
         sx={{
-          backgroundColor: '#4A69BD',
-          color: 'white',
-          p: 3,
           display: 'flex',
-          justifyContent: 'center',
+          flexDirection: 'column',
           alignItems: 'center',
-          position: 'relative'
+          position: 'relative',
+          py: 4,
+          px: 2, // Add padding to match container
         }}
       >
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+        {/* Users Title */}
+        <Typography 
+          variant="h3" 
+          sx={{ 
+            color: 'white',
+            fontWeight: 800,
+            fontSize: '39.14px',
+            fontFamily: 'Inter, sans-serif',
+            mb: 3, // Add margin bottom for spacing
+          }}
+        >
           Users
         </Typography>
-        <Button
-          variant="contained"
+        
+        {/* Search and Controls Row */}
+        <Box
           sx={{
-            position: 'absolute',
-            right: 24,
-            backgroundColor: 'white',
-            color: '#4A69BD',
-            fontWeight: 'bold',
-            '&:hover': {
-              backgroundColor: '#f5f5f5'
-            }
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: 'calc(100vw - 64px)', // Match the container width
+            gap: 2,
           }}
-          onClick={() => setAddUserOpen(true)}
         >
-          Add User
-        </Button>
-      </Box>
+          {/* Search Bar */}
+          <TextField
+            variant="outlined"
+            size="small"
+            placeholder="Search by name or username"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            sx={{ 
+              width: 343, // Match Figma width
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: '#f3edf7',
+                borderRadius: '10px',
+                height: '38px',
+                '& fieldset': {
+                  border: 'none',
+                },
+                '&:hover fieldset': {
+                  border: 'none',
+                },
+                '&.Mui-focused fieldset': {
+                  border: '1px solid #2148c0',
+                },
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ color: '#7f7f7f' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
 
-      <Box sx={{ p: 3 }}>
-        <Paper sx={{ p: 2, borderRadius: 2 }}>
-          {/* Search and filter controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <TextField
-              variant="outlined"
-              size="small"
-              placeholder="Search by name or username"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              sx={{ mr: 2, width: 240 }}
-              InputProps={{
-                startAdornment: <Search sx={{ mr: 1, color: 'gray' }} />
-              }}
-            />
+          {/* Filter and Add User buttons */}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/* Filter Button */}
             <Button
-              variant={showFilterBox ? 'contained' : 'outlined'}
-              startIcon={<FilterList />}
+              variant="outlined"
+              startIcon={<TuneIcon />}
               onClick={() => setShowFilterBox(v => !v)}
-              sx={{ backgroundColor: showFilterBox ? '#4A69BD' : 'white', color: showFilterBox ? 'white' : '#4A69BD', fontWeight: 'bold', '&:hover': { backgroundColor: showFilterBox ? '#3d5aa3' : '#f5f5f5' } }}
+              sx={{
+                backgroundColor: 'white',
+                color: '#7f7f7f',
+                border: '1px solid white',
+                borderRadius: '10px',
+                height: '38px',
+                px: 2,
+                textTransform: 'none',
+                fontWeight: 500,
+                fontSize: '16px',
+                fontFamily: 'DM Sans, sans-serif',
+                minWidth: 99,
+                '&:hover': {
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid white',
+                },
+              }}
             >
               Filter
             </Button>
-          </Box>
 
-          {/* Filter Bar UI with animation and white background */}
+            {/* Add User Button */}
+            <Button
+              variant="contained"
+              onClick={() => setAddUserOpen(true)}
+              sx={{
+                backgroundColor: 'white',
+                color: '#2148c0',
+                borderRadius: '8px',
+                height: '38px',
+                px: 3,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '16px',
+                fontFamily: 'Inter, sans-serif',
+                boxShadow: 'none',
+                '&:hover': {
+                  backgroundColor: '#f8f9ff',
+                  boxShadow: 'none',
+                },
+              }}
+            >
+              Add User
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Main Content Container */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          px: 2, // Reduced from 3 to 2 (16px instead of 24px)
+          pb: 2, // Reduced from 3 to 2
+        }}
+      >
+        <Paper 
+          sx={{ 
+            width: '100%', // Changed from fixed 1353px to 100%
+            maxWidth: 'calc(100vw - 32px)', // Max width minus small margins
+            height: '580px', // Reduced from 606px to 580px
+            borderRadius: '20px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Filter Bar UI with animation */}
           <Collapse in={showFilterBox} timeout={400}>
             <Box sx={{
               background: '#fff',
               borderRadius: 2,
-              p: 2,
+              mx: 3,
               mb: 2,
+              p: 2,
               display: 'flex',
               flexDirection: 'column',
               gap: 1,
@@ -470,61 +626,223 @@ export default function Accounts() {
             </Box>
           </Collapse>
 
-          {/* Users table */}
-          <TableContainer sx={{ maxHeight: 400, overflowY: 'auto' }}>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>Name</TableCell>
-                  <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>Username</TableCell>
-                  <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>Employee Role</TableCell>
-                  <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>User Role</TableCell>
-                  <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+          {/* Table Container */}
+          <Box
+            sx={{
+              mx: 3,
+              mt: 2, // Added top margin
+              mb: 3,
+              backgroundColor: '#dfdfdf',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              height: '480px', // Reduced height to fit better within the container
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box sx={{ p: 3 }}> {/* Increased padding from 2 to 3 */}
+              {/* Table Header */}
+              <Box 
+                sx={{ 
+                  display: 'flex',
+                  px: 2, // Padding on the container
+                  py: 1,
+                  alignItems: 'center',
+                  mb: 1,
+                  width: '100%',
+                }}
+              >
+                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Name: Centered */}
+                  <Typography 
+                    sx={{ 
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 500,
+                      fontSize: '18px',
+                      color: '#6d6b80',
+                      lineHeight: '24px',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Name
+                  </Typography>
+                </Box>
+                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Username: Centered */}
+                  <Typography 
+                    sx={{ 
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 500,
+                      fontSize: '18px',
+                      color: '#6d6b80',
+                      lineHeight: '24px',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Username
+                  </Typography>
+                </Box>
+                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Employee Role: Centered */}
+                  <Typography 
+                    sx={{ 
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 500,
+                      fontSize: '18px',
+                      color: '#6d6b80',
+                      lineHeight: '24px',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Employee Role
+                  </Typography>
+                </Box>
+                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* User Role: Centered */}
+                  <Typography 
+                    sx={{ 
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 500,
+                      fontSize: '18px',
+                      color: '#6d6b80',
+                      lineHeight: '24px',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    User Role
+                  </Typography>
+                </Box>
+                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Status: Centered */}
+                  <Typography 
+                    sx={{ 
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 500,
+                      fontSize: '18px',
+                      color: '#6d6b80',
+                      lineHeight: '24px',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Status
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Table Rows */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
-                    <TableRow key={user.id} sx={{ '&:hover': { backgroundColor: '#f9f9f9' } }}>
-                      <TableCell>
+                    <Box 
+                      key={user.id}
+                      sx={{ 
+                        display: 'flex', 
+                        px: 2, // Match header padding exactly
+                        py: 1,
+                        alignItems: 'center',
+                        backgroundColor: '#f9fafc',
+                        borderRadius: '10px',
+                        height: 66,
+                        '&:hover': { 
+                          backgroundColor: '#f0f4f8',
+                          cursor: 'pointer'
+                        }
+                      }}
+                      onClick={() => openDetailsDialog(user)}
+                    >
+                      <Box sx={{ flex: '1', textAlign: 'left' }}> {/* Name: Flush left, no padding */}
                         <Typography
                           sx={{
-                            cursor: 'pointer',
-                            color: '#4A69BD',
-                            fontWeight: 500,
-                            '&:hover': {
-                              textDecoration: 'underline'
-                            }
+                            fontFamily: 'Roboto, sans-serif',
+                            fontWeight: 400,
+                            fontSize: '16px',
+                            color: '#6d6b80',
+                            lineHeight: '24px',
+                            letterSpacing: '0.5px',
                           }}
-                          onClick={() => openDetailsDialog(user)}
                         >
                           {`${user.firstName || ''} ${user.lastName || ''}`}
                         </Typography>
-                      </TableCell>
-                      <TableCell>{user.username}</TableCell>
-                      <TableCell>{user.employeeRole || '-'}</TableCell>
-                      <TableCell>{user.userRole || '-'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.status === 'enabled' ? 'Enabled' : 'Disabled'}
-                          color={user.status === 'enabled' ? 'success' : 'error'}
-                          size="small"
-                          sx={{ cursor: 'pointer' }}
-                          onClick={() => handleToggleStatus(user.id, user.status)}
-                        />
-                      </TableCell>
-                    </TableRow>
+                      </Box>
+                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Username: Centered with no extra padding */}
+                        <Typography
+                          sx={{
+                            fontFamily: 'Roboto, sans-serif',
+                            fontWeight: 400,
+                            fontSize: '16px',
+                            color: '#6d6b80',
+                            lineHeight: '24px',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          {user.username}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Employee Role: Centered with no extra padding */}
+                        <Typography
+                          sx={{
+                            fontFamily: 'Roboto, sans-serif',
+                            fontWeight: 400,
+                            fontSize: '16px',
+                            color: '#6d6b80',
+                            lineHeight: '24px',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          {user.employeeRole || '-'}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* User Role: Centered with no extra padding */}
+                        <Typography
+                          sx={{
+                            fontFamily: 'Roboto, sans-serif',
+                            fontWeight: 400,
+                            fontSize: '16px',
+                            color: '#6d6b80',
+                            lineHeight: '24px',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          {user.userRole || '-'}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Status: Centered with no extra padding */}
+                        <Typography
+                          sx={{
+                            fontFamily: 'Roboto, sans-serif',
+                            fontWeight: 400,
+                            fontSize: '16px',
+                            color: '#6d6b80',
+                            lineHeight: '24px',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          {user.status === 'enabled' ? 'Enabled' : 'Disabled'}
+                        </Typography>
+                      </Box>
+                    </Box>
                   ))
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
+                  <Box 
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      py: 4,
+                      backgroundColor: '#f9fafc',
+                      borderRadius: '10px',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontFamily: 'Roboto, sans-serif',
+                        fontWeight: 400,
+                        fontSize: '16px',
+                        color: '#6d6b80',
+                      }}
+                    >
                       No users found.
-                    </TableCell>
-                  </TableRow>
+                    </Typography>
+                  </Box>
                 )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </Box>
+            </Box>
+          </Box>
         </Paper>
       </Box>
 
@@ -532,11 +850,11 @@ export default function Accounts() {
       <QuickActionButton 
         onAddPatientRecord={() => {
           // Handle add patient record - you can navigate to add patient page or open modal
-          console.log("Add patient record clicked");
+          /* no-op: handled by parent routing or UI */
         }}
         onAddAppointment={() => {
           // Handle add appointment - you can navigate to add appointment page or open modal
-          console.log("Add appointment clicked");
+          /* no-op: handled by parent routing or UI */
         }}
       />
 
@@ -855,7 +1173,6 @@ export default function Accounts() {
                   onClick={handleDetailsSave}
                   sx={{ 
                     backgroundColor: '#4A69BD',
-                    '&:hover': { backgroundColor: '#3d5aa3' },
                     boxShadow: 1,
                     '&:hover': {
                       boxShadow: 2,
@@ -873,7 +1190,6 @@ export default function Accounts() {
                 onClick={handleDetailsEdit}
                 sx={{ 
                   backgroundColor: '#4A69BD',
-                  '&:hover': { backgroundColor: '#3d5aa3' },
                   boxShadow: 1,
                   '&:hover': {
                     boxShadow: 2,

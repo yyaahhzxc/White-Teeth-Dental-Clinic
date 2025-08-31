@@ -78,7 +78,7 @@ const AddPatientRecord = ({ open, onClose }) => {
         dateCreated: new Date().toISOString()
       };
 
-      const res = await fetch('http://localhost:3001/patients', {
+  const res = await fetch(`${API_BASE}/patients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patient),
@@ -99,7 +99,7 @@ const AddPatientRecord = ({ open, onClose }) => {
         diabetic
       };
 
-      await fetch('http://localhost:3001/medical-information', {
+  await fetch(`${API_BASE}/medical-information`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(medicalInfo),

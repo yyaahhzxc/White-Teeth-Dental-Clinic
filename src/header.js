@@ -13,12 +13,12 @@ import {
   ListItemText,
   Divider,
 } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
 import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BookmarksIcon from '@mui/icons-material/Bookmarks';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { API_BASE } from './apiConfig';
 
 function Header() {
   const navigate = useNavigate();
@@ -28,6 +28,24 @@ function Header() {
   const open = Boolean(anchorEl);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [userPhoto, setUserPhoto] = useState(null);
+
+  // Helper to determine if a user object represents an admin.
+  // Accepts different role property names and common values ('admin', 'administrator').
+  const isAdminUser = (u) => {
+    if (!u) return false;
+    const candidates = [u.role, u.userRole, u.user_role, u.userRoleName, u.user_role_name];
+    for (let v of candidates) {
+      if (!v) continue;
+      try {
+        const s = String(v).toLowerCase();
+        if (s === 'admin' || s === 'administrator' || s.includes('admin')) return true;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return false;
+  };
 
   const handleAvatarClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -38,67 +56,142 @@ function Header() {
     navigate(path);
   };
 
+  // Load and maintain current user data reliably
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        setIsAdmin(u && u.role === 'admin');
-        setCurrentUser(u);
-      } else {
-        setIsAdmin(false);
-        setCurrentUser(null);
-      }
-    } catch (e) {
-      setIsAdmin(false);
-      setCurrentUser(null);
-    }
-  // If there's a token but the stored user might be stale, try to refresh from server
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        fetch('http://localhost:3001/me', {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((r) => {
-            if (!r.ok) throw new Error('not-auth');
-            return r.json();
-          })
-          .then((data) => {
-            if (data && data.user) {
-              localStorage.setItem('user', JSON.stringify(data.user));
-              setIsAdmin(data.user.role === 'admin');
-              setCurrentUser(data.user);
-            }
-          })
-          .catch(() => {
-            // ignore errors - user may need to login again
-          });
-      }
-    } catch (e) {
-      // ignore
-    }
-    // listen for changes to user (login/logout) so header updates immediately
-    const onUserChanged = () => {
+    const loadCurrentUser = async () => {
       try {
-        const raw2 = localStorage.getItem('user');
-        if (raw2) {
-          const u2 = JSON.parse(raw2);
-          setIsAdmin(u2 && u2.role === 'admin');
-          setCurrentUser(u2);
-        } else {
-          setIsAdmin(false);
-          setCurrentUser(null);
+        // First get basic user info from localStorage
+        const stored = localStorage.getItem('user');
+        let username = 'admin';
+        let basicUser = null;
+        
+        if (stored) {
+          basicUser = JSON.parse(stored);
+          username = basicUser.username || 'admin';
+          // Set basic user data immediately for UI responsiveness
+          setCurrentUser(basicUser);
+          setIsAdmin(isAdminUser(basicUser));
         }
-      } catch (e) {
-        setIsAdmin(false);
+
+        // Then fetch complete user data from backend
+        try {
+          const response = await fetch(`${API_BASE}/users`);
+          if (response.ok) {
+            const users = await response.json();
+            const completeUser = users.find(user => user.username === username) || users[0];
+            if (completeUser) {
+              // Update with complete backend data
+              setCurrentUser(completeUser);
+              setIsAdmin(isAdminUser(completeUser));
+              
+              // Also update localStorage with complete data
+              localStorage.setItem('user', JSON.stringify(completeUser));
+              
+              // Load user photo
+              if (completeUser.username) {
+                try {
+                  const photoRes = await fetch(`${API_BASE}/user-photo/${completeUser.username}`);
+                  if (photoRes.ok) {
+                    const photoData = await photoRes.json();
+                    setUserPhoto(photoData.photo || null);
+                  } else {
+                    setUserPhoto(null);
+                  }
+                } catch (photoErr) {
+                  setUserPhoto(null);
+                }
+              }
+            }
+          }
+        } catch (backendError) {
+          console.log('Backend not available, using localStorage data');
+          // If backend fails, fallback to localStorage data
+          if (basicUser) {
+            // Still try to load photo from backend if possible
+            if (basicUser.username) {
+              try {
+                const photoRes = await fetch(`${API_BASE}/user-photo/${basicUser.username}`);
+                if (photoRes.ok) {
+                  const photoData = await photoRes.json();
+                  setUserPhoto(photoData.photo || null);
+                } else {
+                  setUserPhoto(null);
+                }
+              } catch (photoErr) {
+                setUserPhoto(null);
+              }
+            }
+          }
+        }
+        
+        if (!stored && !basicUser) {
+          setCurrentUser(null);
+          setIsAdmin(false);
+          setUserPhoto(null);
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
         setCurrentUser(null);
+        setIsAdmin(false);
+        setUserPhoto(null);
       }
     };
-    window.addEventListener('userChanged', onUserChanged);
-    return () => window.removeEventListener('userChanged', onUserChanged);
-  }, []);
+
+    // Initial load
+    loadCurrentUser();
+
+    // Set up periodic refresh to ensure we get fresh data
+    const refreshInterval = setInterval(loadCurrentUser, 30000); // Refresh every 30 seconds
+
+    // Listen for user changes
+    const handleUserChanged = () => loadCurrentUser();
+    const handlePhotoChanged = async () => {
+      try {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          const user = JSON.parse(stored);
+          if (user.username) {
+            try {
+              const photoRes = await fetch(`${API_BASE}/user-photo/${user.username}`);
+              if (photoRes.ok) {
+                const photoData = await photoRes.json();
+                setUserPhoto(photoData.photo || null);
+              } else {
+                setUserPhoto(null);
+              }
+            } catch (photoErr) {
+              setUserPhoto(null);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading photo:', error);
+        setUserPhoto(null);
+      }
+    };
+
+    const handleStorageChange = (e) => {
+      if (e.key === 'user') {
+        loadCurrentUser();
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('userChanged', handleUserChanged);
+    window.addEventListener('userPhotoChanged', handlePhotoChanged);
+    window.addEventListener('storage', handleStorageChange);
+
+    // Cleanup
+    return () => {
+      clearInterval(refreshInterval);
+      window.removeEventListener('userChanged', handleUserChanged);
+      window.removeEventListener('userPhotoChanged', handlePhotoChanged);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);  // Keep isAdmin in sync with currentUser
+  useEffect(() => {
+    setIsAdmin(isAdminUser(currentUser));
+  }, [currentUser]);
 
   // Determine the active route
   const activeRoute = location.pathname;
@@ -172,9 +265,7 @@ function Header() {
             aria-controls={open ? 'header-user-menu' : undefined}
             aria-haspopup="true"
           >
-            <Avatar sx={{ width: 32, height: 32, bgcolor: '#1976d2' }}>
-              <PersonIcon sx={{ color: 'white', fontSize: 18 }} />
-            </Avatar>
+            <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: 32, height: 32, bgcolor: userPhoto ? '#1976d2' : 'transparent', border: userPhoto ? '1px solid #155a9c' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
           </IconButton>
 
           <Menu
@@ -201,9 +292,7 @@ function Header() {
                 cursor: 'pointer',
               }}
             >
-              <Avatar sx={{ width: 56, height: 56, bgcolor: '#b39ddb' }}>
-                <PersonIcon sx={{ color: 'white' }} />
-              </Avatar>
+              <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: 56, height: 56, bgcolor: userPhoto ? '#b39ddb' : 'transparent', border: userPhoto ? '2px solid #a38ccc' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
               <Box>
                 <Typography variant="subtitle1">
                   {currentUser && currentUser.firstName && currentUser.lastName 
@@ -223,7 +312,7 @@ function Header() {
               </ListItemIcon>
               <ListItemText>Settings</ListItemText>
             </MenuItem>
-            {isAdmin && (
+            {(isAdmin || isAdminUser(currentUser)) && (
               <MenuItem onClick={() => { navigateTo('/accounts'); }}>
                 <ListItemIcon>
                   <PeopleIcon sx={{ color: '#6A1B9A' }} fontSize="small" />
@@ -243,7 +332,7 @@ function Header() {
                 handleMenuClose();
                 try {
                   const token = localStorage.getItem('token');
-                  fetch('http://localhost:3001/logout', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
+                  fetch(`${API_BASE}/logout`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
                 } catch (e) {}
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');

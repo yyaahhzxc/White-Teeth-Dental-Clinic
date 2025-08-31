@@ -30,6 +30,14 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedService, setEditedService] = useState(service || {});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMsg, setSnackbarMsg] = useState('');
+
+  const showSnackbar = (msg) => {
+    setSnackbarMsg(msg);
+    setSnackbarOpen(true);
+    setTimeout(() => setSnackbarOpen(false), 2000);
+  };
 
   useEffect(() => {
     setEditedService(service || {});
@@ -43,7 +51,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
   const handleSaveClick = async () => {
     // Send PUT request to backend to update service
     try {
-      await fetch(`http://localhost:3001/service-table/${editedService.id}`, {
+  await fetch(`${API_BASE}/service-table/${editedService.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editedService)
@@ -52,7 +60,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
       if (onServiceUpdated) onServiceUpdated();
     } catch (err) {
       console.error('Save Error:', err);
-      alert('Failed to save changes');
+  showSnackbar('Failed to save changes');
     }
   };
 
@@ -232,6 +240,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
           <Button onClick={handleConfirmSave} color="primary" variant="contained">Save</Button>
         </DialogActions>
       </MuiDialog>
+    <Snackbar open={snackbarOpen} message={snackbarMsg} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
     </>
   );
 };

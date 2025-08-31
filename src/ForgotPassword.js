@@ -28,7 +28,7 @@ function ForgotPassword() {
     setError('');
     setStatus('');
     try {
-      const res = await fetch('http://localhost:3001/forgot-validate', {
+  const res = await fetch(`${API_BASE}/forgot-validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ q1, q2, q3 }),
@@ -75,7 +75,7 @@ function ForgotPassword() {
   // Server will enforce that the new password is not the same as the stored password.
 
     try {
-      const res = await fetch('http://localhost:3001/forgot-reset', {
+  const res = await fetch(`${API_BASE}/forgot-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword }),

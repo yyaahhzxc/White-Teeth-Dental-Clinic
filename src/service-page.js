@@ -40,7 +40,7 @@ function ServiceList() {
 
   // Fetch services from backend (replace with your actual endpoint)
   useEffect(() => {
-    fetch('http://localhost:3001/service-table')
+  fetch(`${API_BASE}/service-table`)
       .then(res => res.json())
       .then(data => {
         setServices(data);
@@ -109,7 +109,7 @@ function ServiceList() {
 
   const handleAddService = () => {
     // After adding, fetch the updated list
-    fetch('http://localhost:3001/service-table')
+  fetch(`${API_BASE}/service-table`)
       .then(res => res.json())
       .then(data => {
         setServices(data);

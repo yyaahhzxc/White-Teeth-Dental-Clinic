@@ -1,4 +1,4 @@
-const sqlite3 = require('sqlite3').verbose();
+mcpconst sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('clinic.db');
 
 console.log('Checking all users in database:');
