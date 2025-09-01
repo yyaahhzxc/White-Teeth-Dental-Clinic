@@ -649,6 +649,845 @@ app.get('/service-table', (req, res) => {
   });
 });
 
+// Update service
+app.put('/service-table/:id', (req, res) => {
+  const serviceId = req.params.id;
+  const { name, description, price, duration, type, status } = req.body;
+
+  db.run(
+    `UPDATE services SET 
+      name = ?, description = ?, price = ?, duration = ?, type = ?, status = ?
+     WHERE id = ?`,
+    [name, description, price, duration, type, status, serviceId],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      res.json({ message: 'Service updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Admin-only: delete a service
+app.delete('/service-table/:id', requireRole('admin'), (req, res) => {
+  const serviceId = req.params.id;
+  db.run('DELETE FROM services WHERE id = ?', [serviceId], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'Service not found' });
+    res.json({ message: 'Service deleted', changes: this.changes });
+  });
+});
+
+// Update patient information
+app.put('/patients/:id', (req, res) => {
+  const patientId = req.params.id;
+  const {
+    firstName, lastName, middleName, suffix, maritalStatus,
+    contactNumber, occupation, address, dateOfBirth, sex,
+    contactPersonName, contactPersonRelationship, contactPersonNumber,
+    contactPersonAddress
+  } = req.body;
+
+  db.run(
+    `UPDATE patients SET 
+      firstName = ?, lastName = ?, middleName = ?, suffix = ?, maritalStatus = ?,
+      contactNumber = ?, occupation = ?, address = ?, dateOfBirth = ?, sex = ?,
+      contactPersonName = ?, contactPersonRelationship = ?, contactPersonNumber = ?, 
+      contactPersonAddress = ?
+     WHERE id = ?`,
+    [
+      firstName, lastName, middleName, suffix, maritalStatus,
+      contactNumber, occupation, address, dateOfBirth, sex,
+      contactPersonName, contactPersonRelationship, contactPersonNumber,
+      contactPersonAddress, patientId
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Patient not found' });
+      }
+      res.json({ message: 'Patient updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update medical information
+app.put('/medical-information/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const {
+    allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+    medications, additionalNotes, bloodPressure, diabetic
+  } = req.body;
+
+  // First check if medical information exists for this patient
+  db.get('SELECT id FROM MedicalInformation WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing record
+      db.run(
+        `UPDATE MedicalInformation SET 
+          allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
+          medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
+         WHERE patientId = ?`,
+        [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information updated successfully', changes: this.changes });
+        }
+      );
+    } else {
+      // Create new record if none exists
+      db.run(
+        `INSERT INTO MedicalInformation (
+          patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information created successfully', id: this.lastID });
+        }
+      );
+    }
+  });
+});
+
+// ===== USER MANAGEMENT ENDPOINTS =====
+
+// Get all users
+app.get('/users', (req, res) => {
+  // Build dynamic WHERE clause based on query params
+  const allowedFilters = ['employeeRole', 'userRole', 'status'];
+  const filters = [];
+  const values = [];
+  allowedFilters.forEach(key => {
+    if (req.query[key]) {
+      filters.push(`${key} = ?`);
+      values.push(req.query[key]);
+    }
+  });
+  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  db.all(`SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users ${whereClause}`, values, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Get single user by ID
+app.get('/users/:id', (req, res) => {
+  const userId = req.params.id;
+  db.get('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    res.json(row);
+  });
+});
+
+// Add new user
+app.post('/users', requireRole('admin'), (req, res) => {
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+  
+  if (!username || !password || !firstName || !lastName) {
+    return res.status(400).json({ error: 'Username, password, firstName, and lastName are required' });
+  }
+
+  db.run(
+    'INSERT INTO users (username, password, firstName, lastName, employeeRole, userRole, status, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [username, password, firstName, lastName, employeeRole, userRole, status || 'enabled', normalizeRoles('', userRole).role],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ id: this.lastID, message: 'User created successfully' });
+    }
+  );
+});
+
+// Update user
+app.put('/users/:id', requireRole('admin'), (req, res) => {
+  const userId = req.params.id;
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+
+  let updateFields = [];
+  let updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+  if (password !== undefined) {
+    updateFields.push('password = ?');
+    updateValues.push(password);
+  }
+  if (firstName !== undefined) {
+    updateFields.push('firstName = ?');
+    updateValues.push(firstName);
+  }
+  if (lastName !== undefined) {
+    updateFields.push('lastName = ?');
+    updateValues.push(lastName);
+  }
+  if (employeeRole !== undefined) {
+    updateFields.push('employeeRole = ?');
+    updateValues.push(employeeRole);
+  }
+  if (userRole !== undefined) {
+    const normalized = normalizeRoles('', userRole);
+    updateFields.push('userRole = ?');
+    updateValues.push(normalized.userRole);
+    updateFields.push('role = ?');
+    updateValues.push(normalized.role);
+  }
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updateValues.push(userId);
+
+  db.run(
+    `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+    updateValues,
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json({ message: 'User updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update own profile (authenticated users can update their own profile)
+app.put('/profile', authenticateToken, (req, res) => {
+  const userId = req.user.id; // Get user ID from authenticated session
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+
+  console.log('📝 Profile update request:');
+  console.log('  - User ID:', userId);
+  console.log('  - Update data:', { username, firstName, lastName, employeeRole, userRole, status });
+
+  let updateFields = [];
+  let updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+  if (password !== undefined) {
+    updateFields.push('password = ?');
+    updateValues.push(password);
+  }
+  if (firstName !== undefined) {
+    updateFields.push('firstName = ?');
+    updateValues.push(firstName);
+  }
+  if (lastName !== undefined) {
+    updateFields.push('lastName = ?');
+    updateValues.push(lastName);
+  }
+  if (employeeRole !== undefined) {
+    updateFields.push('employeeRole = ?');
+    updateValues.push(employeeRole);
+  }
+  if (userRole !== undefined) {
+    const normalized = normalizeRoles('', userRole);
+    updateFields.push('userRole = ?');
+    updateValues.push(normalized.userRole);
+    updateFields.push('role = ?');
+    updateValues.push(normalized.role);
+  }
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updateValues.push(userId);
+
+  console.log('  - SQL fields to update:', updateFields);
+  console.log('  - SQL values:', updateValues);
+
+  db.run(
+    `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+    updateValues,
+    function (err) {
+      if (err) {
+        console.log('❌ Profile update failed:', err.message);
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        console.log('❌ Profile update failed: User not found');
+        return res.status(404).json({ error: 'User not found' });
+      }
+      console.log('✅ Profile update successful. Changes:', this.changes);
+      
+      // Verify the update by fetching the updated user
+      db.get('SELECT * FROM users WHERE id = ?', [userId], (selectErr, updatedUser) => {
+        if (!selectErr && updatedUser) {
+          console.log('✅ Updated user data:', {
+            id: updatedUser.id,
+            username: updatedUser.username,
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            employeeRole: updatedUser.employeeRole,
+            userRole: updatedUser.userRole,
+            status: updatedUser.status
+          });
+        }
+      });
+      
+      res.json({ message: 'Profile updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Get distinct role options from database
+app.get('/role-options', (req, res) => {
+  const employeeRolesQuery = 'SELECT DISTINCT employeeRole FROM users WHERE employeeRole IS NOT NULL AND employeeRole != ""';
+  const userRolesQuery = 'SELECT DISTINCT userRole FROM users WHERE userRole IS NOT NULL AND userRole != ""';
+  
+  db.all(employeeRolesQuery, [], (err, employeeRows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    db.all(userRolesQuery, [], (err, userRows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      const employeeRoles = employeeRows.map(row => row.employeeRole).filter(Boolean);
+      const userRoles = userRows.map(row => row.userRole).filter(Boolean);
+      
+      // Add standardized default options if not present
+      const defaultEmployeeRoles = [
+        'Dentist', 
+        'Assistant Dentist', 
+        'Receptionist'
+      ];
+      const defaultUserRoles = ['User', 'Administrator'];
+      
+      defaultEmployeeRoles.forEach(role => {
+        if (!employeeRoles.includes(role)) {
+          employeeRoles.push(role);
+        }
+      });
+      
+      defaultUserRoles.forEach(role => {
+        if (!userRoles.includes(role)) {
+          userRoles.push(role);
+        }
+      });
+      
+      res.json({
+        employeeRoles: employeeRoles.sort(),
+        userRoles: userRoles.sort()
+      });
+    });
+  });
+});
+
+// Debug endpoint to check user data (remove in production)
+app.get('/debug/users', (req, res) => {
+  db.all('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Delete user (admin only)
+app.delete('/users/:id', requireRole('admin'), (req, res) => {
+  const userId = req.params.id;
+  
+  // Prevent deleting admin user
+  db.get('SELECT username FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    
+    if (row.username === 'admin') {
+      return res.status(400).json({ error: 'Cannot delete admin user' });
+    }
+
+    db.run('DELETE FROM users WHERE id = ?', [userId], function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+      res.json({ message: 'User deleted successfully', changes: this.changes });
+    });
+  });
+});
+
+// Update service
+app.put('/service-table/:id', (req, res) => {
+  const serviceId = req.params.id;
+  const { name, description, price, duration, type, status } = req.body;
+
+  db.run(
+    `UPDATE services SET 
+      name = ?, description = ?, price = ?, duration = ?, type = ?, status = ?
+     WHERE id = ?`,
+    [name, description, price, duration, type, status, serviceId],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      res.json({ message: 'Service updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Admin-only: delete a service
+app.delete('/service-table/:id', requireRole('admin'), (req, res) => {
+  const serviceId = req.params.id;
+  db.run('DELETE FROM services WHERE id = ?', [serviceId], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'Service not found' });
+    res.json({ message: 'Service deleted', changes: this.changes });
+  });
+});
+
+// Update patient information
+app.put('/patients/:id', (req, res) => {
+  const patientId = req.params.id;
+  const {
+    firstName, lastName, middleName, suffix, maritalStatus,
+    contactNumber, occupation, address, dateOfBirth, sex,
+    contactPersonName, contactPersonRelationship, contactPersonNumber,
+    contactPersonAddress
+  } = req.body;
+
+  db.run(
+    `UPDATE patients SET 
+      firstName = ?, lastName = ?, middleName = ?, suffix = ?, maritalStatus = ?,
+      contactNumber = ?, occupation = ?, address = ?, dateOfBirth = ?, sex = ?,
+      contactPersonName = ?, contactPersonRelationship = ?, contactPersonNumber = ?, 
+      contactPersonAddress = ?
+     WHERE id = ?`,
+    [
+      firstName, lastName, middleName, suffix, maritalStatus,
+      contactNumber, occupation, address, dateOfBirth, sex,
+      contactPersonName, contactPersonRelationship, contactPersonNumber,
+      contactPersonAddress, patientId
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Patient not found' });
+      }
+      res.json({ message: 'Patient updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update medical information
+app.put('/medical-information/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const {
+    allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+    medications, additionalNotes, bloodPressure, diabetic
+  } = req.body;
+
+  // First check if medical information exists for this patient
+  db.get('SELECT id FROM MedicalInformation WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing record
+      db.run(
+        `UPDATE MedicalInformation SET 
+          allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
+          medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
+         WHERE patientId = ?`,
+        [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information updated successfully', changes: this.changes });
+        }
+      );
+    } else {
+      // Create new record if none exists
+      db.run(
+        `INSERT INTO MedicalInformation (
+          patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information created successfully', id: this.lastID });
+        }
+      );
+    }
+  });
+});
+
+// ===== USER MANAGEMENT ENDPOINTS =====
+
+// Get all users
+app.get('/users', (req, res) => {
+  // Build dynamic WHERE clause based on query params
+  const allowedFilters = ['employeeRole', 'userRole', 'status'];
+  const filters = [];
+  const values = [];
+  allowedFilters.forEach(key => {
+    if (req.query[key]) {
+      filters.push(`${key} = ?`);
+      values.push(req.query[key]);
+    }
+  });
+  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  db.all(`SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users ${whereClause}`, values, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Get single user by ID
+app.get('/users/:id', (req, res) => {
+  const userId = req.params.id;
+  db.get('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    res.json(row);
+  });
+});
+
+// Add new user
+app.post('/users', requireRole('admin'), (req, res) => {
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+  
+  if (!username || !password || !firstName || !lastName) {
+    return res.status(400).json({ error: 'Username, password, firstName, and lastName are required' });
+  }
+
+  db.run(
+    'INSERT INTO users (username, password, firstName, lastName, employeeRole, userRole, status, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [username, password, firstName, lastName, employeeRole, userRole, status || 'enabled', normalizeRoles('', userRole).role],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ id: this.lastID, message: 'User created successfully' });
+    }
+  );
+});
+
+// Update user
+app.put('/users/:id', requireRole('admin'), (req, res) => {
+  const userId = req.params.id;
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+
+  let updateFields = [];
+  let updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+  if (password !== undefined) {
+    updateFields.push('password = ?');
+    updateValues.push(password);
+  }
+  if (firstName !== undefined) {
+    updateFields.push('firstName = ?');
+    updateValues.push(firstName);
+  }
+  if (lastName !== undefined) {
+    updateFields.push('lastName = ?');
+    updateValues.push(lastName);
+  }
+  if (employeeRole !== undefined) {
+    updateFields.push('employeeRole = ?');
+    updateValues.push(employeeRole);
+  }
+  if (userRole !== undefined) {
+    const normalized = normalizeRoles('', userRole);
+    updateFields.push('userRole = ?');
+    updateValues.push(normalized.userRole);
+    updateFields.push('role = ?');
+    updateValues.push(normalized.role);
+  }
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updateValues.push(userId);
+
+  db.run(
+    `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+    updateValues,
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json({ message: 'User updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update own profile (authenticated users can update their own profile)
+app.put('/profile', authenticateToken, (req, res) => {
+  const userId = req.user.id; // Get user ID from authenticated session
+  const { username, password, firstName, lastName, employeeRole, userRole, status } = req.body;
+
+  console.log('📝 Profile update request:');
+  console.log('  - User ID:', userId);
+  console.log('  - Update data:', { username, firstName, lastName, employeeRole, userRole, status });
+
+  let updateFields = [];
+  let updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+  if (password !== undefined) {
+    updateFields.push('password = ?');
+    updateValues.push(password);
+  }
+  if (firstName !== undefined) {
+    updateFields.push('firstName = ?');
+    updateValues.push(firstName);
+  }
+  if (lastName !== undefined) {
+    updateFields.push('lastName = ?');
+    updateValues.push(lastName);
+  }
+  if (employeeRole !== undefined) {
+    updateFields.push('employeeRole = ?');
+    updateValues.push(employeeRole);
+  }
+  if (userRole !== undefined) {
+    const normalized = normalizeRoles('', userRole);
+    updateFields.push('userRole = ?');
+    updateValues.push(normalized.userRole);
+    updateFields.push('role = ?');
+    updateValues.push(normalized.role);
+  }
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  updateValues.push(userId);
+
+  console.log('  - SQL fields to update:', updateFields);
+  console.log('  - SQL values:', updateValues);
+
+  db.run(
+    `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+    updateValues,
+    function (err) {
+      if (err) {
+        console.log('❌ Profile update failed:', err.message);
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        console.log('❌ Profile update failed: User not found');
+        return res.status(404).json({ error: 'User not found' });
+      }
+      console.log('✅ Profile update successful. Changes:', this.changes);
+      
+      // Verify the update by fetching the updated user
+      db.get('SELECT * FROM users WHERE id = ?', [userId], (selectErr, updatedUser) => {
+        if (!selectErr && updatedUser) {
+          console.log('✅ Updated user data:', {
+            id: updatedUser.id,
+            username: updatedUser.username,
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            employeeRole: updatedUser.employeeRole,
+            userRole: updatedUser.userRole,
+            status: updatedUser.status
+          });
+        }
+      });
+      
+      res.json({ message: 'Profile updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Get distinct role options from database
+app.get('/role-options', (req, res) => {
+  const employeeRolesQuery = 'SELECT DISTINCT employeeRole FROM users WHERE employeeRole IS NOT NULL AND employeeRole != ""';
+  const userRolesQuery = 'SELECT DISTINCT userRole FROM users WHERE userRole IS NOT NULL AND userRole != ""';
+  
+  db.all(employeeRolesQuery, [], (err, employeeRows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    db.all(userRolesQuery, [], (err, userRows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      const employeeRoles = employeeRows.map(row => row.employeeRole).filter(Boolean);
+      const userRoles = userRows.map(row => row.userRole).filter(Boolean);
+      
+      // Add standardized default options if not present
+      const defaultEmployeeRoles = [
+        'Dentist', 
+        'Assistant Dentist', 
+        'Receptionist'
+      ];
+      const defaultUserRoles = ['User', 'Administrator'];
+      
+      defaultEmployeeRoles.forEach(role => {
+        if (!employeeRoles.includes(role)) {
+          employeeRoles.push(role);
+        }
+      });
+      
+      defaultUserRoles.forEach(role => {
+        if (!userRoles.includes(role)) {
+          userRoles.push(role);
+        }
+      });
+      
+      res.json({
+        employeeRoles: employeeRoles.sort(),
+        userRoles: userRoles.sort()
+      });
+    });
+  });
+});
+
+// Debug endpoint to check user data (remove in production)
+app.get('/debug/users', (req, res) => {
+  db.all('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Delete user (admin only)
+app.delete('/users/:id', requireRole('admin'), (req, res) => {
+  const userId = req.params.id;
+  
+  // Prevent deleting admin user
+  db.get('SELECT username FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    
+    if (row.username === 'admin') {
+      return res.status(400).json({ error: 'Cannot delete admin user' });
+    }
+
+    db.run('DELETE FROM users WHERE id = ?', [userId], function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+      res.json({ message: 'User deleted successfully', changes: this.changes });
+    });
+  });
+});
+
+
+app.put('/medical-information/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const {
+    allergies,
+    bloodType,
+    bloodborneDiseases,
+    pregnancyStatus,
+    medications,
+    additionalNotes,
+    bloodPressure,
+    diabetic
+    // add healthProfile or other fields if needed
+  } = req.body;
+
+  db.run(
+    `UPDATE MedicalInformation SET
+      allergies = ?,
+      bloodType = ?,
+      bloodborneDiseases = ?,
+      pregnancyStatus = ?,
+      medications = ?,
+      additionalNotes = ?,
+      bloodPressure = ?,
+      diabetic = ?
+      WHERE patientId = ?`,
+    [
+      allergies,
+      bloodType,
+      bloodborneDiseases,
+      pregnancyStatus,
+      medications,
+      additionalNotes,
+      bloodPressure,
+      diabetic,
+      patientId
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ updated: this.changes });
+    }
+  );
+});
+
+app.put('/service-table/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, description, price, duration, type, status } = req.body;
+
+  db.run(
+    `UPDATE services SET name = ?, description = ?, price = ?, duration = ?, type = ?, status = ? WHERE id = ?`,
+    [name, description, price, duration, type, status, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ updated: this.changes });
+    }
+  );
+}); // This brace closes the app.put endpoint
+
+// Get all services
+app.get('/service-table', (req, res) => {
+  db.all('SELECT * FROM services', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+}); // This brace closes the app.get endpoint
+
+// The rest of your file
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
