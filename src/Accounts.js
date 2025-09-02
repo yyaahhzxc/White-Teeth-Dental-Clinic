@@ -993,52 +993,16 @@ export default function Accounts() {
 
             {/* Pagination - Sticky to bottom */}
             <Box sx={{mt:1, mb:1, px: 3, pt: 1, pb: 1 }}> {/* Reduced top padding to 0.5, bottom to 1 */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '40px' }}>
-                {/* Show by dropdown */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography sx={{ fontSize: '14px', color: '#7f7f7f', fontWeight: 500 }}>
-                    Show by:
-                  </Typography>
-                  <FormControl size="small" sx={{ minWidth: 70 }}>
-                    <Select
-                      value={rowsPerPage}
-                      onChange={(e) => {
-                        setRowsPerPage(e.target.value);
-                        setPage(0); // Reset to first page when changing rows per page
-                      }}
-                      sx={{
-                        height: '32px',
-                        backgroundColor: '#f3edf7',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          border: 'none',
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          border: 'none',
-                        },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                          border: '1px solid #2148c0',
-                        },
-                      }}
-                    >
-                      <MenuItem value={5}>5</MenuItem>
-                      <MenuItem value={10}>10</MenuItem>
-                      <MenuItem value={25}>25</MenuItem>
-                      <MenuItem value={50}>50</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-                
-                {/* Pagination controls */}
-                <Box sx={{ display: 'flex', alignItems: 'center', height: '32px' }}>
-                  <Pagination
-                    page={page}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                  />
-                </Box>
-              </Box>
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={value => {
+                  setRowsPerPage(value);
+                  setPage(0);
+                }}
+              />
             </Box>
           </Box>
         </Paper>
