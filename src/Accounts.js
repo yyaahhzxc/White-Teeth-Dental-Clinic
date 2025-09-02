@@ -841,18 +841,22 @@ export default function Accounts() {
                         </Typography>
                       </Box>
                       <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Status: Centered with no extra padding */}
-                        <Typography
+                        <Chip
+                          label={user.status === 'enabled' ? 'Enabled' : 'Disabled'}
                           sx={{
+                            backgroundColor: user.status === 'enabled' ? '#4CAF50' : '#F44336',
+                            color: 'white',
+                            fontWeight: 500,
+                            fontSize: '14px',
                             fontFamily: 'Roboto, sans-serif',
-                            fontWeight: 400,
-                            fontSize: '16px',
-                            color: '#6d6b80',
-                            lineHeight: '24px',
-                            letterSpacing: '0.5px',
+                            borderRadius: '20px',
+                            height: '32px',
+                            minWidth: '80px',
+                            '& .MuiChip-label': {
+                              px: 2,
+                            }
                           }}
-                        >
-                          {user.status === 'enabled' ? 'Enabled' : 'Disabled'}
-                        </Typography>
+                        />
                       </Box>
                     </Box>
                   ))
