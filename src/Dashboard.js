@@ -27,7 +27,6 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Header from './header'; // Import the new Header component
 import QuickActionButton from './QuickActionButton';
 import { Typography } from '@mui/material';
 import AddPatientRecord from './add-record';
