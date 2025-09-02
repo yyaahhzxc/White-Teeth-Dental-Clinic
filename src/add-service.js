@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 
+
 const serviceTypes = [
   'Single Treatment',
   'Package Treatment',
