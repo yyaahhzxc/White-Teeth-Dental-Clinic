@@ -114,12 +114,27 @@ export default function Accounts() {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
+    confirmPassword: '',
     firstName: '',
     lastName: '',
     employeeRole: '',
     userRole: '',
     status: 'enabled'
   });
+
+  // Password validation state
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Password validation function (same as forgot password page)
+  const passwordMeetsPolicy = (pw) => {
+    const errors = [];
+    if (!/[A-Z]/.test(pw)) errors.push('Password must contain at least one uppercase letter.');
+    if (!/[0-9]/.test(pw)) errors.push('Password must contain at least one number.');
+    if (!/[!@#$%^&*(),.?"':{}|<>]/.test(pw)) errors.push('Password must contain at least one special character.');
+    return errors;
+  };
 
   // Snackbar state
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -191,11 +206,34 @@ export default function Accounts() {
   }, [search, users]);
 
   const handleAddUser = async () => {
+    // Reset password errors
+    setPasswordErrors([]);
+
+    // Validate passwords
+    if (!formData.password || !formData.confirmPassword) {
+      setPasswordErrors(['Please enter and confirm your password.']);
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordErrors(['Password and confirm password do not match.']);
+      return;
+    }
+
+    // Check password policy
+    const policyErrors = passwordMeetsPolicy(formData.password);
+    if (policyErrors.length > 0) {
+      setPasswordErrors(policyErrors);
+      return;
+    }
+
     try {
-  const response = await sendAuthenticatedRequest(`${API_BASE}/users`, {
+      // Remove confirmPassword from the data sent to server
+      const { confirmPassword, ...userData } = formData;
+      const response = await sendAuthenticatedRequest(`${API_BASE}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(userData)
       });
 
       if (response.ok) {
@@ -209,7 +247,7 @@ export default function Accounts() {
       }
     } catch (error) {
       console.error('Error adding user:', error);
-  showSnackbar('Error adding user', { error: true });
+      showSnackbar('Error adding user', { error: true });
     }
   };
 
@@ -410,12 +448,16 @@ export default function Accounts() {
     setFormData({
       username: '',
       password: '',
+      confirmPassword: '',
       firstName: '',
       lastName: '',
       employeeRole: '',
       userRole: '',
       status: 'enabled'
     });
+    setPasswordErrors([]);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   };
 
   const handleFormChange = (field, value) => {
@@ -915,11 +957,46 @@ export default function Accounts() {
             />
             <TextField
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => handleFormChange('password', e.target.value)}
+              onBlur={() => setPasswordErrors(passwordMeetsPolicy(formData.password))}
               required
               fullWidth
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <TextField
+              label="Confirm Password"
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={formData.confirmPassword}
+              onChange={(e) => handleFormChange('confirmPassword', e.target.value)}
+              required
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle confirm password visibility"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      edge="end"
+                    >
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="First Name"
@@ -969,6 +1046,17 @@ export default function Accounts() {
                 <MenuItem value="disabled">Disabled</MenuItem>
               </Select>
             </FormControl>
+
+            {/* Password validation errors */}
+            {passwordErrors.length > 0 && (
+              <Box sx={{ textAlign: 'left', mt: 1 }}>
+                {passwordErrors.map((error, index) => (
+                  <Typography key={index} color="error" variant="body2">
+                    {error}
+                  </Typography>
+                ))}
+              </Box>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
