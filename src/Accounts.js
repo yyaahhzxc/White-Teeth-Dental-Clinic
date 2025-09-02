@@ -721,74 +721,76 @@ export default function Accounts() {
               flexDirection: 'column',
             }}
           >
-            <Box sx={{ p: 3 }}> {/* Increased padding from 2 to 3 */}
-              {/* Table Header */}
+            {/* Table Header */}
+            <Box sx={{ px: 3, mt: 3, mb: 1 }}> {/* Same container padding as rows */}
               <Box 
                 sx={{ 
                   display: 'flex',
-                  px: 2, // Padding on the container
+                  px: 2, // Same internal padding as rows
                   py: 1,
                   alignItems: 'center',
-                  mb: 1,
-                  width: '100%',
+                  backgroundColor: 'transparent', // Invisible background
+                  borderRadius: '10px', // Same border radius as rows
+                  height: 66, // Same height as rows
+                  width: 'calc(100% - 32px)', // Subtract the 32px difference you identified
                 }}
               >
-                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Name: Centered */}
-                  <Typography 
-                    sx={{ 
-                      fontFamily: 'Roboto, sans-serif',
-                      fontWeight: 500,
-                      fontSize: '18px',
-                      color: '#6d6b80',
-                      lineHeight: '24px',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Name
-                  </Typography>
-                </Box>
-                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Username: Centered */}
-                  <Typography 
-                    sx={{ 
-                      fontFamily: 'Roboto, sans-serif',
-                      fontWeight: 500,
-                      fontSize: '18px',
-                      color: '#6d6b80',
-                      lineHeight: '24px',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Username
-                  </Typography>
-                </Box>
-                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Employee Role: Centered */}
-                  <Typography 
-                    sx={{ 
-                      fontFamily: 'Roboto, sans-serif',
-                      fontWeight: 500,
-                      fontSize: '18px',
-                      color: '#6d6b80',
-                      lineHeight: '24px',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Employee Role
-                  </Typography>
-                </Box>
-                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* User Role: Centered */}
-                  <Typography 
-                    sx={{ 
-                      fontFamily: 'Roboto, sans-serif',
-                      fontWeight: 500,
-                      fontSize: '18px',
-                      color: '#6d6b80',
-                      lineHeight: '24px',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    User Role
-                  </Typography>
-                </Box>
+              <Box sx={{ flex: '1', textAlign: 'left' }}> {/* Name: Left-aligned to match data */}
+                <Typography 
+                  sx={{ 
+                    fontFamily: 'Roboto, sans-serif',
+                    fontWeight: 500,
+                    fontSize: '18px',
+                    color: '#6d6b80',
+                    lineHeight: '24px',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  Name
+                </Typography>
+              </Box>
+              <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Username: Centered */}
+                <Typography 
+                  sx={{ 
+                    fontFamily: 'Roboto, sans-serif',
+                    fontWeight: 500,
+                    fontSize: '18px',
+                    color: '#6d6b80',
+                    lineHeight: '24px',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  Username
+                </Typography>
+              </Box>
+              <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Employee Role: Centered */}
+                <Typography 
+                  sx={{ 
+                    fontFamily: 'Roboto, sans-serif',
+                    fontWeight: 500,
+                    fontSize: '18px',
+                    color: '#6d6b80',
+                    lineHeight: '24px',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  Employee Role
+                </Typography>
+              </Box>
+              <Box sx={{ flex: '1', textAlign: 'center' }}> {/* User Role: Centered */}
+                <Typography 
+                  sx={{ 
+                    fontFamily: 'Roboto, sans-serif',
+                    fontWeight: 500,
+                    fontSize: '18px',
+                    color: '#6d6b80',
+                    lineHeight: '24px',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  User Role
+                </Typography>
+              </Box>
                 <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Status: Centered */}
                   <Typography 
                     sx={{ 
@@ -804,8 +806,8 @@ export default function Accounts() {
                   </Typography>
                 </Box>
               </Box>
-
-              {/* Table Rows */}
+            </Box>            {/* Table Rows Container */}
+            <Box sx={{ px: 3, pb: 3 }}> {/* Padding container for rows */}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
@@ -813,7 +815,7 @@ export default function Accounts() {
                       key={user.id}
                       sx={{ 
                         display: 'flex', 
-                        px: 2, // Match header padding exactly
+                        px: 2, // Same padding as header
                         py: 1,
                         alignItems: 'center',
                         backgroundColor: '#f9fafc',
