@@ -27,6 +27,9 @@ import ViewService from './view-service';
 import QuickActionButton from './QuickActionButton';
 import Header from './header';
 
+// API Base URL
+const API_BASE = 'http://localhost:3001';
+
 function ServiceList() {
   const [services, setServices] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
