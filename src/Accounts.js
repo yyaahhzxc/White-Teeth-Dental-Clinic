@@ -992,7 +992,7 @@ export default function Accounts() {
             </Box>
 
             {/* Pagination - Sticky to bottom */}
-            <Box sx={{mt:1, mb:1, px: 3, pt: 1, pb: 1 }}> {/* Reduced top padding to 0.5, bottom to 1 */}
+            <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}> {/* Equal top and bottom margin, no extra padding */}
               <Pagination
                 page={page}
                 totalPages={totalPages}

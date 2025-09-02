@@ -1,20 +1,10 @@
+
 import React from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Typography, FormControl, Select, MenuItem } from '@mui/material';
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 
-/**
- * Reusable Pagination Component
- * @param {Object} props
- * @param {number} props.page - Current page (0-based)
- * @param {number} props.totalPages - Total number of pages
- * @param {function} props.onPageChange - Callback when page changes
- * @param {Object} props.sx - Additional styling
- */
-import { FormControl, Select, MenuItem } from '@mui/material';
-
-function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPageChange, rowsPerPageOptions = [5, 10, 25, 50], sx = {} }) {
-  // Generate page items with ellipsis logic
+function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPageChange }) {
   function getPageItems(current, total) {
     const pages = [];
     if (total <= 7) {
@@ -37,37 +27,35 @@ function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
   }
 
   const pageItems = getPageItems(page + 1, totalPages);
+  const rowsPerPageOptions = [5, 10, 20, 50];
 
   if (totalPages <= 1) {
     return null; // Don't show pagination if there's only 1 page or less
   }
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, ...sx }}>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderRadius: '10px',
+        py: 0.75,
+        minHeight: 38,
+        px: 1.5,
+  // boxShadow removed for flat appearance
+      }}
+    >
       {/* Show by dropdown */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography sx={{ fontSize: '14px', color: '#7f7f7f', fontWeight: 500 }}>
-          Show by:
+          Show by
         </Typography>
         <FormControl size="small" sx={{ minWidth: 70 }}>
           <Select
             value={rowsPerPage}
-            onChange={e => onRowsPerPageChange(e.target.value)}
-            sx={{
-              height: '32px',
-              backgroundColor: '#f3edf7',
-              borderRadius: '8px',
-              fontSize: '14px',
-              '& .MuiOutlinedInput-notchedOutline': {
-                border: 'none',
-              },
-              '&:hover .MuiOutlinedInput-notchedOutline': {
-                border: 'none',
-              },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                border: '1px solid #2148c0',
-              },
-            }}
+            onChange={e => onRowsPerPageChange(Number(e.target.value))}
+            sx={{ fontSize: '14px', background: 'white', borderRadius: 1 }}
           >
             {rowsPerPageOptions.map(opt => (
               <MenuItem key={opt} value={opt}>{opt}</MenuItem>
