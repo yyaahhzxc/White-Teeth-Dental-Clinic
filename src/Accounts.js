@@ -579,13 +579,13 @@ export default function Accounts() {
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {/* Filter Button */}
             <Button
-              variant="outlined"
+              variant="contained"
               startIcon={<TuneIcon />}
               onClick={() => setShowFilterBox(v => !v)}
               sx={{
-                backgroundColor: 'white',
-                color: '#7f7f7f',
-                border: '1px solid white',
+                backgroundColor: '#4A69BD',
+                color: 'white',
+                border: '1px solid #4A69BD',
                 borderRadius: '10px',
                 height: '38px',
                 px: 2,
@@ -594,9 +594,10 @@ export default function Accounts() {
                 fontSize: '16px',
                 fontFamily: 'DM Sans, sans-serif',
                 minWidth: 99,
+                boxShadow: 1,
                 '&:hover': {
-                  backgroundColor: '#f5f5f5',
-                  border: '1px solid white',
+                  backgroundColor: '#2148c0',
+                  border: '1px solid #2148c0',
                 },
               }}
             >
