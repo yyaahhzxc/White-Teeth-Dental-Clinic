@@ -16,7 +16,6 @@ import {
   Paper,
   Box,
   IconButton,
-  Divider,
   MenuItem
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,12 +24,101 @@ import CloseIcon from '@mui/icons-material/Close';
 const AddPatientRecord = ({ open, onClose }) => {
   const [tabIndex, setTabIndex] = useState(0);
 
+  // Patient Information states
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [suffix, setSuffix] = useState('');
+  const [maritalStatus, setMaritalStatus] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [occupation, setOccupation] = useState('');
+  const [address, setAddress] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [sex, setSex] = useState('');
+  const [contactPersonName, setContactPersonName] = useState('');
+  const [contactPersonRelationship, setContactPersonRelationship] = useState('');
+  const [contactPersonNumber, setContactPersonNumber] = useState('');
+  const [contactPersonAddress, setContactPersonAddress] = useState('');
+
+  // Medical Information states
+  const [allergies, setAllergies] = useState('');
+  const [bloodType, setBloodType] = useState('');
+  const [bloodborneDiseases, setBloodborneDiseases] = useState('');
+  const [pregnancyStatus, setPregnancyStatus] = useState('');
+  const [medications, setMedications] = useState('');
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [bloodPressure, setBloodPressure] = useState('');
+  const [diabetic, setDiabetic] = useState('');
+
   const handleTabChange = (event, newValue) => setTabIndex(newValue);
 
-  // Reset tabIndex to 0 every time the modal is opened
   useEffect(() => {
     if (open) setTabIndex(0);
   }, [open]);
+
+  // Save Patient + Medical Info
+  const handleAddPatient = async () => {
+    try {
+      // 1. Save patient info
+      const patient = {
+        firstName,
+        lastName,
+        middleName,
+        suffix,
+        maritalStatus,
+        contactNumber,
+        occupation,
+        address,
+        dateOfBirth,
+        sex,
+        contactPersonName,
+        contactPersonRelationship,
+        contactPersonNumber,
+        contactPersonAddress,
+        dateCreated: new Date().toISOString()
+      };
+
+  const res = await fetch(`${API_BASE}/patients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patient),
+      });
+
+      const savedPatient = await res.json();
+
+      // 2. Save medical info linked with patientId
+      const medicalInfo = {
+        patientId: savedPatient.id,
+        allergies,
+        bloodType,
+        bloodborneDiseases,
+        pregnancyStatus,
+        medications,
+        additionalNotes,
+        bloodPressure,
+        diabetic
+      };
+
+  await fetch(`${API_BASE}/medical-information`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(medicalInfo),
+      });
+
+      // 3. Reset form + close
+      onClose();
+      setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
+      setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
+      setDateOfBirth(''); setSex('');
+      setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
+      setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
+      setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
+      setTabIndex(0);
+
+    } catch (err) {
+      console.error("Error adding patient:", err);
+    }
+  };
 
   return (
     <Dialog
@@ -94,72 +182,170 @@ const AddPatientRecord = ({ open, onClose }) => {
               alignItems: 'stretch',
             }}
           >
-            <Grid container spacing={2} alignItems="stretch">
-              {/* Personal Information */}
-              <Grid
-                maxWidth="48%"
-                padding={1}
-              >
-                <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-                  Personal Information
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid item xs={8}><TextField fullWidth label="First Name" sx={{ width: 400, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={4}><TextField fullWidth label="Suffix" sx={{ width: 90, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Middle Name" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Last Name" sx={{ width: 350, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Marital Status"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      defaultValue=""
-                    >
-                      <MenuItem value="Married">Married</MenuItem>
-                      <MenuItem value="Single">Single</MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Contact Number" sx={{ width: 245, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Occupation" sx={{ width: 245, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Address" multiline rows={3} sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}>
-                    <TextField fullWidth label="Date of Birth" type="date" sx={{ width: 250, backgroundColor: '#ffffff9e' }} InputLabelProps={{ shrink: true }} />
-                  </Grid>
-                  <Grid item xs={4} sx={{ ml: 3 }}>
-                    <Typography variant="body2">Sex</Typography>
-                    <RadioGroup row>
-                      <FormControlLabel value="M" control={<Radio />} label="M" />
-                      <FormControlLabel value="F" control={<Radio />} label="F" />
-                    </RadioGroup>
-                  </Grid>
-                </Grid>
-              </Grid>
+          <Grid
+  maxWidth="48%"
+  padding={1}
+>
+  <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+    Personal Information
+  </Typography>
+  <Grid container spacing={1}>
+    <Grid item xs={8}>
+      <TextField 
+        fullWidth 
+        label="First Name" 
+        sx={{ width: 400, backgroundColor: '#ffffff9e' }} 
+        value={firstName}
+        onChange={(e) => setFirstName(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={4}>
+      <TextField 
+        fullWidth 
+        label="Suffix" 
+        sx={{ width: 90, backgroundColor: '#ffffff9e' }} 
+        value={suffix}
+        onChange={(e) => setSuffix(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={12}>
+      <TextField 
+        fullWidth 
+        label="Middle Name" 
+        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        value={middleName}
+        onChange={(e) => setMiddleName(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={12}>
+      <TextField 
+        fullWidth 
+        label="Last Name" 
+        sx={{ width: 350, backgroundColor: '#ffffff9e' }} 
+        value={lastName}
+        onChange={(e) => setLastName(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={12}>
+      <TextField
+        select
+        fullWidth
+        label="Marital Status"
+        sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+        value={maritalStatus}
+        onChange={(e) => setMaritalStatus(e.target.value)}
+      >
+        <MenuItem value="Married">Married</MenuItem>
+        <MenuItem value="Single">Single</MenuItem>
+      </TextField>
+    </Grid>
+    <Grid item xs={6}>
+      <TextField 
+        fullWidth 
+        label="Contact Number" 
+        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        value={contactNumber}
+        onChange={(e) => setContactNumber(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={6}>
+      <TextField 
+        fullWidth 
+        label="Occupation" 
+        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        value={occupation}
+        onChange={(e) => setOccupation(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={12}>
+      <TextField 
+        fullWidth 
+        label="Address" 
+        multiline 
+        rows={3} 
+        sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} 
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={12}>
+      <TextField 
+        fullWidth 
+        label="Date of Birth" 
+        type="date" 
+        sx={{ width: 250, backgroundColor: '#ffffff9e' }} 
+        InputLabelProps={{ shrink: true }}
+        value={dateOfBirth}
+        onChange={(e) => setDateOfBirth(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={4} sx={{ ml: 3 }}>
+      <Typography variant="body2">Sex</Typography>
+      <RadioGroup 
+        row
+        value={sex}
+        onChange={(e) => setSex(e.target.value)}
+      >
+        <FormControlLabel value="M" control={<Radio />} label="M" />
+        <FormControlLabel value="F" control={<Radio />} label="F" />
+      </RadioGroup>
+    </Grid>
+  </Grid>
+</Grid>
 
-              {/* Divider after Personal Information */}
-              <Grid item>
-                <Divider orientation="vertical" flexItem sx={{ height: '100%' }} />
-              </Grid>
+{/* Contact Person */}
+<Grid
+  item
+  xs={12}
+  md={6}
+  sx={{ pl: { md: 2 }, pt: 1 }}
+  maxWidth="48%"
+>
+  <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+    Contact Person
+  </Typography>
+  <Grid container spacing={1}>
+    <Grid item xs={12}>
+      <TextField 
+        fullWidth 
+        label="Name" 
+        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        value={contactPersonName}
+        onChange={(e) => setContactPersonName(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={6}>
+      <TextField 
+        fullWidth 
+        label="Relationship" 
+        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        value={contactPersonRelationship}
+        onChange={(e) => setContactPersonRelationship(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={6}>
+      <TextField 
+        fullWidth 
+        label="Contact Number" 
+        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        value={contactPersonNumber}
+        onChange={(e) => setContactPersonNumber(e.target.value)}
+      />
+    </Grid>
+    <Grid item xs={12}>
+      <TextField 
+        fullWidth 
+        label="Address" 
+        multiline 
+        rows={3} 
+        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        value={contactPersonAddress}
+        onChange={(e) => setContactPersonAddress(e.target.value)}
+      />
+    </Grid>
+  </Grid>
+</Grid>
 
-              {/* Contact Person */}
-              <Grid
-                item
-                xs={12}
-                md={6}
-                sx={{ pl: { md: 2 }, pt: 1 }}
-                maxWidth="48%"
-              >
-                <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-                  Contact Person
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid item xs={12}><TextField fullWidth label="Name" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Relationship" sx={{ width: 245, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Contact Number" sx={{ width: 245, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Address" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                </Grid>
-              </Grid>
-            </Grid>
 
           </Paper>
         )}
@@ -182,14 +368,15 @@ const AddPatientRecord = ({ open, onClose }) => {
                   Health Profile
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: '#ffffff9e' }}value={allergies} onChange={(e) => setAllergies(e.target.value)} /></Grid>
                   <Grid item xs={4}>
                     <TextField
                       select
                       fullWidth
                       label="Blood Type"
                       sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      defaultValue=""
+                      value={bloodType} 
+                      onChange={(e) => setBloodType(e.target.value)}
                     >
                       <MenuItem value="A+">A+</MenuItem>
                       <MenuItem value="A-">A-</MenuItem>
@@ -201,24 +388,25 @@ const AddPatientRecord = ({ open, onClose }) => {
                       <MenuItem value="O-">O-</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: '#ffffff9e' }} value={bloodborneDiseases} onChange={(e) => setBloodborneDiseases(e.target.value)} /></Grid>
                   <Grid item xs={12}>
                     <TextField
                       select
                       fullWidth
                       label="Pregnancy Status"
                       sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      defaultValue=""
+                      value={pregnancyStatus} 
+                      onChange={(e) => setPregnancyStatus(e.target.value)}
                     >
                       <MenuItem value="Pregnant">Pregnant</MenuItem>
                       <MenuItem value="Not Pregnant">Not Pregnant</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
                  <Grid item xs={4} sx={{ ml: 3 }}>
                     <Typography variant="body2">Blood Pressure</Typography>
-                    <RadioGroup row>
+                    <RadioGroup row value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)}>
                       <FormControlLabel value="High" control={<Radio />} label="High" />
                       <FormControlLabel value="Normal" control={<Radio />} label="Normal" />
                       <FormControlLabel value="Low" control={<Radio />} label="Low" />
@@ -226,7 +414,7 @@ const AddPatientRecord = ({ open, onClose }) => {
                   </Grid>
                   <Grid item xs={4} sx={{ ml:6, mb: 4}}>
                     <Typography variant="body2">Diabetic</Typography>
-                    <RadioGroup row>
+                    <RadioGroup row value={diabetic} onChange={(e) => setDiabetic(e.target.value)}>
                       <FormControlLabel value="Yes" control={<Radio />} label="Yes" />
                       <FormControlLabel value="No" control={<Radio />} label="No" />
                     </RadioGroup>
@@ -260,13 +448,15 @@ const AddPatientRecord = ({ open, onClose }) => {
         )}
       </DialogContent>
       <DialogActions>
-        <Button
-          variant="contained"
-          color="primary"
-          sx={{ borderRadius: 8, px: 2, fontWeight: 'bold', fontSize: 18, mt: 1, mb: 1, mr: 2, backgroundColor: '#2148C0' }}
-        >
-          Add Patient
-        </Button>
+      <Button
+  variant="contained"
+  color="primary"
+  sx={{ borderRadius: 8, px: 2, fontWeight: 'bold', fontSize: 18, mt: 1, mb: 1, mr: 2, backgroundColor: '#2148C0' }}
+  onClick={handleAddPatient} // <-- added this
+>
+  Add Patient
+</Button>
+
       </DialogActions>
     </Dialog>
   );
