@@ -26,6 +26,7 @@ import AddPatientRecord from './add-record';
 import ViewService from './view-service';
 import QuickActionButton from './QuickActionButton';
 import Header from './header';
+import Pagination from './Pagination';
 
 // API Base URL
 const API_BASE = 'http://localhost:3001';
@@ -34,6 +35,8 @@ function ServiceList() {
   const [services, setServices] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage] = useState(5);
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
@@ -58,6 +61,7 @@ function ServiceList() {
       (service.name || '').toLowerCase().includes(search.toLowerCase())
     );
     setFilteredServices(result);
+    setPage(0); // Reset to first page when search changes
   }, [search, services]);
 
   // Sorting logic
@@ -101,6 +105,14 @@ function ServiceList() {
     }
     return sortable;
   }, [filteredServices, sortConfig]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(sortedServices.length / rowsPerPage);
+  const visibleServices = sortedServices.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
 
   // Header click handler
   const handleSort = (key) => {
@@ -249,7 +261,7 @@ function ServiceList() {
               </TableHead>
               <TableBody>
                 {sortedServices.length ? (
-                  sortedServices.map((service, index) => (
+                  visibleServices.map((service, index) => (
                     <TableRow key={index}>
                       <TableCell>{service.name}</TableCell>
                       <TableCell>{service.description}</TableCell>
@@ -282,6 +294,12 @@ function ServiceList() {
               </TableBody>
             </Table>
           </TableContainer>
+          <Pagination 
+            page={page} 
+            totalPages={totalPages} 
+            onPageChange={handlePageChange} 
+            sx={{ pb: 2 }} 
+          />
         </Paper>
       </Box>
 

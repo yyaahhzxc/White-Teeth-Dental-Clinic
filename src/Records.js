@@ -26,8 +26,6 @@ import {
 } from '@mui/material';
 import { Search, FilterList } from '@mui/icons-material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
-import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
@@ -37,6 +35,7 @@ import Header from './header';
 import QuickActionButton from './QuickActionButton';
 import ViewRecord from './view-record';
 import AddPatientRecord from './add-record'; // ⭐ 1. IMPORT THE PATIENT MODAL
+import Pagination from './Pagination';
 
 // API Base URL
 const API_BASE = 'http://localhost:3001';
@@ -146,29 +145,6 @@ function PatientList() {
 
   // Pagination helpers
   const totalPages = Math.ceil(sortedPatients.length / rowsPerPage);
-
-  function getPageItems(current, total) {
-    const pages = [];
-    if (total <= 7) {
-      for (let i = 1; i <= total; i++) pages.push(i);
-      return pages;
-    }
-    pages.push(1);
-    if (current <= 4) {
-      for (let i = 2; i <= 5; i++) pages.push(i);
-      pages.push('ellipsis');
-      pages.push(total);
-      return pages;
-    }
-    if (current >= total - 3) {
-      pages.push('ellipsis');
-      for (let i = total - 4; i <= total; i++) pages.push(i);
-      return pages;
-    }
-    return [1, 'ellipsis', current - 1, current, current + 1, 'ellipsis', total];
-  }
-
-  const pageItems = getPageItems(page + 1, totalPages);
 
   // rows to display on current page
   const visibleRows = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -348,62 +324,11 @@ const handleAddAppointment = () => navigate('/add-appointment');
           </TableContainer>
 
           {/* Pagination */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 2 }}>
-            <Button
-              size="small"
-              startIcon={<KeyboardArrowLeftIcon />}
-              disabled={page === 0}
-              onClick={() => setPage(prev => Math.max(0, prev - 1))}
-              sx={{ textTransform: 'none', mr: 1 }}
-            >
-              Previous
-            </Button>
-            {pageItems.map((item, idx) => {
-              if (item === 'ellipsis') {
-                return (
-                  <Typography key={`e-${idx}`} sx={{ mx: 0.5, color: 'text.secondary' }}>
-                    ...
-                  </Typography>
-                );
-              }
-              const pageNumber = Number(item);
-              const zeroBased = pageNumber - 1;
-              const isActive = zeroBased === page;
-              return (
-                <Button
-                  key={pageNumber}
-                  size="small"
-                  variant={isActive ? 'contained' : 'outlined'}
-                  onClick={() => setPage(zeroBased)}
-                  sx={{
-                    minWidth: 36,
-                    mx: 0.5,
-                    py: 0.5,
-                    px: 1,
-                    backgroundColor: isActive ? '#1746A2' : 'transparent',
-                    color: isActive ? 'white' : 'inherit',
-                    borderColor: '#ddd',
-                    '&:hover': {
-                      backgroundColor: isActive ? '#1746A2' : '#f4f4f4',
-                    },
-                    textTransform: 'none',
-                    fontSize: '0.9rem',
-                  }}
-                >
-                  {pageNumber}
-                </Button>
-              );
-            })}
-            <Button
-              size="small"
-              endIcon={<KeyboardArrowRightIcon />}
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage(prev => Math.min(totalPages - 1, prev + 1))}
-              sx={{ textTransform: 'none', ml: 1 }}
-            >
-              Next
-            </Button>
-          </Box>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
         </Paper>
       </Box>
 

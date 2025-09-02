@@ -36,11 +36,14 @@ import AddIcon from '@mui/icons-material/Add';
 import Collapse from '@mui/material/Collapse';
 import { API_BASE, MASTER_PASSWORD } from './apiConfig';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
+import Pagination from './Pagination';
 
 export default function Accounts() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [filterOpen, setFilterOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
@@ -191,6 +194,7 @@ export default function Accounts() {
     } else {
       fetchUsers([]); // fetch all users when filter box is closed
     }
+    setPage(0); // Reset to first page when filters change
     // eslint-disable-next-line
   }, [activeFilters, showFilterBox]);
 
@@ -203,6 +207,7 @@ export default function Accounts() {
       return fullName.includes(searchTerm) || username.includes(searchTerm);
     });
     setFilteredUsers(result);
+    setPage(0); // Reset to first page when search changes
   }, [search, users]);
 
   const handleAddUser = async () => {
@@ -477,6 +482,19 @@ export default function Accounts() {
     setActiveFilters(filters => filters.filter((_, i) => i !== idx));
   };
 
+  // Reset page when search or filters change
+  useEffect(() => {
+    setPage(0);
+  }, [search, activeFilters, rowsPerPage]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
+  const visibleUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
+
   return (
     <Box
       sx={{
@@ -710,29 +728,23 @@ export default function Accounts() {
           {/* Table Container */}
           <Box
             sx={{
-              mx: 3,
-              mt: 2, // Added top margin
-              mb: 3,
+              mx: 3, // Equal horizontal margins
+              my: 3, // Equal vertical margins (top and bottom)
               backgroundColor: '#dfdfdf',
               borderRadius: '10px',
               overflow: 'hidden',
-              height: '480px', // Reduced height to fit better within the container
+              height: '520px', // Restored to original height
               display: 'flex',
               flexDirection: 'column',
             }}
           >
             {/* Table Header */}
-            <Box sx={{ px: 3, mt: 3, mb: 1 }}> {/* Same container padding as rows */}
+            <Box sx={{ px: 3, pt: 3, pb: 1 }}> {/* Matched top padding with pagination bottom */}
               <Box 
                 sx={{ 
                   display: 'flex',
                   px: 2, // Same internal padding as rows
-                  py: 1,
                   alignItems: 'center',
-                  backgroundColor: 'transparent', // Invisible background
-                  borderRadius: '10px', // Same border radius as rows
-                  height: 66, // Same height as rows
-                  width: 'calc(100% - 32px)', // Subtract the 32px difference you identified
                 }}
               >
               <Box sx={{ flex: '1', textAlign: 'left' }}> {/* Name: Left-aligned to match data */}
@@ -807,20 +819,43 @@ export default function Accounts() {
                 </Box>
               </Box>
             </Box>            {/* Table Rows Container */}
-            <Box sx={{ px: 3, pb: 3 }}> {/* Padding container for rows */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
+            <Box sx={{ 
+              px: 3, 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              minHeight: '402px', // Increased from 400px by 2px for perfect alignment
+              maxHeight: '402px', // Fixed max height
+              overflow: visibleUsers.length > 5 ? 'auto' : 'hidden', // Only scroll when > 5 rows
+              '&::-webkit-scrollbar': {
+                width: '6px',
+                display: visibleUsers.length > 5 ? 'block' : 'none', // Only show scrollbar when needed
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+                borderRadius: '3px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#c1c1c1',
+                borderRadius: '3px',
+                '&:hover': {
+                  background: '#a8a8a8',
+                },
+              },
+            }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}> {/* Increased gap from 0.75 to 1 */}
+                {visibleUsers.length > 0 ? (
+                  visibleUsers.map((user) => (
                     <Box 
                       key={user.id}
                       sx={{ 
                         display: 'flex', 
                         px: 2, // Same padding as header
-                        py: 1,
+                        py: 0.875, // Adjusted padding for 60px height
                         alignItems: 'center',
                         backgroundColor: '#f9fafc',
                         borderRadius: '10px',
-                        height: 66,
+                        height: 60, // Changed from 50 to 60px
                         '&:hover': { 
                           backgroundColor: '#f0f4f8',
                           cursor: 'pointer'
@@ -833,9 +868,9 @@ export default function Accounts() {
                           sx={{
                             fontFamily: 'Roboto, sans-serif',
                             fontWeight: 400,
-                            fontSize: '16px',
+                            fontSize: '15px', // Increased from 14px for proportional fit
                             color: '#6d6b80',
-                            lineHeight: '24px',
+                            lineHeight: '22px', // Increased from 20px
                             letterSpacing: '0.5px',
                           }}
                         >
@@ -847,9 +882,9 @@ export default function Accounts() {
                           sx={{
                             fontFamily: 'Roboto, sans-serif',
                             fontWeight: 400,
-                            fontSize: '16px',
+                            fontSize: '15px', // Increased from 14px
                             color: '#6d6b80',
-                            lineHeight: '24px',
+                            lineHeight: '22px', // Increased from 20px
                             letterSpacing: '0.5px',
                           }}
                         >
@@ -861,9 +896,9 @@ export default function Accounts() {
                           sx={{
                             fontFamily: 'Roboto, sans-serif',
                             fontWeight: 400,
-                            fontSize: '16px',
+                            fontSize: '15px', // Increased from 14px
                             color: '#6d6b80',
-                            lineHeight: '24px',
+                            lineHeight: '22px', // Increased from 20px
                             letterSpacing: '0.5px',
                           }}
                         >
@@ -875,9 +910,9 @@ export default function Accounts() {
                           sx={{
                             fontFamily: 'Roboto, sans-serif',
                             fontWeight: 400,
-                            fontSize: '16px',
+                            fontSize: '15px', // Increased from 14px
                             color: '#6d6b80',
-                            lineHeight: '24px',
+                            lineHeight: '22px', // Increased from 20px
                             letterSpacing: '0.5px',
                           }}
                         >
@@ -891,13 +926,13 @@ export default function Accounts() {
                             backgroundColor: user.status === 'enabled' ? '#4CAF50' : '#F44336',
                             color: 'white',
                             fontWeight: 500,
-                            fontSize: '14px',
+                            fontSize: '12.5px', // Slightly increased for 60px row height
                             fontFamily: 'Roboto, sans-serif',
-                            borderRadius: '20px',
-                            height: '32px',
-                            minWidth: '80px',
+                            borderRadius: '17px', // Slightly increased from 16px
+                            height: '26px', // Increased from 24px
+                            minWidth: '72px', // Slightly increased from 70px
                             '& .MuiChip-label': {
-                              px: 2,
+                              px: 1.6, // Slightly increased from 1.5
                             }
                           }}
                         />
@@ -927,6 +962,56 @@ export default function Accounts() {
                     </Typography>
                   </Box>
                 )}
+              </Box>
+            </Box>
+
+            {/* Pagination - Sticky to bottom */}
+            <Box sx={{ px: 3, pt: 0.5, pb: 1, mt: 'auto' }}> {/* Reduced top padding to 0.5, bottom to 1 */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '40px' }}>
+                {/* Show by dropdown */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography sx={{ fontSize: '14px', color: '#7f7f7f', fontWeight: 500 }}>
+                    Show by:
+                  </Typography>
+                  <FormControl size="small" sx={{ minWidth: 70 }}>
+                    <Select
+                      value={rowsPerPage}
+                      onChange={(e) => {
+                        setRowsPerPage(e.target.value);
+                        setPage(0); // Reset to first page when changing rows per page
+                      }}
+                      sx={{
+                        height: '32px',
+                        backgroundColor: '#f3edf7',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          border: 'none',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          border: 'none',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          border: '1px solid #2148c0',
+                        },
+                      }}
+                    >
+                      <MenuItem value={5}>5</MenuItem>
+                      <MenuItem value={10}>10</MenuItem>
+                      <MenuItem value={25}>25</MenuItem>
+                      <MenuItem value={50}>50</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+                
+                {/* Pagination controls */}
+                <Box sx={{ display: 'flex', alignItems: 'center', height: '32px' }}>
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </Box>
               </Box>
             </Box>
           </Box>
