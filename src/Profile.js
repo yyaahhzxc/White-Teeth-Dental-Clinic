@@ -113,37 +113,47 @@ export default function Profile() {
         currentUser = JSON.parse(userStr);
         username = currentUser.username || 'admin';
       }
-      
+
       // Always fetch actual info from backend
       let userInfo = null;
       try {
+        // Fetch all users first
         const response = await fetch(`${API_BASE}/users`);
         if (response.ok) {
           const users = await response.json();
           userInfo = users.find(user => user.username === username) || users[0];
         }
+        // If userInfo found, fetch full details including password
+        if (userInfo && userInfo.id) {
+          const detailsRes = await fetch(`${API_BASE}/users/${userInfo.id}`);
+          if (detailsRes.ok) {
+            const details = await detailsRes.json();
+            userInfo = { ...userInfo, ...details };
+          }
+        }
       } catch (err) {
         // fallback to localStorage info if backend fails
         userInfo = currentUser;
       }
-      
-        if (userInfo) {
+
+      if (userInfo) {
         const userData = {
           firstName: userInfo.firstName || "",
           lastName: userInfo.lastName || "",
           username: userInfo.username || "",
-          password: "", // Start with empty password
+          password: userInfo.password || "", // Now password is fetched from backend
           employeeRole: userInfo.employeeRole || "",
           role: userInfo.role || userInfo.userRole || "",
           status: userInfo.status || ""
         };
         setFormData(userData);
         setOriginalData(userData);
-        setPasswordMasked(true); // Password is initially masked (empty)
-        
+        setPasswordMasked(true); // Password is initially masked
+
         // Set current user's role for permission checking
         setCurrentUserRole(userInfo.role || userInfo.userRole || 'user');
-      }      // Fetch photo from backend
+      }
+      // Fetch photo from backend
       if (username) {
         try {
           const photoRes = await fetch(`${API_BASE}/user-photo/${username}`);
@@ -596,7 +606,7 @@ export default function Profile() {
           {/* Employee Role */}
           <Box sx={{ position: 'absolute', left: '535px', top: '367px', width: '341px' }}>
             <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Employee Role</Typography>
-            {isEditing ? (
+            {(isEditing && currentUserRole.toLowerCase() === 'administrator') ? (
               <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}>
                 <Select
                   name="employeeRole"
@@ -615,13 +625,44 @@ export default function Profile() {
                   ))}
                 </Select>
               </FormControl>
+            ) : isEditing ? (
+              <TextField
+                name="employeeRole"
+                value={formData.employeeRole || ''}
+                variant="outlined"
+                disabled
+                sx={{
+                  width: '341px',
+                  '& .MuiOutlinedInput-root': {
+                    bgcolor: '#f5f5f5', // grayed out background only when editing
+                    borderRadius: 1,
+                    height: '56px'
+                  }
+                }}
+                helperText={"Only administrators can change employee role"}
+                FormHelperTextProps={{
+                  sx: {
+                    color: '#666',
+                    fontSize: '12px',
+                    mt: 0.5,
+                    fontStyle: 'italic'
+                  }
+                }}
+              />
             ) : (
               <TextField
                 name="employeeRole"
                 value={formData.employeeRole || ''}
                 variant="outlined"
                 disabled
-                sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}
+                sx={{
+                  width: '341px',
+                  '& .MuiOutlinedInput-root': {
+                    bgcolor: 'white', // normal background when not editing
+                    borderRadius: 1,
+                    height: '56px'
+                  }
+                }}
               />
             )}
           </Box>
@@ -700,7 +741,7 @@ export default function Profile() {
             <Box sx={{ 
               position: 'absolute',
               right: '95px', // Align with Figma
-              top: '470px', // Positioned safely below User Role field to avoid overlap
+              top: '60px', // Positioned safely below User Role field to avoid overlap
               display: 'flex',
               gap: 1.5 // Reduced gap to prevent overlap
             }}>
@@ -717,7 +758,7 @@ export default function Profile() {
                   textTransform: 'none',
                   fontSize: '16px',
                   width: '120px', // Slightly reduced width
-                  height: '48px',
+                  height: '43.5',
                   bgcolor: 'white',
                   '&:hover': {
                     borderColor: '#1e3a9f',
@@ -742,7 +783,7 @@ export default function Profile() {
                   textTransform: 'none',
                   fontSize: '16px',
                   width: '120px', // Slightly reduced width
-                  height: '48px',
+                  height: '43.5',
                   '&:hover': {
                     bgcolor: '#1e3a9f'
                   }

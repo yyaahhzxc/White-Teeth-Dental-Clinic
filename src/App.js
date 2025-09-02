@@ -48,7 +48,7 @@ function App() {
     setLoginError('');
     if (username && password) {
       try {
-  const res = await fetch(`${API_BASE}/login`, {
+        const res = await fetch(`${API_BASE}/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
@@ -57,18 +57,21 @@ function App() {
           // parse response and store user/token for header and protected requests
           try {
             const data = await res.json();
-            if (data && data.token) {
-              localStorage.setItem('token', data.token);
-            }
             if (data && data.user) {
+              // Check if user is enabled
+              if (data.user.status && data.user.status.toLowerCase() !== 'enabled') {
+                setLoginError('Login credentials invalid');
+                return;
+              }
+              if (data.token) {
+                localStorage.setItem('token', data.token);
+              }
               localStorage.setItem('user', JSON.stringify(data.user));
-              // notify other parts of the app that user changed
               try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
             }
           } catch (e) {
             // ignore parse errors and continue
           }
-          // mark that we just logged in so Dashboard shows a one-time alert
           try { sessionStorage.setItem('justLoggedIn', '1'); } catch (e) {}
           navigate('/dashboard', { state: { justLoggedIn: true } });
         } else {
@@ -76,7 +79,7 @@ function App() {
           setLoginError(data.message || 'Login failed');
         }
       } catch (err) {
-  setLoginError(`Unable to connect to server. Is the backend running on ${API_BASE}?`);
+        setLoginError(`Unable to connect to server. Is the backend running on ${API_BASE}?`);
       }
     }
   };
