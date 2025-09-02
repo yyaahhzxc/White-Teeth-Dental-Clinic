@@ -489,22 +489,26 @@ function requireRole(required) {
 // Login (returns token and user info including role)
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  const MASTER_PASSWORD = 'admin123';
-  
-  db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-
-    // Check user's actual password first, then master password as fallback
-    if (row.password === password || password === MASTER_PASSWORD) {
-      const token = createToken();
-      // Normalize role to use 'Administrator' instead of 'admin' for consistency
-      const normalizedRole = row.role === 'admin' ? 'Administrator' : (row.role || 'User');
-      sessions[token] = { id: row.id, username: row.username, role: normalizedRole };
-      return res.json({ success: true, token, user: sessions[token] });
+  db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({ message: 'Login credentials invalid' });
     }
-
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    // Check if user is disabled
+    if (user.status && user.status.toLowerCase() !== 'enabled') {
+      return res.status(401).json({ message: 'Login credentials invalid' });
+    }
+    // Check password (plain text for demo, use hashing in production)
+    if (user.password !== password) {
+      return res.status(401).json({ message: 'Login credentials invalid' });
+    }
+    // Success: generate token and store session
+    const token = createToken();
+    sessions[token] = {
+      id: user.id,
+      username: user.username,
+      role: user.role || user.userRole || 'user'
+    };
+    res.json({ user, token }); // <-- return token here
   });
 });
 
@@ -778,7 +782,7 @@ app.get('/users', (req, res) => {
 // Get single user by ID
 app.get('/users/:id', (req, res) => {
   const userId = req.params.id;
-  db.get('SELECT id, username, firstName, lastName, employeeRole, userRole, status FROM users WHERE id = ?', [userId], (err, row) => {
+  db.get('SELECT id, username, password, firstName, lastName, employeeRole, userRole, status FROM users WHERE id = ?', [userId], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'User not found' });
     res.json(row);

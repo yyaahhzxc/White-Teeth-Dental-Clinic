@@ -35,6 +35,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import Collapse from '@mui/material/Collapse';
 import { API_BASE, MASTER_PASSWORD } from './apiConfig';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 
 export default function Accounts() {
   const [users, setUsers] = useState([]);
@@ -47,6 +48,7 @@ export default function Accounts() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isDetailsEditing, setIsDetailsEditing] = useState(false);
   const [detailsFormData, setDetailsFormData] = useState({});
+  const [showDetailsPassword, setShowDetailsPassword] = useState(false);
 
   // Helper to extract a useful error message from a response
   const parseError = async (response) => {
@@ -96,12 +98,13 @@ export default function Accounts() {
       if (!raw) return;
       const stored = JSON.parse(raw);
       if (!stored || !stored.id) return;
-      // if updates contain an id and it doesn't match, skip
+      // Only update if the edited user matches the logged-in user
       if (updates.id && String(updates.id) !== String(stored.id)) return;
+      if (selectedUser && String(selectedUser.id) !== String(stored.id)) return;
       const merged = { ...stored, ...updates };
       localStorage.setItem('user', JSON.stringify(merged));
-  try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
-  try { if (typeof window.__forceReloadUser === 'function') window.__forceReloadUser(); } catch (e) {}
+      try { window.dispatchEvent(new Event('userChanged')); } catch (e) {}
+      try { if (typeof window.__forceReloadUser === 'function') window.__forceReloadUser(); } catch (e) {}
     } catch (e) {
       // ignore
     }
@@ -266,18 +269,52 @@ export default function Accounts() {
     }
   };
 
-  const openDetailsDialog = (user) => {
-    setSelectedUser(user);
-    setDetailsFormData({
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      username: user.username || '',
-      employeeRole: user.employeeRole || '',
-      userRole: user.userRole || '',
-      status: user.status || 'enabled'
-    });
-    setIsDetailsEditing(false);
-    setDetailsOpen(true);
+  const openDetailsDialog = async (user) => {
+    try {
+      // Fetch full user details from backend
+      const response = await fetch(`${API_BASE}/users/${user.id}`);
+      if (response.ok) {
+        const userDetails = await response.json();
+        setSelectedUser(userDetails);
+        setDetailsFormData({
+          firstName: userDetails.firstName || '',
+          lastName: userDetails.lastName || '',
+          username: userDetails.username || '',
+          password: userDetails.password || '', // Now password will be included
+          employeeRole: userDetails.employeeRole || '',
+          userRole: userDetails.userRole || '',
+          status: userDetails.status || 'enabled'
+        });
+      } else {
+        // fallback to old behavior if fetch fails
+        setSelectedUser(user);
+        setDetailsFormData({
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          username: user.username || '',
+          password: '', // fallback: no password
+          employeeRole: user.employeeRole || '',
+          userRole: user.userRole || '',
+          status: user.status || 'enabled'
+        });
+      }
+      setIsDetailsEditing(false);
+      setDetailsOpen(true);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setSelectedUser(user);
+      setDetailsFormData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        username: user.username || '',
+        password: '', // fallback: no password
+        employeeRole: user.employeeRole || '',
+        userRole: user.userRole || '',
+        status: user.status || 'enabled'
+      });
+      setIsDetailsEditing(false);
+      setDetailsOpen(true);
+    }
   };
 
   const handleDetailsEdit = () => {
@@ -307,6 +344,7 @@ export default function Accounts() {
         setSelectedUser(prev => ({ ...prev, ...detailsFormData }));
         setDetailsFormData(prev => ({ ...prev, ...detailsFormData }));
         setIsDetailsEditing(false);
+        setDetailsOpen(false); // Close the dialog after saving
         showSnackbar('Change successful!');
         try { updateStoredUser({ ...detailsFormData }); } catch (e) {}
       } else {
@@ -354,6 +392,7 @@ export default function Accounts() {
         // Update selected user if details modal is open
         if (selectedUser && selectedUser.id === userId) {
           setSelectedUser(prev => ({ ...prev, status: newStatus }));
+          setDetailsOpen(false); // This will close the dialog after status change
         }
         showSnackbar(`User ${newStatus} successfully!`);
         try { updateStoredUser({ status: newStatus }); } catch (e) {}
@@ -1055,8 +1094,8 @@ export default function Accounts() {
                 />
               </Box>
 
-              {/* Username */}
-              <Box sx={{ mb: 3 }}>
+              {/* Username and Password Row */}
+              <Box sx={{ display: 'flex', gap: 3, mb: 3 }}>
                 <TextField
                   label="Username"
                   fullWidth
@@ -1071,6 +1110,36 @@ export default function Accounts() {
                     '& .MuiOutlinedInput-root.Mui-disabled': {
                       backgroundColor: 'rgba(0, 0, 0, 0.04)'
                     }
+                  }}
+                />
+                <TextField
+                  label="Password"
+                  fullWidth
+                  type={showDetailsPassword ? "text" : "password"}
+                  value={detailsFormData.password || ''}
+                  onChange={(e) => handleDetailsFormChange('password', e.target.value)}
+                  disabled={!isDetailsEditing}
+                  variant="outlined"
+                  sx={{
+                    '& .MuiInputBase-input.Mui-disabled': {
+                      WebkitTextFillColor: 'rgba(0, 0, 0, 0.6)'
+                    },
+                    '& .MuiOutlinedInput-root.Mui-disabled': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                    }
+                  }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label={showDetailsPassword ? "Hide password" : "Show password"}
+                          onClick={() => setShowDetailsPassword((prev) => !prev)}
+                          edge="end"
+                        >
+                          {showDetailsPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
                   }}
                 />
               </Box>
