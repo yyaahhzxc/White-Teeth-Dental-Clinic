@@ -38,6 +38,8 @@ import QuickActionButton from './QuickActionButton';
 import ViewRecord from './view-record';
 import AddPatientRecord from './add-record'; // ⭐ 1. IMPORT THE PATIENT MODAL
 
+// API Base URL
+const API_BASE = 'http://localhost:3001';
 
 // Utility function to compute age
 function computeAge(birthDate) {
