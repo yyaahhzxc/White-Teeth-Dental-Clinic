@@ -513,7 +513,8 @@ export default function Accounts() {
           flexDirection: 'column',
           alignItems: 'center',
           position: 'relative',
-          py: 4,
+          pt: 2, // Reduced from py: 4 to pt: 2 (less top padding)
+          pb: 2, // Changed from pb: 4 to pb: 2 to match top padding
           px: 2, // Add padding to match container
         }}
       >
@@ -644,7 +645,7 @@ export default function Accounts() {
           sx={{ 
             width: '100%', // Changed from fixed 1353px to 100%
             maxWidth: 'calc(100vw - 32px)', // Max width minus small margins
-            height: '580px', // Reduced from 606px to 580px
+            minHeight: '580px', // Changed from fixed height to minHeight
             borderRadius: '20px',
             overflow: 'hidden',
             display: 'flex',
@@ -652,7 +653,14 @@ export default function Accounts() {
           }}
         >
           {/* Filter Bar UI with animation */}
-          <Collapse in={showFilterBox} timeout={400}>
+          <Collapse 
+            in={showFilterBox} 
+            timeout={{ enter: 300, exit: 200 }}
+            easing={{
+              enter: 'cubic-bezier(0.4, 0, 0.2, 1)',
+              exit: 'cubic-bezier(0.4, 0, 0.6, 1)',
+            }}
+          >
             <Box sx={{
               background: '#fff',
               borderRadius: 2,
@@ -663,11 +671,13 @@ export default function Accounts() {
               flexDirection: 'column',
               gap: 1,
               boxShadow: 1,
+              transform: 'translateZ(0)', // Force hardware acceleration
+              willChange: 'height', // Optimize for height changes
             }}>
               {activeFilters.map((filter, idx) => {
                 const categoryObj = filterCategories.find(c => c.value === filter.category);
                 return (
-                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                  <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, mb: 1 }}>
                     <Box sx={{ minWidth: 140 }}>
                       <Typography variant="caption" sx={{ color: '#333', mb: 0.5 }}>Category</Typography>
                       <FormControl size="small" fullWidth>
@@ -701,10 +711,10 @@ export default function Accounts() {
                         </Select>
                       </FormControl>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', height: '40px' }}>
                       <IconButton
                         onClick={() => handleRemoveFilter(idx)}
-                        sx={{ bgcolor: '#B71C1C', color: '#fff', borderRadius: 1, ml: 1, '&:hover': { bgcolor: '#C62828' } }}
+                        sx={{ bgcolor: '#B71C1C', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#C62828' } }}
                         size="small"
                         disabled={activeFilters.length === 1}
                       >
@@ -714,14 +724,25 @@ export default function Accounts() {
                   </Box>
                 );
               })}
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
-                <IconButton
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 1,  }}>
+                <Button
                   onClick={handleAddFilter}
-                  sx={{ bgcolor: '#f5f5f5', color: '#333', borderRadius: 1, '&:hover': { bgcolor: '#e0e0e0' } }}
-                  size="medium"
+                  startIcon={<AddIcon />}
+                  sx={{ 
+                    bgcolor: '#f5f5f5', 
+                    color: '#333', 
+                    borderRadius: 1, 
+                    textTransform: 'none',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    px: 2,
+                    py: 1,
+                    '&:hover': { bgcolor: '#e0e0e0' } 
+                  }}
+                  size="small"
                 >
-                  <AddIcon />
-                </IconButton>
+                  Add Filter
+                </Button>
               </Box>
             </Box>
           </Collapse>
@@ -730,17 +751,21 @@ export default function Accounts() {
           <Box
             sx={{
               mx: 3, // Equal horizontal margins
-              my: 3, // Equal vertical margins (top and bottom)
+              mt: 3, // Top margin stays the same
+              mb: 3, // Increased bottom margin to extend gray background downward
               backgroundColor: '#dfdfdf',
               borderRadius: '10px',
               overflow: 'hidden',
-              height: '520px', // Restored to original height
+              height: showFilterBox ? 'auto' : '550px', // Dynamic height based on filter visibility
+              minHeight: showFilterBox ? '400px' : '550px', // Minimum height when filter is open
               display: 'flex',
               flexDirection: 'column',
+              transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Smooth height transitions
+              transform: 'translateZ(0)', // Force hardware acceleration
             }}
           >
             {/* Table Header */}
-            <Box sx={{ px: 3, pt: 3, pb: 1 }}> {/* Matched top padding with pagination bottom */}
+            <Box sx={{ px: 3, pt: 3, pb: 3 }}> {/* Matched top padding with pagination bottom */}
               <Box 
                 sx={{ 
                   display: 'flex',
@@ -967,7 +992,7 @@ export default function Accounts() {
             </Box>
 
             {/* Pagination - Sticky to bottom */}
-            <Box sx={{ px: 3, pt: 0.5, pb: 1, mt: 'auto' }}> {/* Reduced top padding to 0.5, bottom to 1 */}
+            <Box sx={{mt:1, mb:1, px: 3, pt: 1, pb: 1 }}> {/* Reduced top padding to 0.5, bottom to 1 */}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '40px' }}>
                 {/* Show by dropdown */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
