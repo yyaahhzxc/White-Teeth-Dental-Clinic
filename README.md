@@ -1,6 +1,6 @@
-# White Teeth Dental Clinic - Setup Guide
+# White Teeth Dental Clinic - Management System
 
-Setup guide for building the White Teeth Dental Clinic desktop application on a new environment.
+A comprehensive dental clinic management system built as a React desktop application with Express.js backend and SQLite database.
 
 ## 👪 Project Team Members
 - Warlter Anthony Andao
@@ -9,10 +9,16 @@ Setup guide for building the White Teeth Dental Clinic desktop application on a 
 
 ## 📖 Brief Introduction
 
-This is a dental clinic management system built as a desktop application. To run in development mode, you'll need to start both the frontend (React) and backend (Node.js/Express) servers. For production, the app compiles into a standalone .exe file with embedded SQLite database.
+This is a dental clinic management system built as a desktop application. The system features:
+- **Patient Records Management** - Complete patient information and medical history
+- **Service Management** - Dental services catalog and pricing
+- **Appointment Scheduling** - Patient appointment booking and management
+- **User Management** - Role-based access control (Administrator, Dentist, Assistant, Receptionist)
+- **Accounting & Invoicing** - Financial tracking and invoice generation
+- **Audit Logs** - System activity tracking
 
 **Quick Overview:**
-- **Development:** Run `npm run dev` for frontend + `node server.js` in `cd src/backend` for backend
+- **Development:** Run `npm run dev` for frontend + `npm start` in `src/backend` for backend
 - **Production:** Build with `npm run build` then compile with `electron-builder`
 - **Result:** Portable .exe file that runs without installation
 
@@ -20,23 +26,27 @@ This is a dental clinic management system built as a desktop application. To run
 
 ### Frontend:
 - **React 19.1.0** - UI framework
-- **Material-UI (MUI) 7.3.1** - Component library
+- **Material-UI (MUI) 7.3.1** - Component library and icons
+- **Emotion 11.14.0** - CSS-in-JS styling
 - **Vite 7.1.3** - Build tool and dev server
-- **React Router DOM** - Navigation
+- **React Router DOM 7.8.0** - Client-side routing
+- **React Draggable 4.5.0** - Draggable UI components
+- **React Icons 5.5.0** - Additional icon set
 
 ### Backend:
 - **Node.js** - Runtime environment
-- **Express.js 4.21.2** - Web server framework
-- **SQLite3 5.1.7** - Database
+- **Express.js 5.1.0** - Web server framework
+- **SQLite3 5.1.7** - Embedded database
 - **CORS 2.8.5** - Cross-origin resource sharing
 
 ### Desktop App:
 - **Electron 37.3.1** - Desktop app framework
 - **Electron Builder 26.0.12** - App packaging/compilation
 
-### Additional:
-- **React Draggable** - Draggable components
-- **Concurrently** - Run multiple commands
+### Development Tools:
+- **Concurrently 9.2.0** - Run multiple commands simultaneously
+- **Wait-on 8.0.4** - Wait for services to be available
+- **Testing Library** - React component testing utilities
 
 ## 🛠️ Prerequisites
 
@@ -57,7 +67,7 @@ npm --version
 python --version
 ```
 
-### 3. Install Windows Build Tools
+### 3. Install Windows Build Tools (Windows only)
 - Open PowerShell as Administrator and run:
 ```powershell
 npm install --global windows-build-tools
@@ -89,10 +99,11 @@ cd ../..
 Open **Terminal 1:**
 ```bash
 cd src/backend
-node server.js
+npm start
 ```
 - Backend will run on `http://localhost:3001`
 - Keep this terminal open
+- Database will be automatically created if it doesn't exist
 
 ### Step 2: Start Frontend Development Server
 Open **Terminal 2:**
@@ -101,93 +112,255 @@ npm run dev
 ```
 - Frontend will run on `http://localhost:3000`
 - Open browser and go to `http://localhost:3000`
-- Login with default credentials
-    username: `admin`, password: `admin`
+- Login with default credentials: `admin` / `admin`
 
-## 📦 Compiling to EXE
+### Alternative: Run Both Simultaneously
+```bash
+npm run electron-dev
+```
+This will start both frontend and backend, then launch the Electron app.
+
+## 📦 Building for Production
 
 ### Step 1: Build Frontend
 ```bash
 npm run build
 ```
 
-### Step 2: Compile to Portable EXE
+### Step 2: Compile to Desktop Application
 ```bash
-electron-builder --win portable --publish never
+# For portable executable
+npm run dist
+
+# Or use electron-builder directly
+npx electron-builder --win portable --publish never
 ```
 
-**That's it!** Your .exe file will be created in the `dist-electron` folder.
+### Step 3: Alternative Build Script
+```bash
+npm run build-desktop
+```
 
 ## 📁 Output Files
 
 After compilation, find your executable at:
-- **Main EXE:** `dist-electron/White Teeth Dental Clinic-0.1.0-portable.exe`
-- **Unpacked Version:** `dist-electron/win-unpacked/`
+- **Portable EXE:** `dist-electron/White Teeth Dental Clinic-0.1.0-portable.exe`
+- **Unpacked Files:** `dist-electron/win-unpacked/`
+- **Built Frontend:** `dist/` (static files)
 
-## � Project Structure
+## 📂 Project Structure
 
 ```
 White-Teeth-Dental-Clinic/
+├── public/                       # Static assets
+│   ├── White-Teeth-Logo.png     # App icon
+│   ├── White-Teeth-BG.png       # Background image
+│   └── ...                      # Other assets
 ├── src/                          # React frontend source
 │   ├── backend/                  # Express.js backend
-│   │   ├── server.js            # Backend server
+│   │   ├── server.js            # Main backend server
 │   │   ├── clinic.db            # SQLite database
-│   │   └── package.json         # Backend dependencies
-│   ├── App.js                   # Main React app
-│   ├── Dashboard.js             # Dashboard component
-│   ├── Records.js               # Records management
+│   │   ├── package.json         # Backend dependencies
+│   │   └── ...                  # Migration scripts & utilities
+│   ├── apiConfig.js             # API configuration
+│   ├── App.js                   # Main React application
+│   ├── Dashboard.js             # Main dashboard
+│   ├── Records.js               # Patient records management
+│   ├── service-page.js          # Services management
+│   ├── Appointments.js          # Appointment scheduling
+│   ├── Accounts.js              # User account management
+│   ├── Profile.js               # User profile settings
+│   ├── Invoice.js               # Invoice generation
+│   ├── Accounting.js            # Financial management
+│   ├── Settings.js              # System settings
+│   ├── Logs.js                  # Audit logs viewer
+│   ├── add-record.js            # Add patient modal
+│   ├── add-service.js           # Add service modal
+│   ├── view-record.js           # View/edit patient modal
+│   ├── view-service.js          # View/edit service modal
+│   ├── header.js                # Navigation header
 │   ├── QuickActionButton.js     # Floating action button
-│   └── ...                     # Other React components
-├── public/                      # Static assets & images
-├── dist/                        # Built frontend (after npm run build)
-├── dist-electron/               # Built desktop app (after electron-builder)
+│   └── ...                     # Other components
+├── build/                       # Build output (after npm run build)
+├── dist/                        # Vite build output
+├── dist-electron/               # Electron build output
 ├── electron.js                  # Electron main process
 ├── package.json                 # Main dependencies & scripts
 ├── vite.config.js              # Vite configuration
-└── README1.md                   # This file
+└── README.md                    # This documentation
 ```
+
+## 🔑 Default Login Credentials
+
+- **Username:** `admin`
+- **Password:** `admin`
+
+## 👥 User Roles
+
+The system supports role-based access control:
+
+### User Roles:
+- **User** - Basic access level
+- **Administrator** - Full system access
+
+### Employee Roles:
+- **Dentist** - Primary dental practitioners
+- **Assistant Dentist** - Dental assistants
+- **Receptionist** - Front desk staff
 
 ## 📋 System Requirements
 
 ### For Development:
-- Windows 10/11
-- Node.js 18.x or 20.x LTS
-- Python 3.9+
-- 4GB+ RAM
-- 2GB+ free disk space
+- **OS:** Windows 10/11, macOS 10.15+, Linux Ubuntu 18+
+- **Node.js:** 18.x or 20.x LTS
+- **Python:** 3.9+ (for SQLite compilation)
+- **RAM:** 4GB+ recommended
+- **Storage:** 2GB+ free disk space
 
 ### For Built Application:
-- Windows 10/11 (64-bit)
-- 100MB+ free disk space
-- **No additional software required**
+- **OS:** Windows 10/11 (64-bit)
+- **Storage:** 100MB+ free disk space
+- **Dependencies:** None (completely portable)
 
-## 🎉 Success!
+## 🔧 Troubleshooting
 
-If everything works correctly, you should have:
-- ✅ Frontend running at `http://localhost:3000`
-- ✅ Backend running at `http://localhost:3001`
-- ✅ Functional login system (admin/admin)
-- ✅ Database operations working
-- ✅ Portable .exe file that runs standalone
-- ✅ Complete dental clinic management system
+### Common Issues & Solutions
 
-## 🔧 Quick Troubleshooting
-
-### SQLite Build Errors:
+#### 1. SQLite Build Errors
 ```bash
+# Rebuild SQLite native bindings
+npm rebuild sqlite3
+
+# If still failing, try:
+cd src/backend
 npm rebuild sqlite3
 ```
 
-### File Lock Errors During Build:
+#### 2. File Lock Errors During Build
 ```bash
+# Kill any running processes
 taskkill /f /im "White Teeth Dental Clinic.exe"
 taskkill /f /im "electron.exe"
+
+# Remove build directory and rebuild
 rmdir /s /q dist-electron
+npm run dist
 ```
 
-### Node Version Issues:
-Use Node.js 18.x or 20.x LTS version.
+#### 3. Node Version Compatibility
+- Ensure you're using Node.js 18.x or 20.x LTS
+- Avoid Node.js 21+ (may cause build issues)
+```bash
+node --version  # Should show v18.x.x or v20.x.x
+```
+
+#### 4. Backend Connection Issues
+- Verify backend is running on port 3001
+- Check if another service is using port 3001
+- Look for CORS errors in browser console
+
+#### 5. White Screen Issues
+- Check browser console for JavaScript errors
+- Ensure all imports are properly defined
+- Verify API_BASE configuration in `src/apiConfig.js`
+
+#### 6. Database Issues
+```bash
+# Check database structure
+cd src/backend
+node checkDB.js
+
+# Reset database (WARNING: destroys data)
+rm clinic.db
+npm start  # Will recreate database
+```
+
+#### 7. Port Already in Use
+```bash
+# Find and kill process using port 3001
+netstat -ano | findstr :3001
+taskkill /PID <PID_NUMBER> /F
+
+# Or use different port in apiConfig.js
+```
+
+#### 8. Permission Errors (Windows)
+- Run terminals as Administrator
+- Ensure antivirus isn't blocking file access
+- Check Windows Defender exclusions
+
+#### 9. Missing Dependencies
+```bash
+# Reinstall all dependencies
+rm -rf node_modules package-lock.json
+npm install
+
+# Backend dependencies
+cd src/backend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+#### 10. Electron Build Issues
+```bash
+# Clear Electron cache
+npx electron-builder install-app-deps
+
+# Force rebuild
+npm run build
+npx electron-builder --win portable --publish never
+```
+
+## 🧪 Testing the Application
+
+### Manual Testing Checklist:
+- [ ] Login with admin/admin credentials
+- [ ] Navigate between different pages
+- [ ] Add a new patient record
+- [ ] Add a new service
+- [ ] Create an appointment
+- [ ] Generate an invoice
+- [ ] Check audit logs
+- [ ] Test user role management
+
+### Database Testing:
+```bash
+cd src/backend
+node checkDB.js  # Verify database structure
+```
+
+## 🚀 Production Deployment
+
+1. **Build the application:**
+   ```bash
+   npm run build
+   ```
+
+2. **Create portable executable:**
+   ```bash
+   npm run dist
+   ```
+
+3. **Distribute the .exe file:**
+   - Copy `dist-electron/White Teeth Dental Clinic-0.1.0-portable.exe`
+   - No installation required on target machines
+   - Database is embedded in the application
+
+## 🎉 Success Indicators
+
+✅ **Development Mode Working:**
+- Frontend running at `http://localhost:3000`
+- Backend running at `http://localhost:3001`
+- Login system functional
+- Database operations working
+- All pages loading without errors
+
+✅ **Production Build Working:**
+- Portable .exe file created successfully
+- Application runs without external dependencies
+- All features functional in built version
+- Database persists between sessions
 
 ---
 
-**Note:** The final .exe file is completely portable and includes the database. Users can run it without installing Node.js, npm, or any other dependencies.
+**Note:** The final .exe file is completely portable and includes the embedded SQLite database. Users can run it on any compatible Windows machine without installing Node.js, npm, or any other dependencies.

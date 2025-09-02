@@ -1,4 +1,4 @@
-~const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -364,63 +364,6 @@ function createBackendServer() {
       console.error('Backend server error:', err);
       reject(err);
     });
-  });
-}
-
-function createSimpleServer() {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      let filePath;
-      let urlPath = url.parse(req.url).pathname;
-      
-      // Handle root and empty paths
-      if (urlPath === '/' || urlPath === '') {
-        urlPath = '/index.html';
-      }
-      
-      // Remove leading slash and map to dist directory
-      const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
-      filePath = path.join(__dirname, 'dist', relativePath);
-      
-      console.log(`HTTP Request: ${req.url} -> ${filePath}`);
-
-      fs.readFile(filePath, (err, data) => {
-        if (err) {
-          console.error(`File not found: ${filePath}`);
-          // Try fallback to index.html for SPA routes
-          if (!relativePath.includes('.')) {
-            const indexPath = path.join(__dirname, 'dist', 'index.html');
-            fs.readFile(indexPath, (indexErr, indexData) => {
-              if (indexErr) {
-                res.writeHead(404);
-                res.end('Not found');
-                return;
-              }
-              res.writeHead(200, { 'Content-Type': 'text/html' });
-              res.end(indexData);
-            });
-            return;
-          }
-          res.writeHead(404);
-          res.end('Not found');
-          return;
-        }
-
-        const ext = path.extname(filePath);
-        const contentType = mimeTypes[ext] || 'text/plain';
-        
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(data);
-      });
-    });
-
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      console.log(`Frontend server listening on http://127.0.0.1:${port}`);
-      resolve({ server, port });
-    });
-
-    server.on('error', reject);
   });
 }
 
