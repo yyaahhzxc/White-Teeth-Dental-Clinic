@@ -19,8 +19,6 @@ import Settings from './Settings';
 import Logs from './Logs';
 import Accounts from './Accounts';
 import { API_BASE } from './apiConfig';
-import Header from './header'; // Add this import at the top
-
 
 
 
@@ -200,7 +198,6 @@ function App() {
         flexDirection: 'column',
       }}
     >
-   
       <Routes>
         <Route path="/" element={<HomePage />} />
   <Route path="/login" element={loginForm} />
