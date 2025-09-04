@@ -68,59 +68,71 @@ export default function SortableHeader({
       }}
       onClick={sortable ? handleSort : undefined}
     >
-      <Typography 
-        className="header-text"
-        sx={{ 
-          fontFamily: 'Roboto, sans-serif',
-          fontWeight: 500,
-          fontSize: '18px',
-          color: isActive ? '#4A69BD' : '#6d6b80',
-          lineHeight: '24px',
-          letterSpacing: '0.5px',
-          transition: 'color 0.2s ease',
-        }}
-      >
-        {label}
-      </Typography>
-      
-      <Box 
-        className="sort-icon"
-        sx={{ 
-          ml: 0.5,
-          display: sortable ? 'flex' : 'none',
-          flexDirection: 'column',
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center', 
+        width: '100%' 
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
           alignItems: 'center',
-          opacity: isActive ? 1 : 0,
-          transition: 'opacity 0.2s ease',
-          width: '20px',
-          height: '20px',
-          position: 'relative',
-        }}
-      >
-        {direction === 'asc' && (
-          <KeyboardArrowDown 
+          transform: textAlign === 'center' && sortable ? 'translateX(10px)' : 'none'
+        }}>
+          <Typography 
+            className="header-text"
             sx={{ 
-              fontSize: '20px', 
-              color: '#4A69BD',
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-            }} 
-          />
-        )}
-        {direction === 'desc' && (
-          <KeyboardArrowUp 
+              fontFamily: 'Roboto, sans-serif',
+              fontWeight: 500,
+              fontSize: '18px',
+              color: isActive ? '#4A69BD' : '#6d6b80',
+              lineHeight: '24px',
+              letterSpacing: '0.5px',
+              transition: 'color 0.2s ease',
+            }}
+          >
+            {label}
+          </Typography>
+          <Box 
+            className="sort-icon"
             sx={{ 
-              fontSize: '20px', 
-              color: '#4A69BD',
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-            }} 
-          />
-        )}
+              ml: 0.5,
+              display: sortable ? 'flex' : 'none',
+              flexDirection: 'column',
+              alignItems: 'center',
+              opacity: isActive ? 1 : 0,
+              transition: 'opacity 0.2s ease',
+              width: '20px',
+              height: '20px',
+              position: 'relative',
+            }}
+          >
+            {direction === 'asc' && (
+              <KeyboardArrowDown 
+                sx={{ 
+                  fontSize: '20px', 
+                  color: '#4A69BD',
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                }} 
+              />
+            )}
+            {direction === 'desc' && (
+              <KeyboardArrowUp 
+                sx={{ 
+                  fontSize: '20px', 
+                  color: '#4A69BD',
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                }} 
+              />
+            )}
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

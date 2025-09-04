@@ -29,10 +29,6 @@ function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
   const pageItems = getPageItems(page + 1, totalPages);
   const rowsPerPageOptions = [5, 10, 20, 50];
 
-  if (totalPages <= 1) {
-    return null; // Don't show pagination if there's only 1 page or less
-  }
-
   return (
     <Box
       sx={{
@@ -63,17 +59,19 @@ function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
           </Select>
         </FormControl>
       </Box>
+      {/* Always show page navigation, but disable when only one page */}
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         <Button
           size="small"
           startIcon={<KeyboardArrowLeftIcon />}
-          disabled={page === 0}
+          disabled={page === 0 || totalPages <= 1}
           onClick={() => onPageChange(Math.max(0, page - 1))}
           sx={{ textTransform: 'none', mr: 1 }}
         >
           Previous
         </Button>
-        {pageItems.map((item, idx) => {
+        {/* Always show at least page 1 */}
+        {totalPages > 0 ? pageItems.map((item, idx) => {
           if (item === 'ellipsis') {
             return (
               <Typography key={`ellipsis-${idx}`} sx={{ mx: 0.5, color: 'text.secondary' }}>
@@ -108,11 +106,28 @@ function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
               {pageNumber}
             </Button>
           );
-        })}
+        }) : (
+          <Button
+            size="small"
+            variant="contained"
+            sx={{
+              minWidth: 36,
+              mx: 0.5,
+              py: 0.5,
+              px: 1,
+              backgroundColor: '#1746A2',
+              color: 'white',
+              textTransform: 'none',
+              fontSize: '0.9rem',
+            }}
+          >
+            1
+          </Button>
+        )}
         <Button
           size="small"
           endIcon={<KeyboardArrowRightIcon />}
-          disabled={page >= totalPages - 1}
+          disabled={page >= totalPages - 1 || totalPages <= 1}
           onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
           sx={{ textTransform: 'none', ml: 1 }}
         >

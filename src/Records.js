@@ -16,6 +16,7 @@ import SearchBar from './SearchBar';
 import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
 import SortableHeader, { sortData } from './SortableHeader';
 import Pagination from './Pagination';
+import ViewRecord from './view-record';
 
 // API Base URL
 const API_BASE = 'http://localhost:3001';
@@ -52,6 +53,22 @@ function PatientList() {
 
   const navigate = useNavigate();
   const [showPatientModal, setShowPatientModal] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [medInfo, setMedInfo] = useState(null);
+  // Handler to open patient view modal
+  const handleViewPatient = async (patient) => {
+    setSelectedPatient(patient);
+    try {
+      const res = await fetch(`${API_BASE}/medical-information/${patient.id}`);
+      const data = await res.json();
+      setMedInfo(data || null);
+    } catch (err) {
+      console.error("Error fetching medical info:", err);
+      setMedInfo(null);
+    }
+    setViewDialogOpen(true);
+  };
 
   // Filter categories for patient records
   const filterCategories = [
@@ -387,6 +404,7 @@ function PatientList() {
                         cursor: 'pointer'
                       }
                     }}
+                    onClick={() => handleViewPatient(patient)}
                   >
                     <Box sx={{ flex: '1', textAlign: 'left' }}>
                       <Typography
@@ -520,6 +538,21 @@ function PatientList() {
       />
 
       {/* Patient Modal */}
+      <ViewRecord
+        open={viewDialogOpen}
+        onClose={() => setViewDialogOpen(false)}
+        patient={selectedPatient}
+        medInfo={medInfo}
+        onRecordUpdated={() => {
+          // Refresh the list after edit
+          fetch(`${API_BASE}/patients`)
+            .then(res => res.json())
+            .then(data => {
+              setPatients(data);
+              setFilteredPatients(data);
+            });
+        }}
+      />
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
     </Box>
   );

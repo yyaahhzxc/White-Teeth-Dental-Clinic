@@ -1,323 +1,560 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  TextField,
   Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
   Button,
-  Fab,
-  Zoom,
+  IconButton,
+  Collapse,
 } from '@mui/material';
-import { Search } from '@mui/icons-material';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import AddService from './add-service';
-import AddPatientRecord from './add-record';
-import ViewService from './view-service';
-import QuickActionButton from './QuickActionButton';
+import { useNavigate } from 'react-router-dom';
+
 import Header from './header';
+import QuickActionButton from './QuickActionButton';
+import AddPatientRecord from './add-record';
+import AddService from './add-service';
+import ViewService from './view-service';
+import DataTable from './DataTable';
+import SearchBar from './SearchBar';
+import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
+import SortableHeader, { sortData } from './SortableHeader';
 import Pagination from './Pagination';
 
 // API Base URL
 const API_BASE = 'http://localhost:3001';
 
 function ServiceList() {
+  // ...existing code...
   const [services, setServices] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage] = useState(5);
-  const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  // View dialog state
+  // Filter state
+  const [showFilterBox, setShowFilterBox] = useState(false);
+  const [activeFilters, setActiveFilters] = useState([
+    { category: '', type: '' }
+  ]);
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  // ...existing code...
+
+  const navigate = useNavigate();
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [showPatientModal, setShowPatientModal] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
 
-  // Fetch services from backend (replace with your actual endpoint)
+  // Filter categories for services
+  const filterCategories = [
+    { label: 'Price Range', value: 'priceRange', types: ['0-500', '501-1000', '1001-2000', '2001-5000', '5000+'] },
+    { label: 'Duration Range', value: 'durationRange', types: ['0-30 mins', '31-60 mins', '61-90 mins', '91-120 mins', '120+ mins'] },
+    { label: 'Treatment Type', value: 'type', types: ['Single Treatment', 'Package Treatment'] },
+    { label: 'Status', value: 'status', types: ['Active', 'Inactive'] },
+  ];
+
+  // Fetch services from backend
   useEffect(() => {
-  fetch(`${API_BASE}/service-table`)
-      .then(res => res.json())
-      .then(data => {
-        setServices(data);
-        setFilteredServices(data);
-      })
-      .catch(err => console.error('Error fetching services:', err));
+    fetchServices();
   }, []);
 
-  // Filter services by name
+  // Helper to build query string from filters
+  const buildFilterQuery = (filters) => {
+    const params = [];
+    filters.forEach(f => {
+      if (f.category && f.type) {
+        if (f.category === 'priceRange' || f.category === 'durationRange') {
+          // Handle price range and duration range filtering on frontend since backend may not support it
+          return;
+        }
+        params.push(`${encodeURIComponent(f.category)}=${encodeURIComponent(f.type)}`);
+      }
+    });
+    return params.length ? `?${params.join('&')}` : '';
+  };
+
+  // Modified fetchServices to accept filters
+  const fetchServices = async (filters = activeFilters) => {
+    try {
+      const query = buildFilterQuery(filters);
+      const response = await fetch(`${API_BASE}/service-table${query}`);
+      if (response.ok) {
+        const data = await response.json();
+        let processedData = data;
+        
+        // Apply price range and duration range filtering on frontend
+        if (showFilterBox) {
+          filters.forEach(f => {
+            if (f.category === 'priceRange' && f.type) {
+              processedData = processedData.filter(service => {
+                const price = parseFloat(service.price) || 0;
+                switch (f.type) {
+                  case '0-500': return price >= 0 && price <= 500;
+                  case '501-1000': return price >= 501 && price <= 1000;
+                  case '1001-2000': return price >= 1001 && price <= 2000;
+                  case '2001-5000': return price >= 2001 && price <= 5000;
+                  case '5000+': return price > 5000;
+                  default: return true;
+                }
+              });
+            }
+            if (f.category === 'durationRange' && f.type) {
+              processedData = processedData.filter(service => {
+                const duration = parseInt(service.duration) || 0;
+                switch (f.type) {
+                  case '0-30 mins': return duration >= 0 && duration <= 30;
+                  case '31-60 mins': return duration >= 31 && duration <= 60;
+                  case '61-90 mins': return duration >= 61 && duration <= 90;
+                  case '91-120 mins': return duration >= 91 && duration <= 120;
+                  case '120+ mins': return duration > 120;
+                  default: return true;
+                }
+              });
+            }
+          });
+        }
+        
+        setServices(processedData);
+        setFilteredServices(processedData);
+      }
+    } catch (error) {
+      console.error('Error fetching services:', error);
+    }
+  };
+
+  // Refetch services when filters change
   useEffect(() => {
-    const result = services.filter(service =>
-      (service.name || '').toLowerCase().includes(search.toLowerCase())
-    );
-    setFilteredServices(result);
-    setPage(0); // Reset to first page when search changes
+    if (showFilterBox) {
+      fetchServices(activeFilters);
+    } else {
+      fetchServices([]); // fetch all services when filter box is closed
+    }
+    setPage(0); // Reset to first page when filters change
+  }, [activeFilters, showFilterBox]);
+
+  // Search filter - now handled by SearchBar component
+  useEffect(() => {
+    if (!search) {
+      setFilteredServices(services);
+      setPage(0);
+    }
+    // The actual filtering is now handled by the SearchBar component
   }, [search, services]);
 
-  // Sorting logic
-  const sortedServices = React.useMemo(() => {
-    let sortable = [...filteredServices];
-    if (sortConfig.key) {
-      sortable.sort((a, b) => {
-        switch (sortConfig.key) {
-          case 'name':
-            if (a.name < b.name) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (a.name > b.name) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-          case 'price':
-            return sortConfig.direction === 'asc'
-              ? a.price - b.price
-              : b.price - a.price;
-          case 'duration':
-            return sortConfig.direction === 'asc'
-              ? a.duration - b.duration
-              : b.duration - a.duration;
-          case 'type':
-            // Single Treatment first, then Package Treatment
-            if (a.type === b.type) return 0;
-            if (sortConfig.direction === 'asc') {
-              return a.type === 'Single Treatment' ? -1 : 1;
-            } else {
-              return a.type === 'Package Treatment' ? -1 : 1;
-            }
-          case 'status':
-            // Active first, then Inactive
-            if (a.status === b.status) return 0;
-            if (sortConfig.direction === 'asc') {
-              return a.status === 'Active' ? -1 : 1;
-            } else {
-              return a.status === 'Inactive' ? -1 : 1;
-            }
-          default:
-            return 0;
-        }
-      });
-    }
-    return sortable;
-  }, [filteredServices, sortConfig]);
+  // Handle filter changes from FilterComponent
+  const handleFilterChange = (filters) => {
+    setActiveFilters(filters);
+  };
 
-  // Pagination calculations
+  // Handle sort changes from SortableHeader
+  const handleSort = (newSortConfig) => {
+    setSortConfig(newSortConfig);
+  };
+
+  // Reset page when search or filters change
+  useEffect(() => {
+    setPage(0);
+  }, [search, activeFilters, rowsPerPage]);
+
+  // Pagination calculations with sorting
+  const sortedServices = sortData(filteredServices, sortConfig);
   const totalPages = Math.ceil(sortedServices.length / rowsPerPage);
   const visibleServices = sortedServices.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  // Calculate scrollbar display value for table rows
+  const scrollbarDisplay = visibleServices && visibleServices.length > 5 ? 'block' : 'none';
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };
 
-  // Header click handler
-  const handleSort = (key) => {
-    setSortConfig((prev) => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+  // Handler to open service view modal
+  const handleViewService = async (service) => {
+    setSelectedService(service);
+    setViewDialogOpen(true);
   };
 
   const handleAddService = () => {
     // After adding, fetch the updated list
-  fetch(`${API_BASE}/service-table`)
+    fetch(`${API_BASE}/service-table`)
       .then(res => res.json())
       .then(data => {
         setServices(data);
         setFilteredServices(data);
       });
-    setServiceDialogOpen(false);
+    setShowServiceModal(false);
   };
 
-  const [showPatientModal, setShowPatientModal] = useState(false);
-
-  // View dialog handler
-  const handleEditService = (service) => {
-    setSelectedService(service);
-    setViewDialogOpen(true);
-  };
+  const handleAddPatientRecord = () => setShowPatientModal(true);
+  const handleAddAppointment = () => navigate('/add-appointment');
 
   return (
-    <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: '#2148c0',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <Header />
-      <Box sx={{ p: 3 }}>
-        <Paper sx={{ p: 2, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" sx={{ flexGrow: 1 }}>
-              Service List
-            </Typography>
-            <TextField
-              variant="outlined"
-              size="small"
-              placeholder="Search by service name"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              sx={{ mr: 2, width: 240 }}
-              InputProps={{
-                startAdornment: (
-                  <IconButton>
-                    <Search />
-                  </IconButton>
-                ),
-              }}
-            />
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              sx={{ ml: 2, backgroundColor: '#2148C0', color: '#fff', borderRadius: 2, fontWeight: 'bold' }}
-              onClick={() => setServiceDialogOpen(true)}
-            >
-              Add Service
-            </Button>
-          </Box>
-
-          <TableContainer sx={{ maxHeight: 680, overflowY: 'auto' }}>
-            <Table
-              stickyHeader
-              sx={{
-                tableLayout: 'fixed',
-                minWidth: 900,
-                '& td, & th': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                },
-              }}
-            >
-              <TableHead>
-                <TableRow>
-                  <TableCell
-                    sx={{
-                      width: 160,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'name' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('name')}
-                  >
-                    <b>Name</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 220,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'description' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('description')}
-                  >
-                    <b>Description</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 100,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'price' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('price')}
-                  >
-                    <b>Price</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 120,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'duration' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('duration')}
-                  >
-                    <b>Duration</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 160,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'type' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('type')}
-                  >
-                    <b>Type</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 100,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'status' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('status')}
-                  >
-                    <b>Status</b>
-                  </TableCell>
-                  <TableCell align="center" sx={{ width: 80 }}><b>View</b></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sortedServices.length ? (
-                  visibleServices.map((service, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{service.name}</TableCell>
-                      <TableCell>{service.description}</TableCell>
-                      <TableCell>{service.price}</TableCell>
-                      <TableCell>{service.duration}</TableCell>
-                      <TableCell>{service.type}</TableCell>
-                      <TableCell
-                        sx={{
-                          color: service.status === 'Active' ? 'green' : 'red',
-                          fontWeight: 'bold',
-                          borderRadius: 2
-                        }}
-                      >
-                        {service.status}
-                      </TableCell>
-                      <TableCell align="center">
-                        <IconButton onClick={() => handleEditService(service)}>
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                      No services found
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          <Pagination 
-            page={page} 
-            totalPages={totalPages} 
-            onPageChange={handlePageChange} 
-            sx={{ pb: 2 }} 
-          />
-        </Paper>
+      
+      {/* Services Title */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          pt: 2,
+          pb: 2,
+          px: 2,
+        }}
+      >
+        <Typography 
+          variant="h3" 
+          sx={{ 
+            color: 'white',
+            fontWeight: 800,
+            fontSize: '39.14px',
+            fontFamily: 'Inter, sans-serif',
+          }}
+        >
+          Services
+        </Typography>
       </Box>
 
-  <QuickActionButton onAddPatientRecord={() => setShowPatientModal(true)} onAddAppointment={() => {/* navigate if needed */}} />
-
-      {/* Patient Modal */}
-      <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
-      <AddService
-        open={serviceDialogOpen}
-        onClose={() => setServiceDialogOpen(false)}
-        handleAddService={handleAddService}
+      {/* Main Content Container - now using DataTable */}
+      <DataTable
+        topContent={
+          <>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                px: 3,
+                pt: 3,
+                pb: 2,
+                gap: 2,
+                boxSizing: 'border-box',
+              }}
+            >
+              {/* Search Bar */}
+              <SearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by service name"
+                searchFields={['name']}
+                data={services}
+                onFilteredData={setFilteredServices}
+              />
+              {/* Filter and Add Service buttons */}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                <Button
+                  variant="contained"
+                  onClick={() => setShowServiceModal(true)}
+                  sx={{
+                    backgroundColor: '#2148c0',
+                    color: 'white',
+                    borderRadius: '8px',
+                    height: '38px',
+                    px: 3,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    fontFamily: 'Inter, sans-serif',
+                    boxShadow: 'none',
+                    '&:hover': {
+                      backgroundColor: '#1e3fa8',
+                      boxShadow: 'none',
+                    },
+                  }}
+                >
+                  Add Service
+                </Button>
+              </Box>
+            </Box>
+            {/* Filter Bar UI with animation */}
+            <Collapse 
+              in={showFilterBox} 
+              timeout={{ enter: 300, exit: 200 }}
+              easing={{
+                enter: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                exit: 'cubic-bezier(0.4, 0, 0.6, 1)',
+              }}
+            >
+              <FilterContent
+                filterCategories={filterCategories}
+                activeFilters={activeFilters}
+                onFilterChange={handleFilterChange}
+              />
+            </Collapse>
+          </>
+        }
+        tableHeader={
+          <Box sx={{ px: 3, pt: 3, pb: 3 }}>
+            <Box 
+              sx={{ 
+                display: 'flex',
+                px: 2,
+                alignItems: 'center',
+              }}
+            >
+                <SortableHeader
+                  label="Service Name"
+                  sortKey="name"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  textAlign="left"
+                  sx={{ flex: '2' }}
+                />
+                <SortableHeader
+                  label="Price"
+                  sortKey="price"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  textAlign="center"
+                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
+                  customSort={(a, b, direction) => {
+                    const priceA = parseFloat(a.price) || 0;
+                    const priceB = parseFloat(b.price) || 0;
+                    return direction === 'asc' ? priceA - priceB : priceB - priceA;
+                  }}
+                />
+                <SortableHeader
+                  label="Duration"
+                  sortKey="duration"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  textAlign="center"
+                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
+                  customSort={(a, b, direction) => {
+                    const durationA = parseInt(a.duration) || 0;
+                    const durationB = parseInt(b.duration) || 0;
+                    return direction === 'asc' ? durationA - durationB : durationB - durationA;
+                  }}
+                />
+                <SortableHeader
+                  label="Type"
+                  sortKey="type"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  textAlign="center"
+                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
+                />
+                <SortableHeader
+                  label="Status"
+                  sortKey="status"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  textAlign="center"
+                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
+                />
+              </Box>
+            </Box>
+          }
+          tableRows={
+            <Box sx={{ 
+              px: 3, 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              minHeight: '402px',
+              maxHeight: '402px',
+              overflow: visibleServices.length > 5 ? 'auto' : 'hidden',
+              '&::-webkit-scrollbar': {
+                width: '6px',
+              },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f1f1',
+              borderRadius: '3px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#c1c1c1',
+              borderRadius: '3px',
+              '&:hover': {
+                background: '#a8a8a8',
+              },
+            },
+          }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
+              {visibleServices.length > 0 ? (
+                visibleServices.map((service) => (
+                  <Box 
+                    key={service.id}
+                    sx={{ 
+                      display: 'flex', 
+                      px: 2,
+                      py: 0.875,
+                      alignItems: 'center',
+                      backgroundColor: '#f9fafc',
+                      borderRadius: '10px',
+                      height: 60,
+                      '&:hover': { 
+                        backgroundColor: '#f0f4f8',
+                        cursor: 'pointer'
+                      }
+                    }}
+                    onClick={() => handleViewService(service)}
+                  >
+                      <Box sx={{ flex: '2', textAlign: 'left' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {service.name || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        ₱{service.price || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {service.duration ? `${service.duration} mins` : '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {service.type || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: service.status === 'Active' ? '#4caf50' : '#f44336',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {service.status || '-'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Box 
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    py: 4,
+                    backgroundColor: '#f9fafc',
+                    borderRadius: '10px',
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 400,
+                      fontSize: '16px',
+                      color: '#6d6b80',
+                    }}
+                  >
+                    No services found.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        }
+        pagination={
+          <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={value => {
+                setRowsPerPage(value);
+                setPage(0);
+              }}
+            />
+          </Box>
+        }
+        grayMinHeight={showFilterBox ? '440px' : '560px'}
+        whiteMinHeight={showFilterBox ? '720px' : '620px'}
       />
+
+      {/* FilterComponent for data filtering logic */}
+      <FilterComponent
+        filterCategories={filterCategories}
+        data={services}
+        onFilteredData={setFilteredServices}
+        activeFilters={activeFilters}
+        showFilterBox={showFilterBox}
+      />
+
+      {/* QuickActionButton */}
+      <QuickActionButton 
+        onAddPatientRecord={handleAddPatientRecord}
+        onAddAppointment={handleAddAppointment}
+      />
+
+      {/* View Service Dialog */}
       <ViewService
         open={viewDialogOpen}
         onClose={() => setViewDialogOpen(false)}
         service={selectedService}
-        onServiceUpdated={handleAddService} // This will refresh the list after edit
+        onServiceUpdated={() => {
+          // Refresh the list after edit
+          fetch(`${API_BASE}/service-table`)
+            .then(res => res.json())
+            .then(data => {
+              setServices(data);
+              setFilteredServices(data);
+            });
+        }}
       />
+
+      {/* Service Modal */}
+      <AddService
+        open={showServiceModal}
+        onClose={() => setShowServiceModal(false)}
+        handleAddService={handleAddService}
+      />
+
+      {/* Patient Modal */}
+      <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
     </Box>
   );
 }
