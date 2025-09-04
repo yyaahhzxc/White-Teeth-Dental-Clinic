@@ -25,14 +25,15 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { Search, FilterList, Add, Edit } from '@mui/icons-material';
-import TuneIcon from '@mui/icons-material/Tune';
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
+import DataTable from './DataTable';
+import SearchBar from './SearchBar';
+import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
+import SortableHeader, { sortData } from './SortableHeader';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Fade from '@mui/material/Fade';
-import CloseIcon from '@mui/icons-material/Close';
-import AddIcon from '@mui/icons-material/Add';
 import Collapse from '@mui/material/Collapse';
 import { API_BASE, MASTER_PASSWORD } from './apiConfig';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
@@ -145,7 +146,7 @@ export default function Accounts() {
   const [snackbarColor, setSnackbarColor] = useState('#C8E6C9');
   const [snackbarTextColor, setSnackbarTextColor] = useState('#38883C');
 
-  // Filter state
+  // Filter state - now handled by FilterComponent
   const filterCategories = [
     { label: 'Employee Role', value: 'employeeRole', types: ['Dentist', 'Receptionist', 'Dental Assistant'] },
     { label: 'User Role', value: 'userRole', types: ['Administrator', 'User'] },
@@ -155,6 +156,9 @@ export default function Accounts() {
     { category: '', type: '' }
   ]);
   const [showFilterBox, setShowFilterBox] = useState(false);
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   // Fetch users from backend
   useEffect(() => {
@@ -198,16 +202,13 @@ export default function Accounts() {
     // eslint-disable-next-line
   }, [activeFilters, showFilterBox]);
 
-  // Search filter
+  // Search filter - now handled by SearchBar component
   useEffect(() => {
-    let result = users.filter(user => {
-      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
-      const username = (user.username || '').toLowerCase();
-      const searchTerm = search.toLowerCase();
-      return fullName.includes(searchTerm) || username.includes(searchTerm);
-    });
-    setFilteredUsers(result);
-    setPage(0); // Reset to first page when search changes
+    if (!search) {
+      setFilteredUsers(users);
+      setPage(0);
+    }
+    // The actual filtering is now handled by the SearchBar component
   }, [search, users]);
 
   const handleAddUser = async () => {
@@ -469,17 +470,14 @@ export default function Accounts() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFilterCategoryChange = (idx, value) => {
-    setActiveFilters(filters => filters.map((f, i) => i === idx ? { category: value, type: '' } : f));
+  // Handle filter changes from FilterComponent
+  const handleFilterChange = (filters) => {
+    setActiveFilters(filters);
   };
-  const handleFilterTypeChange = (idx, value) => {
-    setActiveFilters(filters => filters.map((f, i) => i === idx ? { ...f, type: value } : f));
-  };
-  const handleAddFilter = () => {
-    setActiveFilters(filters => [...filters, { category: '', type: '' }]);
-  };
-  const handleRemoveFilter = (idx) => {
-    setActiveFilters(filters => filters.filter((_, i) => i !== idx));
+
+  // Handle sort changes from SortableHeader
+  const handleSort = (newSortConfig) => {
+    setSortConfig(newSortConfig);
   };
 
   // Reset page when search or filters change
@@ -487,9 +485,10 @@ export default function Accounts() {
     setPage(0);
   }, [search, activeFilters, rowsPerPage]);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
-  const visibleUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  // Pagination calculations with sorting
+  const sortedUsers = sortData(filteredUsers, sortConfig);
+  const totalPages = Math.ceil(sortedUsers.length / rowsPerPage);
+  const visibleUsers = sortedUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
@@ -506,19 +505,17 @@ export default function Accounts() {
     >
       <Header />
       
-      {/* Users Title and Controls */}
+      {/* Users Title */}
       <Box
         sx={{
           display: 'flex',
-          flexDirection: 'column',
+          justifyContent: 'center',
           alignItems: 'center',
-          position: 'relative',
-          pt: 2, // Reduced from py: 4 to pt: 2 (less top padding)
-          pb: 2, // Changed from pb: 4 to pb: 2 to match top padding
-          px: 2, // Add padding to match container
+          pt: 2,
+          pb: 2,
+          px: 2,
         }}
       >
-        {/* Users Title */}
         <Typography 
           variant="h3" 
           sx={{ 
@@ -526,487 +523,301 @@ export default function Accounts() {
             fontWeight: 800,
             fontSize: '39.14px',
             fontFamily: 'Inter, sans-serif',
-            mb: 3, // Add margin bottom for spacing
           }}
         >
           Users
         </Typography>
-        
-        {/* Search and Controls Row */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            width: '100%',
-            maxWidth: 'calc(100vw - 64px)', // Match the container width
-            gap: 2,
-          }}
-        >
-          {/* Search Bar */}
-          <TextField
-            variant="outlined"
-            size="small"
-            placeholder="Search by name or username"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            sx={{ 
-              width: 343, // Match Figma width
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: '#f3edf7',
-                borderRadius: '10px',
-                height: '38px',
-                '& fieldset': {
-                  border: 'none',
-                },
-                '&:hover fieldset': {
-                  border: 'none',
-                },
-                '&.Mui-focused fieldset': {
-                  border: '1px solid #2148c0',
-                },
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search sx={{ color: '#7f7f7f' }} />
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          {/* Filter and Add User buttons */}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            {/* Filter Button */}
-            <Button
-              variant="contained"
-              startIcon={<TuneIcon />}
-              onClick={() => setShowFilterBox(v => !v)}
-              sx={{
-                backgroundColor: '#4A69BD',
-                color: 'white',
-                border: '1px solid #4A69BD',
-                borderRadius: '10px',
-                height: '38px',
-                px: 2,
-                textTransform: 'none',
-                fontWeight: 500,
-                fontSize: '16px',
-                fontFamily: 'DM Sans, sans-serif',
-                minWidth: 99,
-                boxShadow: 1,
-                '&:hover': {
-                  backgroundColor: '#2148c0',
-                  border: '1px solid #2148c0',
-                },
-              }}
-            >
-              Filter
-            </Button>
-
-            {/* Add User Button */}
-            <Button
-              variant="contained"
-              onClick={() => setAddUserOpen(true)}
-              sx={{
-                backgroundColor: 'white',
-                color: '#2148c0',
-                borderRadius: '8px',
-                height: '38px',
-                px: 3,
-                textTransform: 'none',
-                fontWeight: 600,
-                fontSize: '16px',
-                fontFamily: 'Inter, sans-serif',
-                boxShadow: 'none',
-                '&:hover': {
-                  backgroundColor: '#f8f9ff',
-                  boxShadow: 'none',
-                },
-              }}
-            >
-              Add User
-            </Button>
-          </Box>
-        </Box>
       </Box>
 
-      {/* Main Content Container */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          px: 2, // Reduced from 3 to 2 (16px instead of 24px)
-          pb: 2, // Reduced from 3 to 2
-        }}
-      >
-        <Paper 
-          sx={{ 
-            width: '100%', // Changed from fixed 1353px to 100%
-            maxWidth: 'calc(100vw - 32px)', // Max width minus small margins
-            minHeight: '580px', // Changed from fixed height to minHeight
-            borderRadius: '20px',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {/* Filter Bar UI with animation */}
-          <Collapse 
-            in={showFilterBox} 
-            timeout={{ enter: 300, exit: 200 }}
-            easing={{
-              enter: 'cubic-bezier(0.4, 0, 0.2, 1)',
-              exit: 'cubic-bezier(0.4, 0, 0.6, 1)',
-            }}
-          >
-            <Box sx={{
-              background: '#fff',
-              borderRadius: 2,
-              mx: 3,
-              mb: 2,
-              p: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1,
-              boxShadow: 1,
-              transform: 'translateZ(0)', // Force hardware acceleration
-              willChange: 'height', // Optimize for height changes
-            }}>
-              {activeFilters.map((filter, idx) => {
-                const categoryObj = filterCategories.find(c => c.value === filter.category);
-                return (
-                  <Box key={idx} sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, mb: 1 }}>
-                    <Box sx={{ minWidth: 140 }}>
-                      <Typography variant="caption" sx={{ color: '#333', mb: 0.5 }}>Category</Typography>
-                      <FormControl size="small" fullWidth>
-                        <Select
-                          value={filter.category}
-                          onChange={e => handleFilterCategoryChange(idx, e.target.value)}
-                          displayEmpty
-                          sx={{ bgcolor: '#f5f5f5', color: '#333', borderRadius: 1 }}
-                        >
-                          <MenuItem value="" disabled>Select category</MenuItem>
-                          {filterCategories.map(cat => (
-                            <MenuItem key={cat.value} value={cat.value}>{cat.label}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Box>
-                    <Box sx={{ minWidth: 180 }}>
-                      <Typography variant="caption" sx={{ color: '#333', mb: 0.5 }}>Type</Typography>
-                      <FormControl size="small" fullWidth>
-                        <Select
-                          value={filter.type}
-                          onChange={e => handleFilterTypeChange(idx, e.target.value)}
-                          displayEmpty
-                          sx={{ bgcolor: '#f5f5f5', color: '#333', borderRadius: 1 }}
-                          disabled={!filter.category}
-                        >
-                          <MenuItem value="" disabled>Select type</MenuItem>
-                          {categoryObj && categoryObj.types.map(type => (
-                            <MenuItem key={type} value={type}>{type}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', height: '40px' }}>
-                      <IconButton
-                        onClick={() => handleRemoveFilter(idx)}
-                        sx={{ bgcolor: '#B71C1C', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#C62828' } }}
-                        size="small"
-                        disabled={activeFilters.length === 1}
-                      >
-                        <CloseIcon />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                );
-              })}
-              <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 1,  }}>
+      {/* Main Content Container - now using DataTable */}
+      <DataTable
+        topContent={
+          <>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                px: 3,
+                pt: 3,
+                pb: 2,
+                gap: 2,
+                boxSizing: 'border-box',
+              }}
+            >
+              {/* Search Bar */}
+              <SearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by name or username"
+                searchFields={['firstName', 'lastName', 'username']}
+                data={users}
+                onFilteredData={setFilteredUsers}
+              />
+              {/* Filter and Add User buttons */}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                <FilterButton onClick={() => setShowFilterBox(v => !v)} />
                 <Button
-                  onClick={handleAddFilter}
-                  startIcon={<AddIcon />}
-                  sx={{ 
-                    bgcolor: '#f5f5f5', 
-                    color: '#333', 
-                    borderRadius: 1, 
+                  variant="contained"
+                  onClick={() => setAddUserOpen(true)}
+                  sx={{
+                    backgroundColor: '#2148c0',
+                    color: 'white',
+                    borderRadius: '8px',
+                    height: '38px',
+                    px: 3,
                     textTransform: 'none',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    px: 2,
-                    py: 1,
-                    '&:hover': { bgcolor: '#e0e0e0' } 
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    fontFamily: 'Inter, sans-serif',
+                    boxShadow: 'none',
+                    '&:hover': {
+                      backgroundColor: '#1e3fa8',
+                      boxShadow: 'none',
+                    },
                   }}
-                  size="small"
                 >
-                  Add Filter
+                  Add User
                 </Button>
               </Box>
             </Box>
-          </Collapse>
-
-          {/* Table Container */}
-          <Box
-            sx={{
-              mx: 3, // Equal horizontal margins
-              mt: 3, // Top margin stays the same
-              mb: 3, // Increased bottom margin to extend gray background downward
-              backgroundColor: '#dfdfdf',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              height: showFilterBox ? 'auto' : '550px', // Dynamic height based on filter visibility
-              minHeight: showFilterBox ? '400px' : '550px', // Minimum height when filter is open
-              display: 'flex',
-              flexDirection: 'column',
-              transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Smooth height transitions
-              transform: 'translateZ(0)', // Force hardware acceleration
-            }}
-          >
-            {/* Table Header */}
-            <Box sx={{ px: 3, pt: 3, pb: 3 }}> {/* Matched top padding with pagination bottom */}
-              <Box 
-                sx={{ 
-                  display: 'flex',
-                  px: 2, // Same internal padding as rows
-                  alignItems: 'center',
-                }}
-              >
-              <Box sx={{ flex: '1', textAlign: 'left' }}> {/* Name: Left-aligned to match data */}
-                <Typography 
-                  sx={{ 
-                    fontFamily: 'Roboto, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '18px',
-                    color: '#6d6b80',
-                    lineHeight: '24px',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Name
-                </Typography>
-              </Box>
-              <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Username: Centered */}
-                <Typography 
-                  sx={{ 
-                    fontFamily: 'Roboto, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '18px',
-                    color: '#6d6b80',
-                    lineHeight: '24px',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Username
-                </Typography>
-              </Box>
-              <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Employee Role: Centered */}
-                <Typography 
-                  sx={{ 
-                    fontFamily: 'Roboto, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '18px',
-                    color: '#6d6b80',
-                    lineHeight: '24px',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Employee Role
-                </Typography>
-              </Box>
-              <Box sx={{ flex: '1', textAlign: 'center' }}> {/* User Role: Centered */}
-                <Typography 
-                  sx={{ 
-                    fontFamily: 'Roboto, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '18px',
-                    color: '#6d6b80',
-                    lineHeight: '24px',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  User Role
-                </Typography>
-              </Box>
-                <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Status: Centered */}
-                  <Typography 
-                    sx={{ 
-                      fontFamily: 'Roboto, sans-serif',
-                      fontWeight: 500,
-                      fontSize: '18px',
-                      color: '#6d6b80',
-                      lineHeight: '24px',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Status
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>            {/* Table Rows Container */}
-            <Box sx={{ 
-              px: 3, 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column',
-              minHeight: '402px', // Increased from 400px by 2px for perfect alignment
-              maxHeight: '402px', // Fixed max height
-              overflow: visibleUsers.length > 5 ? 'auto' : 'hidden', // Only scroll when > 5 rows
-              '&::-webkit-scrollbar': {
-                width: '6px',
-                display: visibleUsers.length > 5 ? 'block' : 'none', // Only show scrollbar when needed
-              },
-              '&::-webkit-scrollbar-track': {
-                background: '#f1f1f1',
-                borderRadius: '3px',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: '#c1c1c1',
-                borderRadius: '3px',
-                '&:hover': {
-                  background: '#a8a8a8',
-                },
-              },
-            }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}> {/* Increased gap from 0.75 to 1 */}
-                {visibleUsers.length > 0 ? (
-                  visibleUsers.map((user) => (
-                    <Box 
-                      key={user.id}
-                      sx={{ 
-                        display: 'flex', 
-                        px: 2, // Same padding as header
-                        py: 0.875, // Adjusted padding for 60px height
-                        alignItems: 'center',
-                        backgroundColor: '#f9fafc',
-                        borderRadius: '10px',
-                        height: 60, // Changed from 50 to 60px
-                        '&:hover': { 
-                          backgroundColor: '#f0f4f8',
-                          cursor: 'pointer'
-                        }
-                      }}
-                      onClick={() => openDetailsDialog(user)}
-                    >
-                      <Box sx={{ flex: '1', textAlign: 'left' }}> {/* Name: Flush left, no padding */}
-                        <Typography
-                          sx={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontWeight: 400,
-                            fontSize: '15px', // Increased from 14px for proportional fit
-                            color: '#6d6b80',
-                            lineHeight: '22px', // Increased from 20px
-                            letterSpacing: '0.5px',
-                          }}
-                        >
-                          {`${user.firstName || ''} ${user.lastName || ''}`}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Username: Centered with no extra padding */}
-                        <Typography
-                          sx={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontWeight: 400,
-                            fontSize: '15px', // Increased from 14px
-                            color: '#6d6b80',
-                            lineHeight: '22px', // Increased from 20px
-                            letterSpacing: '0.5px',
-                          }}
-                        >
-                          {user.username}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Employee Role: Centered with no extra padding */}
-                        <Typography
-                          sx={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontWeight: 400,
-                            fontSize: '15px', // Increased from 14px
-                            color: '#6d6b80',
-                            lineHeight: '22px', // Increased from 20px
-                            letterSpacing: '0.5px',
-                          }}
-                        >
-                          {user.employeeRole || '-'}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* User Role: Centered with no extra padding */}
-                        <Typography
-                          sx={{
-                            fontFamily: 'Roboto, sans-serif',
-                            fontWeight: 400,
-                            fontSize: '15px', // Increased from 14px
-                            color: '#6d6b80',
-                            lineHeight: '22px', // Increased from 20px
-                            letterSpacing: '0.5px',
-                          }}
-                        >
-                          {user.userRole || '-'}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ flex: '1', textAlign: 'center' }}> {/* Status: Centered with no extra padding */}
-                        <Chip
-                          label={user.status === 'enabled' ? 'Enabled' : 'Disabled'}
-                          sx={{
-                            backgroundColor: user.status === 'enabled' ? '#4CAF50' : '#F44336',
-                            color: 'white',
-                            fontWeight: 500,
-                            fontSize: '12.5px', // Slightly increased for 60px row height
-                            fontFamily: 'Roboto, sans-serif',
-                            borderRadius: '17px', // Slightly increased from 16px
-                            height: '26px', // Increased from 24px
-                            minWidth: '72px', // Slightly increased from 70px
-                            '& .MuiChip-label': {
-                              px: 1.6, // Slightly increased from 1.5
-                            }
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                  ))
-                ) : (
-                  <Box 
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      py: 4,
-                      backgroundColor: '#f9fafc',
-                      borderRadius: '10px',
-                    }}
-                  >
-                    <Typography
-                      sx={{
-                        fontFamily: 'Roboto, sans-serif',
-                        fontWeight: 400,
-                        fontSize: '16px',
-                        color: '#6d6b80',
-                      }}
-                    >
-                      No users found.
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </Box>
-
-            {/* Pagination - Sticky to bottom */}
-            <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}> {/* Equal top and bottom margin, no extra padding */}
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={value => {
-                  setRowsPerPage(value);
-                  setPage(0);
-                }}
+            {/* Filter Bar UI with animation */}
+            <Collapse 
+              in={showFilterBox} 
+              timeout={{ enter: 300, exit: 200 }}
+              easing={{
+                enter: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                exit: 'cubic-bezier(0.4, 0, 0.6, 1)',
+              }}
+            >
+              <FilterContent
+                filterCategories={filterCategories}
+                activeFilters={activeFilters}
+                onFilterChange={handleFilterChange}
+              />
+            </Collapse>
+          </>
+        }
+        tableHeader={
+          <Box sx={{ px: 3, pt: 3, pb: 3 }}>
+            <Box 
+              sx={{ 
+                display: 'flex',
+                px: 2,
+                alignItems: 'center',
+              }}
+            >
+              <SortableHeader
+                label="Name"
+                sortKey="firstName"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="left"
+              />
+              <SortableHeader
+                label="Username"
+                sortKey="username"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+              />
+              <SortableHeader
+                label="Employee Role"
+                sortKey="employeeRole"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+              />
+              <SortableHeader
+                label="User Role"
+                sortKey="userRole"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+              />
+              <SortableHeader
+                label="Status"
+                sortKey="status"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
               />
             </Box>
           </Box>
-        </Paper>
-      </Box>
+        }
+        tableRows={
+          <Box sx={{ 
+            px: 3, 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column',
+            minHeight: '402px',
+            maxHeight: '402px',
+            overflow: visibleUsers.length > 5 ? 'auto' : 'hidden',
+            '&::-webkit-scrollbar': {
+              width: '6px',
+              display: visibleUsers.length > 5 ? 'block' : 'none',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f1f1',
+              borderRadius: '3px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#c1c1c1',
+              borderRadius: '3px',
+              '&:hover': {
+                background: '#a8a8a8',
+              },
+            },
+          }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
+              {visibleUsers.length > 0 ? (
+                visibleUsers.map((user) => (
+                  <Box 
+                    key={user.id}
+                    sx={{ 
+                      display: 'flex', 
+                      px: 2,
+                      py: 0.875,
+                      alignItems: 'center',
+                      backgroundColor: '#f9fafc',
+                      borderRadius: '10px',
+                      height: 60,
+                      '&:hover': { 
+                        backgroundColor: '#f0f4f8',
+                        cursor: 'pointer'
+                      }
+                    }}
+                    onClick={() => openDetailsDialog(user)}
+                  >
+                    <Box sx={{ flex: '1', textAlign: 'left' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {`${user.firstName || ''} ${user.lastName || ''}`}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {user.username}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {user.employeeRole || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {user.userRole || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Chip
+                        label={user.status === 'enabled' ? 'Enabled' : 'Disabled'}
+                        sx={{
+                          backgroundColor: user.status === 'enabled' ? '#4CAF50' : '#F44336',
+                          color: 'white',
+                          fontWeight: 500,
+                          fontSize: '12.5px',
+                          fontFamily: 'Roboto, sans-serif',
+                          borderRadius: '17px',
+                          height: '26px',
+                          minWidth: '72px',
+                          '& .MuiChip-label': {
+                            px: 1.6,
+                          }
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Box 
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    py: 4,
+                    backgroundColor: '#f9fafc',
+                    borderRadius: '10px',
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 400,
+                      fontSize: '16px',
+                      color: '#6d6b80',
+                    }}
+                  >
+                    No users found.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        }
+        pagination={
+          <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={value => {
+                setRowsPerPage(value);
+                setPage(0);
+              }}
+            />
+          </Box>
+        }
+        grayMinHeight={showFilterBox ? '440px' : '560px'}
+        whiteMinHeight={showFilterBox ? '720px' : '620px'}
+      />
+
+      {/* FilterComponent for data filtering logic */}
+      <FilterComponent
+        filterCategories={filterCategories}
+        data={users}
+        onFilteredData={setFilteredUsers}
+        activeFilters={activeFilters}
+        showFilterBox={showFilterBox}
+      />
 
       {/* QuickActionButton */}
       <QuickActionButton 

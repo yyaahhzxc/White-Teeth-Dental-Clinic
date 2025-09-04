@@ -1,40 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Paper,
   Typography,
-  TextField,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
   Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  Fab,
-  Zoom,
-  Tooltip,
   IconButton,
-  MenuItem
+  Collapse,
 } from '@mui/material';
-import { Search, FilterList } from '@mui/icons-material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import AddIcon from '@mui/icons-material/Add';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import { useNavigate } from 'react-router-dom'; // ⭐ 1. ENSURE THIS IMPORT EXISTS
+import { useNavigate } from 'react-router-dom';
 
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
-import ViewRecord from './view-record';
-import AddPatientRecord from './add-record'; // ⭐ 1. IMPORT THE PATIENT MODAL
+import AddPatientRecord from './add-record';
+import DataTable from './DataTable';
+import SearchBar from './SearchBar';
+import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
+import SortableHeader, { sortData } from './SortableHeader';
 import Pagination from './Pagination';
 
 // API Base URL
@@ -59,302 +39,489 @@ function PatientList() {
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  // Sort/filter state
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  // Filter state
+  const [showFilterBox, setShowFilterBox] = useState(false);
+  const [activeFilters, setActiveFilters] = useState([
+    { category: '', type: '' }
+  ]);
 
-  // Floating button state is handled by QuickActionButton
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
   const navigate = useNavigate();
   const [showPatientModal, setShowPatientModal] = useState(false);
 
-  // View dialog state
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [medInfo, setMedInfo] = useState(null); // ⭐ MODIFIED
+  // Filter categories for patient records
+  const filterCategories = [
+    { label: 'Sex', value: 'sex', types: ['Male', 'Female'] },
+    { label: 'Age Range', value: 'ageRange', types: ['0-18', '19-35', '36-50', '51-65', '65+'] },
+  ];
 
 
   // Fetch patients from backend
   useEffect(() => {
-  fetch(`${API_BASE}/patients`)
-      .then(res => res.json())
-      .then(data => {
-        setPatients(data);
-        setFilteredPatients(data);
-      })
-      .catch(err => console.error('Error fetching patients:', err));
+    fetchPatients();
   }, []);
 
-  // Search filter
-  useEffect(() => {
-    let result = patients.filter(patient => {
-      const fullName = [
-        patient.lastName,
-        patient.firstName,
-        patient.middleName ? patient.middleName.charAt(0) + '.' : '',
-        patient.suffix
-      ].filter(Boolean).join(' ').toLowerCase();
-      return fullName.includes(search.toLowerCase());
+  // Helper to build query string from filters
+  const buildFilterQuery = (filters) => {
+    const params = [];
+    filters.forEach(f => {
+      if (f.category && f.type) {
+        if (f.category === 'ageRange') {
+          // Handle age range filtering on frontend since backend may not support it
+          return;
+        }
+        params.push(`${encodeURIComponent(f.category)}=${encodeURIComponent(f.type)}`);
+      }
     });
-    setFilteredPatients(result);
-    setPage(0);
+    return params.length ? `?${params.join('&')}` : '';
+  };
+
+  // Modified fetchPatients to accept filters
+  const fetchPatients = async (filters = activeFilters) => {
+    try {
+      const query = buildFilterQuery(filters);
+      const response = await fetch(`${API_BASE}/patients${query}`);
+      if (response.ok) {
+        const data = await response.json();
+        let processedData = data;
+        
+        // Apply age range filtering on frontend
+        if (showFilterBox) {
+          filters.forEach(f => {
+            if (f.category === 'ageRange' && f.type) {
+              processedData = processedData.filter(patient => {
+                const age = computeAge(patient.dateOfBirth);
+                switch (f.type) {
+                  case '0-18': return age >= 0 && age <= 18;
+                  case '19-35': return age >= 19 && age <= 35;
+                  case '36-50': return age >= 36 && age <= 50;
+                  case '51-65': return age >= 51 && age <= 65;
+                  case '65+': return age > 65;
+                  default: return true;
+                }
+              });
+            }
+          });
+        }
+        
+        setPatients(processedData);
+        setFilteredPatients(processedData);
+      }
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+    }
+  };
+
+  // Refetch patients when filters change
+  useEffect(() => {
+    if (showFilterBox) {
+      fetchPatients(activeFilters);
+    } else {
+      fetchPatients([]); // fetch all patients when filter box is closed
+    }
+    setPage(0); // Reset to first page when filters change
+  }, [activeFilters, showFilterBox]);
+
+  // Search filter - now handled by SearchBar component
+  useEffect(() => {
+    if (!search) {
+      setFilteredPatients(patients);
+      setPage(0);
+    }
+    // The actual filtering is now handled by the SearchBar component
   }, [search, patients]);
 
   const handleAddPatientRecord = () => setShowPatientModal(true);
- 
-  // Sorting logic
-  const sortedPatients = React.useMemo(() => {
-    let sortable = [...filteredPatients];
-    if (sortConfig.key) {
-      sortable.sort((a, b) => {
-        switch (sortConfig.key) {
-          case 'name': {
-            const nameA = [
-              a.lastName,
-              a.firstName,
-              a.middleName ? a.middleName.charAt(0) + '.' : '',
-              a.suffix
-            ].filter(Boolean).join(' ').toLowerCase();
-            const nameB = [
-              b.lastName,
-              b.firstName,
-              b.middleName ? b.middleName.charAt(0) + '.' : '',
-              b.suffix
-            ].filter(Boolean).join(' ').toLowerCase();
-            if (nameA < nameB) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (nameA > nameB) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-          }
-          case 'age':
-            return sortConfig.direction === 'asc'
-              ? computeAge(a.dateOfBirth) - computeAge(b.dateOfBirth)
-              : computeAge(b.dateOfBirth) - computeAge(a.dateOfBirth);
-          case 'sex':
-            if (a.sex < b.sex) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (a.sex > b.sex) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-          // Removed contactNumber and address sorting
-          default:
-            return 0;
-        }
-      });
-    }
-    return sortable;
-  }, [filteredPatients, sortConfig]);
 
-  // Pagination helpers
+  // Handle filter changes from FilterComponent
+  const handleFilterChange = (filters) => {
+    setActiveFilters(filters);
+  };
+
+  // Handle sort changes from SortableHeader
+  const handleSort = (newSortConfig) => {
+    setSortConfig(newSortConfig);
+  };
+
+  // Reset page when search or filters change
+  useEffect(() => {
+    setPage(0);
+  }, [search, activeFilters, rowsPerPage]);
+
+  // Pagination calculations with sorting
+  const sortedPatients = sortData(filteredPatients, sortConfig);
   const totalPages = Math.ceil(sortedPatients.length / rowsPerPage);
+  const visiblePatients = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
-  // rows to display on current page
-  const visibleRows = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
-  // Sorting handler
-  const handleSort = (key) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
   };
 
   // View handler
- // ⭐ MODIFIED: fetch med info too when viewing a patient
- const handleViewPatient = async (patient) => {
-  setSelectedPatient(patient);
+  const handleAddAppointment = () => navigate('/add-appointment');
 
-  try {
-  const res = await fetch(`${API_BASE}/medical-information/${patient.id}`);
-    const data = await res.json();
-    setMedInfo(data || null);
-  } catch (err) {
-    console.error("Error fetching medical info:", err);
-    setMedInfo(null);
-  }
-
-  setViewDialogOpen(true);
-};
-
-
-const handleAddAppointment = () => navigate('/add-appointment');
   return (
-    <Box sx={{ minHeight: '100vh', position: 'relative', backgroundImage: 'url("/White-Teeth-BG.png")', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: '#2148c0',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <Header />
-      <Box sx={{ p: 3 }}>
-        <Paper sx={{ p: 2, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" sx={{ flexGrow: 1 }}>
-              Patient Records
-            </Typography>
-            <TextField
-              variant="outlined"
-              size="small"
-              placeholder="Search by name"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              sx={{ mr: 2, width: 220 }}
-              InputProps={{
-                startAdornment: <Search sx={{ mr: 1 }} />
-              }}
-            />
-            <Button
-              variant="outlined"
-              startIcon={<FilterList />}
-              onClick={() => setFilterOpen(true)}
-              sx={{ mr: 2 }}
-            >
-              Filter
-            </Button>
-            <Dialog open={filterOpen} onClose={() => setFilterOpen(false)}>
-              <DialogTitle>Sort/Filter Columns</DialogTitle>
-              <DialogContent>
-                <Box display="flex" flexDirection="column" gap={2}>
-                  <Button onClick={() => handleSort('name')}>Name</Button>
-                  <Button onClick={() => handleSort('age')}>Age</Button>
-                  <Button onClick={() => handleSort('sex')}>Sex</Button>
-                  {/* Remove these:
-                  <Button onClick={() => handleSort('contactNumber')}>Contact Number</Button>
-                  <Button onClick={() => handleSort('address')}>Address</Button>
-                  */}
-                </Box>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setFilterOpen(false)}>Close</Button>
-              </DialogActions>
-            </Dialog>
-          </Box>
-
-          <TableContainer sx={{ maxHeight: 400, overflowY: 'auto' }}>
-            <Table
-              stickyHeader
-              sx={{
-                tableLayout: 'fixed',
-                minWidth: 900,
-                '& td, & th': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                },
-              }}
-            >
-              <TableHead>
-                <TableRow>
-                  <TableCell
-                    sx={{
-                      width: 200,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'name' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('name')}
-                  >
-                    <b>Full Name</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 80,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'age' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('age')}
-                  >
-                    <b>Age</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 80,
-                      cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'sex' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                    onClick={() => handleSort('sex')}
-                  >
-                    <b>Sex</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 140,
-                      // cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'contactNumber' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                  >
-                    <b>Contact Number</b>
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      width: 220,
-                      // cursor: 'pointer',
-                      backgroundColor: sortConfig.key === 'address' ? '#e0e0e0' : 'inherit',
-                      borderRadius: 2
-                    }}
-                  >
-                    <b>Address</b>
-                  </TableCell>
-                  <TableCell align="center" sx={{ width: 80 }}><b>View</b></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {visibleRows.length ? (
-                  visibleRows.map((patient, index) => (
-                    <TableRow key={index}>
-                      <TableCell>
-                        {`${patient.lastName || ''}, ${patient.firstName || ''}${patient.middleName ? ' ' + patient.middleName.charAt(0) + '.' : ''}${patient.suffix ? ' ' + patient.suffix : ''}`}
-                      </TableCell>
-                      <TableCell>{computeAge(patient.dateOfBirth)}</TableCell>
-                      <TableCell>{patient.sex}</TableCell>
-                      <TableCell>{patient.contactNumber || patient.contact || ''}</TableCell>
-                      <TableCell>{patient.address || ''}</TableCell>
-                      <TableCell align="center">
-                        <IconButton onClick={() => handleViewPatient(patient)}>
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      No records found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {/* Pagination */}
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        </Paper>
+      
+      {/* Patient Records Title */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          pt: 2,
+          pb: 2,
+          px: 2,
+        }}
+      >
+        <Typography 
+          variant="h3" 
+          sx={{ 
+            color: 'white',
+            fontWeight: 800,
+            fontSize: '39.14px',
+            fontFamily: 'Inter, sans-serif',
+          }}
+        >
+          Patient Records
+        </Typography>
       </Box>
 
-      {/* View Patient Dialog */}
-      <ViewRecord
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        patient={selectedPatient}
-        medInfo={medInfo} // ⭐ MODIFIED
-        onRecordUpdated={() => {
-          // Refresh the list after edit
-          fetch(`${API_BASE}/patients`)
-            .then(res => res.json())
-            .then(data => {
-              setPatients(data);
-              setFilteredPatients(data);
-            });
-        }}
+      {/* Main Content Container - now using DataTable */}
+      <DataTable
+        topContent={
+          <>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                px: 3,
+                pt: 3,
+                pb: 2,
+                gap: 2,
+                boxSizing: 'border-box',
+              }}
+            >
+              {/* Search Bar */}
+              <SearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by patient name or address"
+                searchFields={['firstName', 'lastName', 'middleName', 'address']}
+                data={patients}
+                onFilteredData={setFilteredPatients}
+                customFilter={(patients, searchTerm) => {
+                  return patients.filter(patient => {
+                    const fullName = [
+                      patient.lastName,
+                      patient.firstName,
+                      patient.middleName ? patient.middleName.charAt(0) + '.' : '',
+                      patient.suffix
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return fullName.includes(searchTerm.toLowerCase());
+                  });
+                }}
+              />
+              {/* Filter and Add Patient buttons */}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                <Button
+                  variant="contained"
+                  onClick={() => setShowPatientModal(true)}
+                  sx={{
+                    backgroundColor: '#2148c0',
+                    color: 'white',
+                    borderRadius: '8px',
+                    height: '38px',
+                    px: 3,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    fontFamily: 'Inter, sans-serif',
+                    boxShadow: 'none',
+                    '&:hover': {
+                      backgroundColor: '#1e3fa8',
+                      boxShadow: 'none',
+                    },
+                  }}
+                >
+                  Add Patient
+                </Button>
+              </Box>
+            </Box>
+            {/* Filter Bar UI with animation */}
+            <Collapse 
+              in={showFilterBox} 
+              timeout={{ enter: 300, exit: 200 }}
+              easing={{
+                enter: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                exit: 'cubic-bezier(0.4, 0, 0.6, 1)',
+              }}
+            >
+              <FilterContent
+                filterCategories={filterCategories}
+                activeFilters={activeFilters}
+                onFilterChange={handleFilterChange}
+              />
+            </Collapse>
+          </>
+        }
+        tableHeader={
+          <Box sx={{ px: 3, pt: 3, pb: 3 }}>
+            <Box 
+              sx={{ 
+                display: 'flex',
+                px: 2,
+                alignItems: 'center',
+              }}
+            >
+              <SortableHeader
+                label="Full Name"
+                sortKey="name"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="left"
+                customSort={(a, b, direction) => {
+                  const nameA = [
+                    a.lastName,
+                    a.firstName,
+                    a.middleName ? a.middleName.charAt(0) + '.' : '',
+                    a.suffix
+                  ].filter(Boolean).join(' ').toLowerCase();
+                  const nameB = [
+                    b.lastName,
+                    b.firstName,
+                    b.middleName ? b.middleName.charAt(0) + '.' : '',
+                    b.suffix
+                  ].filter(Boolean).join(' ').toLowerCase();
+                  if (nameA < nameB) return direction === 'asc' ? -1 : 1;
+                  if (nameA > nameB) return direction === 'asc' ? 1 : -1;
+                  return 0;
+                }}
+              />
+              <SortableHeader
+                label="Age"
+                sortKey="age"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+                customSort={(a, b, direction) => {
+                  const ageA = computeAge(a.dateOfBirth);
+                  const ageB = computeAge(b.dateOfBirth);
+                  return direction === 'asc' ? ageA - ageB : ageB - ageA;
+                }}
+              />
+              <SortableHeader
+                label="Sex"
+                sortKey="sex"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+              />
+              <SortableHeader
+                label="Contact Number"
+                textAlign="center"
+                sortable={false}
+              />
+              <SortableHeader
+                label="Address"
+                textAlign="center"
+                sortable={false}
+              />
+            </Box>
+          </Box>
+        }
+        tableRows={
+          <Box sx={{ 
+            px: 3, 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column',
+            minHeight: '402px',
+            maxHeight: '402px',
+            overflow: visiblePatients.length > 5 ? 'auto' : 'hidden',
+            '&::-webkit-scrollbar': {
+              width: '6px',
+              display: visiblePatients.length > 5 ? 'block' : 'none',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f1f1',
+              borderRadius: '3px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#c1c1c1',
+              borderRadius: '3px',
+              '&:hover': {
+                background: '#a8a8a8',
+              },
+            },
+          }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
+              {visiblePatients.length > 0 ? (
+                visiblePatients.map((patient) => (
+                  <Box 
+                    key={patient.id}
+                    sx={{ 
+                      display: 'flex', 
+                      px: 2,
+                      py: 0.875,
+                      alignItems: 'center',
+                      backgroundColor: '#f9fafc',
+                      borderRadius: '10px',
+                      height: 60,
+                      '&:hover': { 
+                        backgroundColor: '#f0f4f8',
+                        cursor: 'pointer'
+                      }
+                    }}
+                  >
+                    <Box sx={{ flex: '1', textAlign: 'left' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {`${patient.lastName || ''}, ${patient.firstName || ''}${patient.middleName ? ' ' + patient.middleName.charAt(0) + '.' : ''}${patient.suffix ? ' ' + patient.suffix : ''}`}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {computeAge(patient.dateOfBirth)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {patient.sex || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {patient.contactNumber || patient.contact || '-'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: '1', textAlign: 'center' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {patient.address || '-'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Box 
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    py: 4,
+                    backgroundColor: '#f9fafc',
+                    borderRadius: '10px',
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontFamily: 'Roboto, sans-serif',
+                      fontWeight: 400,
+                      fontSize: '16px',
+                      color: '#6d6b80',
+                    }}
+                  >
+                    No patient records found.
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        }
+        pagination={
+          <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={value => {
+                setRowsPerPage(value);
+                setPage(0);
+              }}
+            />
+          </Box>
+        }
+        grayMinHeight={showFilterBox ? '440px' : '560px'}
+        whiteMinHeight={showFilterBox ? '720px' : '620px'}
       />
 
-<QuickActionButton
+      {/* FilterComponent for data filtering logic */}
+      <FilterComponent
+        filterCategories={filterCategories}
+        data={patients}
+        onFilteredData={setFilteredPatients}
+        activeFilters={activeFilters}
+        showFilterBox={showFilterBox}
+      />
+
+      {/* QuickActionButton */}
+      <QuickActionButton 
         onAddPatientRecord={handleAddPatientRecord}
-      />  
-      
-       {/* Patient Modal */}
-       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />  </Box>
+        onAddAppointment={handleAddAppointment}
+      />
+
+      {/* Patient Modal */}
+      <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
+    </Box>
   );
 }
 
