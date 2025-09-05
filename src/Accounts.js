@@ -31,6 +31,7 @@ import DataTable from './DataTable';
 import SearchBar from './SearchBar';
 import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
 import SortableHeader, { sortData } from './SortableHeader';
+import DualSortableHeader, { sortDualData } from './DualSortableHeader';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Fade from '@mui/material/Fade';
@@ -486,7 +487,7 @@ export default function Accounts() {
   }, [search, activeFilters, rowsPerPage]);
 
   // Pagination calculations with sorting
-  const sortedUsers = sortData(filteredUsers, sortConfig);
+  const sortedUsers = sortDualData(filteredUsers, sortConfig);
   const totalPages = Math.ceil(sortedUsers.length / rowsPerPage);
   const visibleUsers = sortedUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
@@ -607,9 +608,9 @@ export default function Accounts() {
                 alignItems: 'center',
               }}
             >
-              <SortableHeader
-                label="Name"
-                sortKey="firstName"
+              <DualSortableHeader
+                firstSortKey="firstName"
+                secondSortKey="lastName"
                 currentSort={sortConfig}
                 onSort={handleSort}
                 textAlign="left"

@@ -15,6 +15,7 @@ import DataTable from './DataTable';
 import SearchBar from './SearchBar';
 import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
 import SortableHeader, { sortData } from './SortableHeader';
+import DualSortableHeader, { sortDualData } from './DualSortableHeader';
 import Pagination from './Pagination';
 import ViewRecord from './view-record';
 
@@ -170,7 +171,7 @@ function PatientList() {
   }, [search, activeFilters, rowsPerPage]);
 
   // Pagination calculations with sorting
-  const sortedPatients = sortData(filteredPatients, sortConfig);
+  const sortedPatients = sortDualData(filteredPatients, sortConfig);
   const totalPages = Math.ceil(sortedPatients.length / rowsPerPage);
   const visiblePatients = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
@@ -305,29 +306,12 @@ function PatientList() {
                 alignItems: 'center',
               }}
             >
-              <SortableHeader
-                label="Full Name"
-                sortKey="name"
+              <DualSortableHeader
+                firstSortKey="firstName"
+                secondSortKey="lastName"
                 currentSort={sortConfig}
                 onSort={handleSort}
                 textAlign="left"
-                customSort={(a, b, direction) => {
-                  const nameA = [
-                    a.lastName,
-                    a.firstName,
-                    a.middleName ? a.middleName.charAt(0) + '.' : '',
-                    a.suffix
-                  ].filter(Boolean).join(' ').toLowerCase();
-                  const nameB = [
-                    b.lastName,
-                    b.firstName,
-                    b.middleName ? b.middleName.charAt(0) + '.' : '',
-                    b.suffix
-                  ].filter(Boolean).join(' ').toLowerCase();
-                  if (nameA < nameB) return direction === 'asc' ? -1 : 1;
-                  if (nameA > nameB) return direction === 'asc' ? 1 : -1;
-                  return 0;
-                }}
               />
               <SortableHeader
                 label="Age"
@@ -417,7 +401,7 @@ function PatientList() {
                           letterSpacing: '0.5px',
                         }}
                       >
-                        {`${patient.lastName || ''}, ${patient.firstName || ''}${patient.middleName ? ' ' + patient.middleName.charAt(0) + '.' : ''}${patient.suffix ? ' ' + patient.suffix : ''}`}
+                        {`${patient.firstName || ''} ${patient.lastName || ''}`}
                       </Typography>
                     </Box>
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
