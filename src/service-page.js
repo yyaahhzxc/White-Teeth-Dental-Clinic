@@ -5,6 +5,7 @@ import {
   Button,
   IconButton,
   Collapse,
+  Chip,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
@@ -398,7 +399,7 @@ function ServiceList() {
                     }}
                     onClick={() => handleViewService(service)}
                   >
-                      <Box sx={{ flex: '2', textAlign: 'left' }}>
+                    <Box sx={{ flex: '2', textAlign: 'left' }}>
                       <Typography
                         sx={{
                           fontFamily: 'Roboto, sans-serif',
@@ -412,6 +413,7 @@ function ServiceList() {
                         {service.name || '-'}
                       </Typography>
                     </Box>
+
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
                         sx={{
@@ -426,6 +428,7 @@ function ServiceList() {
                         ₱{service.price || '-'}
                       </Typography>
                     </Box>
+
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
                         sx={{
@@ -440,6 +443,7 @@ function ServiceList() {
                         {service.duration ? `${service.duration} mins` : '-'}
                       </Typography>
                     </Box>
+
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
                         sx={{
@@ -454,20 +458,24 @@ function ServiceList() {
                         {service.type || '-'}
                       </Typography>
                     </Box>
+
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
-                      <Typography
+                      <Chip
+                        label={service.status === 'Active' ? 'Active' : 'Inactive'}
                         sx={{
-                          fontFamily: 'Roboto, sans-serif',
-                          fontWeight: 400,
-                          fontSize: '15px',
-                          color: service.status === 'Active' ? '#4caf50' : '#f44336',
-                          lineHeight: '22px',
-                          letterSpacing: '0.5px',
+                          backgroundColor: service.status === 'Active' ? '#4CAF50' : '#F44336',
+                          color: 'white',
                           fontWeight: 500,
+                          fontSize: '12.5px',
+                          fontFamily: 'Roboto, sans-serif',
+                          borderRadius: '17px',
+                          height: '26px',
+                          minWidth: '72px',
+                          '& .MuiChip-label': {
+                            px: 1.6,
+                          }
                         }}
-                      >
-                        {service.status || '-'}
-                      </Typography>
+                      />
                     </Box>
                   </Box>
                 ))
