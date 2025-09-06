@@ -27,3 +27,9 @@ yarn-error.log*
 clinic.db
 clinic.db
 clinic.db
+src/backend/add-sample-patients.js
+src/backend/add-sample-services.js
+src/backend/add-sample-users.js
+src/backend/list-roles.js
+src/backend/printUsersBoth.js
+src/backend/test-persistence.js
