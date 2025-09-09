@@ -57,6 +57,12 @@ const AddPatientRecord = ({ open, onClose }) => {
     if (open) setTabIndex(0);
   }, [open]);
 
+
+  // In the main AddPatientRecord component, add state for tooth data
+const [toothChartData, setToothChartData] = useState({
+  selectedTeeth: [],
+  toothSummaries: {}
+});
   // Save Patient + Medical Info
   const handleAddPatient = async () => {
     try {
@@ -76,7 +82,13 @@ const AddPatientRecord = ({ open, onClose }) => {
         contactPersonRelationship,
         contactPersonNumber,
         contactPersonAddress,
-        dateCreated: new Date().toISOString()
+        dateCreated: new Date().toISOString(),
+
+        toothChart: {
+          selectedTeeth: toothChartData.selectedTeeth,
+          toothSummaries: toothChartData.toothSummaries,
+          createdAt: new Date().toISOString()
+        }
       };
 
   const res = await fetch(`${API_BASE}/patients`, {
@@ -84,6 +96,8 @@ const AddPatientRecord = ({ open, onClose }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patient),
       });
+
+
 
       const savedPatient = await res.json();
 
@@ -442,7 +456,7 @@ const AddPatientRecord = ({ open, onClose }) => {
               </Grid>
               {/* Right: Tooth Chart */}
               <Grid item xs={12} md={5}>
-                <ToothChart />
+                <ToothChart onDataChange={setToothChartData} />
               </Grid>
             </Grid>
           </Paper>
@@ -470,11 +484,21 @@ const teethNumbers = [
   [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36],
 ];
 
-function ToothChart() {
+function ToothChart({ onDataChange }) {
   const [selectedTeeth, setSelectedTeeth] = useState([]);
   const [toothSummaries, setToothSummaries] = useState({}); // { [toothNumber]: summary }
   const [editingTooth, setEditingTooth] = useState(null);
   const [editValue, setEditValue] = useState('');
+
+
+  useEffect(() => {
+    if (onDataChange) {
+      onDataChange({
+        selectedTeeth,
+        toothSummaries
+      });
+    }
+  }, [selectedTeeth, toothSummaries, onDataChange]);
 
   const toggleTooth = (num) => {
     setSelectedTeeth((prev) =>

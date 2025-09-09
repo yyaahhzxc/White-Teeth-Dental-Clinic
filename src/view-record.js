@@ -69,6 +69,27 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   const [diabetic, setDiabetic] = useState('');
   const [xrayFile, setXrayFile] = useState('');
 
+
+  // Tooth chart state
+  const [toothChartData, setToothChartData] = useState({
+    selectedTeeth: [],
+    toothSummaries: {}
+  });
+
+ 
+
+  // Load tooth chart data
+  const loadToothChart = async (patientId) => {
+    try {
+      const response = await fetch(`${API_BASE}/tooth-chart/${patientId}`);
+      const data = await response.json();
+      setToothChartData(data);
+    } catch (error) {
+      console.error('Error loading tooth chart:', error);
+      setToothChartData({ selectedTeeth: [], toothSummaries: {} });
+    }
+  };
+
   useEffect(() => {
     if (open) setTabIndex(0);
     setEditMode(false);
@@ -99,6 +120,10 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
     setBloodPressure(medInfo?.bloodPressure || '');
     setDiabetic(medInfo?.diabetic || '');
     setXrayFile(medInfo?.xrayFile || '');
+
+    if (patient && patient.id) {
+      loadToothChart(patient.id);
+    }
   }, [open, patient, medInfo]);
 
   
@@ -132,6 +157,11 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
           allergies, bloodType, bloodborneDiseases, pregnancyStatus,
           medications, additionalNotes, bloodPressure, diabetic
         })
+      });
+  await fetch(`${API_BASE}/tooth-chart/${patient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedTeth: toothChartData.selectedTeeth, toothSummaries: toothChartData.toothSummaries })
       });
 
       setEditMode(false); // Exit edit mode on successful save
@@ -424,146 +454,150 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
             </Grid>
           </Paper>
         )}
-        {tabIndex === 1 && (
-          <Paper
-            elevation={0}
-            sx={{
-              bgcolor: '#ddd',
-              borderRadius: 4,
-              p: 3,
-              display: 'flex',
-              gap: 2,
-              alignItems: 'stretch',
-            }}
+   {tabIndex === 1 && (
+  <Paper
+    elevation={0}
+    sx={{
+      bgcolor: '#ddd',
+      borderRadius: 4,
+      p: 3,
+      display: 'flex',
+      gap: 2,
+      alignItems: 'stretch',
+      m: 3
+    }}
+  >
+    <Grid container spacing={2}>
+      {/* Left: Medical Information */}
+      <Grid item xs={12} md={7} maxWidth="48%">
+        <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+          Health Profile
+        </Typography>
+        <Grid container spacing={1}>
+          <Grid item xs={8}>
+            <TextField
+              fullWidth
+              label="Allergies"
+              sx={{ width: 350, backgroundColor: '#ffffff9e' }}
+              value={allergies}
+              onChange={(e) => setAllergies(e.target.value)}
+              disabled={!editMode}
+            />
+          </Grid>
+          <Grid item xs={4}>
+            <TextField
+              select
+              fullWidth
+              label="Blood Type"
+              sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+              value={bloodType}
+              onChange={(e) => setBloodType(e.target.value)}
+              disabled={!editMode}
+            >
+              <MenuItem value="A+">A+</MenuItem>
+              <MenuItem value="A-">A-</MenuItem>
+              <MenuItem value="B+">B+</MenuItem>
+              <MenuItem value="B-">B-</MenuItem>
+              <MenuItem value="AB+">AB+</MenuItem>
+              <MenuItem value="AB-">AB-</MenuItem>
+              <MenuItem value="O+">O+</MenuItem>
+              <MenuItem value="O-">O-</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Bloodborne Diseases"
+              sx={{ width: 350, backgroundColor: '#ffffff9e' }}
+              value={bloodborneDiseases}
+              onChange={(e) => setBloodborneDiseases(e.target.value)}
+              disabled={!editMode}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              select
+              fullWidth
+              label="Pregnancy Status"
+              sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+              value={pregnancyStatus}
+              onChange={(e) => setPregnancyStatus(e.target.value)}
+              disabled={!editMode}
+            >
+              <MenuItem value="Pregnant">Pregnant</MenuItem>
+              <MenuItem value="Not Pregnant">Not Pregnant</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid item xs={6}>
+            <TextField
+              fullWidth
+              label="Medications"
+              sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+              value={medications}
+              onChange={(e) => setMedications(e.target.value)}
+              disabled={!editMode}
+            />
+          </Grid>
+          <Grid item xs={6}>
+            <TextField
+              fullWidth
+              label="Additional Notes"
+              multiline
+              rows={3}
+              sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+              value={additionalNotes}
+              onChange={(e) => setAdditionalNotes(e.target.value)}
+              disabled={!editMode}
+            />
+          </Grid>
+          <Grid item xs={4} sx={{ ml: 3 }}>
+            <Typography variant="body2">Blood Pressure</Typography>
+            <RadioGroup row value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)}>
+              <FormControlLabel value="High" control={<Radio disabled={!editMode} />} label="High" />
+              <FormControlLabel value="Normal" control={<Radio disabled={!editMode} />} label="Normal" />
+              <FormControlLabel value="Low" control={<Radio disabled={!editMode} />} label="Low" />
+            </RadioGroup>
+          </Grid>
+          <Grid item xs={4} sx={{ ml: 6, mb: 4 }}>
+            <Typography variant="body2">Diabetic</Typography>
+            <RadioGroup row value={diabetic} onChange={(e) => setDiabetic(e.target.value)}>
+              <FormControlLabel value="Yes" control={<Radio disabled={!editMode} />} label="Yes" />
+              <FormControlLabel value="No" control={<Radio disabled={!editMode} />} label="No" />
+            </RadioGroup>
+          </Grid>
+        </Grid>
+
+        <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+          X-Ray Uploads
+        </Typography>
+        <Grid item xs={12}>
+          <Button
+            variant="outlined"
+            component="label"
+            sx={{ mt: 2 }}
+            disabled={!editMode}
           >
-            <Grid container spacing={2}>
-              {/* Left: Health Profile */}
-              <Grid item xs={12} md={7} maxWidth="48%">
-                <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-                  Health Profile
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid item xs={8}>
-                    <TextField
-                      fullWidth
-                      label="Allergies"
-                      sx={{ width: 350, backgroundColor: '#ffffff9e' }}
-                      value={allergies}
-                      onChange={e => setAllergies(e.target.value)}
-                      InputProps={{ readOnly: !editMode }}
-                    />
-                  </Grid>
-                  <Grid item xs={4}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Blood Type"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      value={bloodType}
-                      onChange={e => setBloodType(e.target.value)}
-                      InputProps={{ readOnly: !editMode }}
-                    >
-                      {bloodTypes.map(type => (
-                        <MenuItem key={type} value={type}>{type}</MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Bloodborne Diseases"
-                      sx={{ width: 350, backgroundColor: '#ffffff9e' }}
-                      value={bloodborneDiseases}
-                      onChange={e => setBloodborneDiseases(e.target.value)}
-                      InputProps={{ readOnly: !editMode }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Pregnancy Status"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
-                      value={pregnancyStatus}
-                      onChange={e => setPregnancyStatus(e.target.value)}
-                      InputProps={{ readOnly: !editMode }}
-                    >
-                      <MenuItem value="Pregnant">Pregnant</MenuItem>
-                      <MenuItem value="Not Pregnant">Not Pregnant</MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <TextField
-                      fullWidth
-                      label="Medications"
-                      sx={{ width: 498, backgroundColor: '#ffffff9e' }}
-                      value={medications}
-                      onChange={e => setMedications(e.target.value)}
-                      InputProps={{ readOnly: !editMode }}
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <TextField
-                      fullWidth
-                      label="Additional Notes"
-                      multiline
-                      rows={3}
-                      sx={{ width: 498, backgroundColor: '#ffffff9e' }}
-                      value={additionalNotes}
-                      onChange={e => setAdditionalNotes(e.target.value)}
-                      InputProps={{ readOnly: !editMode }}
-                    />
-                  </Grid>
-                  <Grid item xs={4} sx={{ ml: 3 }}>
-                    <Typography variant="body2">Blood Pressure</Typography>
-                    <RadioGroup
-                      row
-                      value={bloodPressure}
-                      onChange={e => setBloodPressure(e.target.value)}
-                    >
-                      <FormControlLabel value="High" control={<Radio />} label="High" disabled={!editMode} />
-                      <FormControlLabel value="Normal" control={<Radio />} label="Normal" disabled={!editMode} />
-                      <FormControlLabel value="Low" control={<Radio />} label="Low" disabled={!editMode} />
-                    </RadioGroup>
-                  </Grid>
-                  <Grid item xs={4} sx={{ ml: 6, mb: 4 }}>
-                    <Typography variant="body2">Diabetic</Typography>
-                    <RadioGroup
-                      row
-                      value={diabetic}
-                      onChange={e => setDiabetic(e.target.value)}
-                    >
-                      <FormControlLabel value="Yes" control={<Radio />} label="Yes" disabled={!editMode} />
-                      <FormControlLabel value="No" control={<Radio />} label="No" disabled={!editMode} />
-                    </RadioGroup>
-                  </Grid>
-                </Grid>
-                <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-                  X-Ray Uploads
-                </Typography>
-                <Grid item xs={12}>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    sx={{ mt: 2 }}
-                    disabled={!editMode}
-                  >
-                    Upload File
-                    <input
-                      type="file"
-                      hidden
-                      // onChange={handleFileChange}
-                    />
-                  </Button>
-                </Grid>
-              </Grid>
-              {/* Right: Tooth Chart */}
-              <Grid item xs={12} md={5}>
-                {/* You can add your ToothChart component here if needed */}
-              </Grid>
-            </Grid>
-          </Paper>
-        )}
+            Upload File
+            <input
+              type="file"
+              hidden
+            />
+          </Button>
+        </Grid>
+      </Grid>
+
+      {/* **ADD THIS: Right: Tooth Chart** */}
+      <Grid item xs={12} md={5}>
+        <ToothChart 
+          onDataChange={editMode ? setToothChartData : undefined}
+          initialData={toothChartData}
+          readOnly={!editMode}
+        />
+      </Grid>
+    </Grid>
+  </Paper>
+)}
+        
       </DialogContent>
       <DialogActions>
         <IconButton
@@ -599,7 +633,181 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
         </DialogActions>
       </Dialog>
     </Dialog>
+
   );
 };
+
+// **ADD THIS: Tooth Chart Component**
+const teethNumbers = [
+  [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26],
+  [55, 54, 53, 52, 51, 61, 62, 63, 64, 65],
+  [85, 84, 83, 82, 81, 71, 72, 73, 74, 75],
+  [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36],
+];
+
+function ToothChart({ onDataChange, initialData = { selectedTeeth: [], toothSummaries: {} }, readOnly = false }) {
+  const [selectedTeeth, setSelectedTeeth] = useState(initialData.selectedTeeth || []);
+  const [toothSummaries, setToothSummaries] = useState(initialData.toothSummaries || {});
+  const [editingTooth, setEditingTooth] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  useEffect(() => {
+    setSelectedTeeth(initialData.selectedTeeth || []);
+    setToothSummaries(initialData.toothSummaries || {});
+  }, [initialData]);
+
+  useEffect(() => {
+    if (onDataChange) {
+      onDataChange({
+        selectedTeeth,
+        toothSummaries
+      });
+    }
+  }, [selectedTeeth, toothSummaries, onDataChange]);
+
+  const toggleTooth = (num) => {
+    if (readOnly) return;
+    setSelectedTeeth((prev) => {
+      const newSelected = prev.includes(num) 
+        ? prev.filter((t) => t !== num) 
+        : [...prev, num];
+      
+      if (prev.includes(num)) {
+        setToothSummaries((prevSummaries) => {
+          const copy = { ...prevSummaries };
+          delete copy[num];
+          return copy;
+        });
+      }
+      
+      return newSelected;
+    });
+  };
+
+  const handleEdit = (num) => {
+    if (readOnly) return;
+    setEditingTooth(num);
+    setEditValue(toothSummaries[num] || '');
+  };
+
+  const handleEditSave = (num) => {
+    setToothSummaries((prev) => ({ ...prev, [num]: editValue }));
+    setEditingTooth(null);
+    setEditValue('');
+  };
+
+  const handleDelete = (num) => {
+    if (readOnly) return;
+    setSelectedTeeth((prev) => prev.filter((t) => t !== num));
+    setToothSummaries((prev) => {
+      const copy = { ...prev };
+      delete copy[num];
+      return copy;
+    });
+    if (editingTooth === num) {
+      setEditingTooth(null);
+      setEditValue('');
+    }
+  };
+
+  return (
+    <Paper sx={{ p: 2, borderRadius: 3 }}>
+      <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+        Tooth Chart
+      </Typography>
+      <Box sx={{ backgroundColor: "white", p: 2, borderRadius: 3 }}>
+        {teethNumbers.map((row, rowIndex) => (
+          <Grid container justifyContent="center" spacing={1} key={rowIndex} sx={{ mb: 2 }}>
+            {row.map((num) => (
+              <Grid item key={num}>
+                <Box
+                  onClick={() => toggleTooth(num)}
+                  sx={{
+                    width: 27,
+                    height: 35,
+                    borderRadius: 1,
+                    cursor: readOnly ? "default" : "pointer",
+                    backgroundColor: selectedTeeth.includes(num) ? "#f45252d4" : "transparent",
+                    "&:hover": readOnly ? {} : { backgroundColor: "#e3f2fd" },
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                  }}
+                >
+                  ⊠
+                </Box>
+                <Typography variant="caption" display="block" align="center" sx={{ mt: 0.5 }}>
+                  {num}
+                </Typography>
+              </Grid>
+            ))}
+          </Grid>
+        ))}
+      </Box>
+      <Box sx={{ mt: 3, maxHeight: 150, overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fafafa' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: 8 }}>Tooth Number</th>
+              <th style={{ textAlign: 'left', padding: 8 }}>Tooth Summary</th>
+              {!readOnly && <th style={{ width: 80 }}></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {selectedTeeth.length === 0 ? (
+              <tr>
+                <td colSpan={readOnly ? 2 : 3} style={{ textAlign: 'center', color: '#aaa', padding: 16 }}>
+                  No teeth selected.
+                </td>
+              </tr>
+            ) : (
+              selectedTeeth.map((num) => (
+                <tr key={num} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: 8 }}>{num}</td>
+                  <td style={{ padding: 8 }}>
+                    {editingTooth === num ? (
+                      <Box display="flex" alignItems="center">
+                        <TextField
+                          size="small"
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          autoFocus
+                          sx={{ mr: 1, width: 120 }}
+                        />
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          onClick={() => handleEditSave(num)}
+                          sx={{ minWidth: 32, px: 1, fontSize: 12 }}
+                        >
+                          Save
+                        </Button>
+                      </Box>
+                    ) : (
+                      toothSummaries[num] || <span style={{ color: '#aaa' }}>No summary</span>
+                    )}
+                  </td>
+                  {!readOnly && (
+                    <td>
+                      <IconButton size="small" onClick={() => handleEdit(num)} disabled={editingTooth === num}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => handleDelete(num)}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </Box>
+    </Paper>
+  );
+}
+
 
 export default ViewRecord;

@@ -7,6 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Increased limit for photo uploads
 
+
+
+// Simple in-memory session store (suitable for local/desktop app)
+// Removed duplicate declaration of sessions
 // Connect to database (use backend c// Authenticate middleware: looks for Bearer <token> in Authorization header or x-access-token
 function authenticateToken(req, res, next) {
   const auth = req.headers['authorization'] || req.headers['x-access-token'];
@@ -68,6 +72,17 @@ db.run(`
   )
 `);
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS tooth_charts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER,
+    selectedTeeth TEXT,
+    toothSummaries TEXT,
+    createdAt TEXT,
+    updatedAt TEXT,
+    FOREIGN KEY(patientId) REFERENCES patients(id)
+  )
+`);
 // Create medical information table
 db.run(`
   CREATE TABLE IF NOT EXISTS MedicalInformation (
@@ -406,15 +421,16 @@ app.delete('/user-photo/:username', (req, res) => {
   });
 });
 
-// Add patient endpoint
+// Add patient endpoint (replace your existing one)
 app.post('/patients', (req, res) => {
   const {
     firstName, lastName, middleName, suffix, maritalStatus,
     contactNumber, occupation, address, dateOfBirth, sex,
     contactPersonName, contactPersonRelationship, contactPersonNumber,
-    contactPersonAddress, dateCreated
+    contactPersonAddress, dateCreated, toothChart
   } = req.body;
 
+  // First, insert the patient
   db.run(
     `INSERT INTO patients (
       firstName, lastName, middleName, suffix, maritalStatus, contactNumber, occupation, address, dateOfBirth, sex,
@@ -428,10 +444,139 @@ app.post('/patients', (req, res) => {
     ],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID });
+      
+      const patientId = this.lastID;
+      
+      // If tooth chart data exists, save it
+      if (toothChart && (toothChart.selectedTeeth.length > 0 || Object.keys(toothChart.toothSummaries).length > 0)) {
+        db.run(
+          `INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            patientId,
+            JSON.stringify(toothChart.selectedTeeth),
+            JSON.stringify(toothChart.toothSummaries),
+            toothChart.createdAt || new Date().toISOString(),
+            new Date().toISOString()
+          ],
+          function (toothErr) {
+            if (toothErr) {
+              console.error('Error saving tooth chart:', toothErr);
+              // Still return success for patient, but log the tooth chart error
+            }
+            res.json({ 
+              id: patientId, 
+              message: 'Patient saved successfully',
+              toothChartSaved: !toothErr 
+            });
+          }
+        );
+      } else {
+        res.json({ id: patientId, message: 'Patient saved successfully' });
+      }
     }
   );
 });
+
+app.get('/tooth-chart/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  db.get(
+    'SELECT * FROM tooth_charts WHERE patientId = ?',
+    [patientId],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.json({ selectedTeeth: [], toothSummaries: {} });
+      
+      res.json({
+        id: row.id,
+        patientId: row.patientId,
+        selectedTeeth: JSON.parse(row.selectedTeeth || '[]'),
+        toothSummaries: JSON.parse(row.toothSummaries || '{}'),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
+      });
+    }
+  );
+});
+
+// Update tooth chart
+app.put('/tooth-chart/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const { selectedTeeth, toothSummaries } = req.body;
+  
+  // Check if tooth chart exists
+  db.get('SELECT id FROM tooth_charts WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing tooth chart
+      db.run(
+        `UPDATE tooth_charts SET selectedTeeth = ?, toothSummaries = ?, updatedAt = ?
+         WHERE patientId = ?`,
+        [
+          JSON.stringify(selectedTeeth),
+          JSON.stringify(toothSummaries),
+          new Date().toISOString(),
+          patientId
+        ],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Tooth chart updated successfully', changes: this.changes });
+        }
+      );
+    } else {
+      // Create new tooth chart
+      db.run(
+        `INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          patientId,
+          JSON.stringify(selectedTeeth),
+          JSON.stringify(toothSummaries),
+          new Date().toISOString(),
+          new Date().toISOString()
+        ],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Tooth chart created successfully', id: this.lastID });
+        }
+      );
+    }
+  });
+});
+
+app.get('/patients-with-tooth-charts', (req, res) => {
+  db.all(`
+    SELECT p.*, 
+           tc.selectedTeeth,
+           tc.toothSummaries,
+           tc.createdAt as toothChartCreated
+    FROM patients p
+    LEFT JOIN tooth_charts tc ON p.id = tc.patientId
+  `, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    const patients = rows.map(row => ({
+      ...row,
+      selectedTeeth: row.selectedTeeth ? JSON.parse(row.selectedTeeth) : [],
+      toothSummaries: row.toothSummaries ? JSON.parse(row.toothSummaries) : {}
+    }));
+    
+    res.json(patients);
+  });
+});
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Simple in-memory session store (suitable for local/desktop app)
 const sessions = {}; // token -> { id, username, role }
@@ -1012,6 +1157,7 @@ app.delete('/users/:id', requireRole('admin'), (req, res) => {
     });
   });
 });
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
