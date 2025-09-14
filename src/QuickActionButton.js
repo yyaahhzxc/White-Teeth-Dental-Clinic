@@ -5,8 +5,10 @@ import { Box, Fab, Fade } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import AddAppointmentDialog from './add-appointment';
+import AddPatientRecord from './add-record';
 
-function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = () => {} }) {
+function QuickActionButton() {
   // Make size calculations dynamic functions instead of constants
   const getMainSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.12;
   const getActionSize = () => Math.min(window.innerWidth, window.innerHeight) * 0.106;
@@ -49,6 +51,8 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
   const [isToggling, setIsToggling] = useState(false);
   const [toggleWillOpen, setToggleWillOpen] = useState(false);
   const [currentCorner, setCurrentCorner] = useState('bottom-right'); // track which corner we're in
+  const [showAddAppointment, setShowAddAppointment] = useState(false); // Add dialog state
+  const [showAddPatient, setShowAddPatient] = useState(false); // Add patient record dialog state
 
   // ensure the initial placement is bottom-right before first paint to avoid visual jump
   useLayoutEffect(() => {
@@ -324,7 +328,12 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                           >
                             <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && topGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                              
                             <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && topGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                                
-                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => { e.stopPropagation(); setShowActions(false); if (i === 0) onAddAppointment(); else onAddPatientRecord(); }}>                                            
+                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => {
+                              e.stopPropagation();
+                              setShowActions(false);
+                              if (i === 0) setShowAddAppointment(true); // <-- open dialog
+                              else setShowAddPatient(true); // <-- open patient record dialog
+                            }}>
                               {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}                                                                                                      
                             </Fab>
                           </Box>
@@ -343,7 +352,12 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
                           >
                             <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && bottomGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                           
                             <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && bottomGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                             
-                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => { e.stopPropagation(); setShowActions(false); if (i === 0) onAddAppointment(); else onAddPatientRecord(); }}>                                            
+                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => {
+                              e.stopPropagation();
+                              setShowActions(false);
+                              if (i === 0) setShowAddAppointment(true); // <-- open dialog
+                              else setShowAddPatient(true); // <-- open patient record dialog
+                            }}>
                               {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}                                                                                                      
                             </Fab>
                           </Box>
@@ -378,6 +392,19 @@ function QuickActionButton({ onAddPatientRecord = () => {}, onAddAppointment = (
         </Draggable>,
         document.body
       )}
+
+      <AddAppointmentDialog
+        open={showAddAppointment}
+        onClose={() => setShowAddAppointment(false)}
+        onAddPatient={() => {
+          setShowAddAppointment(false);
+          setShowAddPatient(true);
+        }}
+      />
+      <AddPatientRecord
+        open={showAddPatient}
+        onClose={() => setShowAddPatient(false)}
+      />
     </Box>
   );
 }
