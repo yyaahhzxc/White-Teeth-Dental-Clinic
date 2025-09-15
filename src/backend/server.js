@@ -50,6 +50,29 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
   console.log('✅ Connected to SQLite database.');
 });
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS appointments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    serviceId INTEGER NOT NULL,
+    appointmentDate TEXT NOT NULL,
+    timeStart TEXT NOT NULL,
+    timeEnd TEXT NOT NULL,
+    comments TEXT,
+    status TEXT DEFAULT 'Scheduled',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patientId) REFERENCES patients (id),
+    FOREIGN KEY (serviceId) REFERENCES services (id)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating appointments table:', err);
+  } else {
+    console.log('✅ Appointments table ready');
+  }
+});
+
 // Create patients table
 db.run(`
   CREATE TABLE IF NOT EXISTS patients (
@@ -134,6 +157,322 @@ db.run(`
     ensureDefaultUsers();
   }
 });
+
+
+
+//APPOINTMENTS AYAW SAG HILABTI//
+
+
+
+// GET all appointments
+app.get('/api/appointments', (req, res) => {
+  const query = `
+    SELECT 
+      a.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      p.firstName,
+      p.lastName,
+      s.name as serviceName,
+      s.duration as serviceDuration,
+      s.price as servicePrice
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    LEFT JOIN services s ON a.serviceId = s.id
+    ORDER BY a.appointmentDate DESC, a.timeStart DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching appointments:', err);
+      res.status(500).json({ error: 'Failed to fetch appointments' });
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
+// GET appointment by ID
+app.get('/appointments/:id', (req, res) => {
+  const { id } = req.params;
+  
+  const query = `
+    SELECT 
+      a.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      p.firstName,
+      p.lastName,
+      s.name as serviceName,
+      s.duration as serviceDuration,
+      s.price as servicePrice
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    LEFT JOIN services s ON a.serviceId = s.id
+    WHERE a.id = ?
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('Error fetching appointment:', err);
+      res.status(500).json({ error: 'Failed to fetch appointment' });
+    } else if (!row) {
+      res.status(404).json({ error: 'Appointment not found' });
+    } else {
+      res.json(row);
+    }
+  });
+});
+
+// POST new appointment
+app.post('/appointments', (req, res) => {
+  const {
+    patientId,
+    serviceId,
+    appointmentDate,
+    timeStart,
+    timeEnd,
+    comments,
+    status = 'Scheduled'
+  } = req.body;
+
+  // Validate required fields
+  if (!patientId || !serviceId || !appointmentDate || !timeStart || !timeEnd) {
+    return res.status(400).json({ 
+      error: 'Missing required fields: patientId, serviceId, appointmentDate, timeStart, timeEnd' 
+    });
+  }
+
+  // Check for appointment conflicts
+  const conflictQuery = `
+    SELECT id FROM appointments 
+    WHERE appointmentDate = ? 
+    AND (
+      (timeStart <= ? AND timeEnd > ?) OR
+      (timeStart < ? AND timeEnd >= ?) OR
+      (timeStart >= ? AND timeEnd <= ?)
+    )
+    AND status != 'Cancelled'
+  `;
+
+  db.get(conflictQuery, [
+    appointmentDate, 
+    timeStart, timeStart, 
+    timeEnd, timeEnd, 
+    timeStart, timeEnd
+  ], (conflictErr, conflictRow) => {
+    if (conflictErr) {
+      console.error('Error checking appointment conflicts:', conflictErr);
+      return res.status(500).json({ error: 'Failed to check appointment conflicts' });
+    }
+
+    if (conflictRow) {
+      return res.status(409).json({ 
+        error: 'Appointment time conflict detected. Please choose a different time slot.' 
+      });
+    }
+
+    // Insert new appointment
+    const insertQuery = `
+      INSERT INTO appointments (patientId, serviceId, appointmentDate, timeStart, timeEnd, comments, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.run(insertQuery, [
+      patientId, 
+      serviceId, 
+      appointmentDate, 
+      timeStart, 
+      timeEnd, 
+      comments || '', 
+      status
+    ], function(insertErr) {
+      if (insertErr) {
+        console.error('Error creating appointment:', insertErr);
+        res.status(500).json({ error: 'Failed to create appointment' });
+      } else {
+        // Return the created appointment with joined data
+        const selectQuery = `
+          SELECT 
+            a.*,
+            p.firstName || ' ' || p.lastName as patientName,
+            p.firstName,
+            p.lastName,
+            s.name as serviceName,
+            s.duration as serviceDuration,
+            s.price as servicePrice
+          FROM appointments a
+          LEFT JOIN patients p ON a.patientId = p.id
+          LEFT JOIN services s ON a.serviceId = s.id
+          WHERE a.id = ?
+        `;
+        
+        db.get(selectQuery, [this.lastID], (selectErr, row) => {
+          if (selectErr) {
+            console.error('Error fetching created appointment:', selectErr);
+            res.status(500).json({ error: 'Appointment created but failed to fetch details' });
+          } else {
+            res.status(201).json(row);
+          }
+        });
+      }
+    });
+  });
+});
+
+// PUT update appointment
+app.put('/appointments/:id', (req, res) => {
+  const { id } = req.params;
+  const {
+    patientId,
+    serviceId,
+    appointmentDate,
+    timeStart,
+    timeEnd,
+    comments,
+    status
+  } = req.body;
+
+  // Check for appointment conflicts (excluding current appointment)
+  const conflictQuery = `
+    SELECT id FROM appointments 
+    WHERE appointmentDate = ? 
+    AND id != ?
+    AND (
+      (timeStart <= ? AND timeEnd > ?) OR
+      (timeStart < ? AND timeEnd >= ?) OR
+      (timeStart >= ? AND timeEnd <= ?)
+    )
+    AND status != 'Cancelled'
+  `;
+
+  db.get(conflictQuery, [
+    appointmentDate, 
+    id,
+    timeStart, timeStart, 
+    timeEnd, timeEnd, 
+    timeStart, timeEnd
+  ], (conflictErr, conflictRow) => {
+    if (conflictErr) {
+      console.error('Error checking appointment conflicts:', conflictErr);
+      return res.status(500).json({ error: 'Failed to check appointment conflicts' });
+    }
+
+    if (conflictRow) {
+      return res.status(409).json({ 
+        error: 'Appointment time conflict detected. Please choose a different time slot.' 
+      });
+    }
+
+    const updateQuery = `
+      UPDATE appointments 
+      SET patientId = ?, serviceId = ?, appointmentDate = ?, timeStart = ?, timeEnd = ?, 
+          comments = ?, status = ?, updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+
+    db.run(updateQuery, [
+      patientId, 
+      serviceId, 
+      appointmentDate, 
+      timeStart, 
+      timeEnd, 
+      comments || '', 
+      status || 'Scheduled', 
+      id
+    ], function(updateErr) {
+      if (updateErr) {
+        console.error('Error updating appointment:', updateErr);
+        res.status(500).json({ error: 'Failed to update appointment' });
+      } else if (this.changes === 0) {
+        res.status(404).json({ error: 'Appointment not found' });
+      } else {
+        // Return updated appointment with joined data
+        const selectQuery = `
+          SELECT 
+            a.*,
+            p.firstName || ' ' || p.lastName as patientName,
+            p.firstName,
+            p.lastName,
+            s.name as serviceName,
+            s.duration as serviceDuration,
+            s.price as servicePrice
+          FROM appointments a
+          LEFT JOIN patients p ON a.patientId = p.id
+          LEFT JOIN services s ON a.serviceId = s.id
+          WHERE a.id = ?
+        `;
+        
+        db.get(selectQuery, [id], (selectErr, row) => {
+          if (selectErr) {
+            console.error('Error fetching updated appointment:', selectErr);
+            res.status(500).json({ error: 'Appointment updated but failed to fetch details' });
+          } else {
+            res.json(row);
+          }
+        });
+      }
+    });
+  });
+});
+
+// DELETE appointment
+app.delete('/appointments/:id', (req, res) => {
+  const { id } = req.params;
+  
+  db.run('DELETE FROM appointments WHERE id = ?', [id], function(err) {
+    if (err) {
+      console.error('Error deleting appointment:', err);
+      res.status(500).json({ error: 'Failed to delete appointment' });
+    } else if (this.changes === 0) {
+      res.status(404).json({ error: 'Appointment not found' });
+    } else {
+      res.json({ message: 'Appointment deleted successfully' });
+    }
+  });
+});
+
+// GET appointments by date range
+app.get('/api/appointments/date-range', (req, res) => {
+  const { startDate, endDate } = req.query;
+  
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'startDate and endDate parameters are required' });
+  }
+
+  const query = `
+    SELECT 
+      a.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      p.firstName,
+      p.lastName,
+      s.name as serviceName,
+      s.duration as serviceDuration,
+      s.price as servicePrice
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    LEFT JOIN services s ON a.serviceId = s.id
+    WHERE a.appointmentDate BETWEEN ? AND ?
+    ORDER BY a.appointmentDate ASC, a.timeStart ASC
+  `;
+  
+  db.all(query, [startDate, endDate], (err, rows) => {
+    if (err) {
+      console.error('Error fetching appointments by date range:', err);
+      res.status(500).json({ error: 'Failed to fetch appointments' });
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
+//APPOINTMENTS AYAW SAG HILABTI//
+
+
+
+
+
+
+
+
 
 // Ensure default users exist with complete information
 function ensureDefaultUsers() {

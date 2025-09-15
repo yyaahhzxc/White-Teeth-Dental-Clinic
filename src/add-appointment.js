@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button,
-    Autocomplete, TextField, CircularProgress, Box, Typography, Grid
+    Autocomplete, TextField, CircularProgress, Box, Typography, Grid,
+    Snackbar, Alert
 } from '@mui/material';
 import { API_BASE } from './apiConfig';
 import CloseIcon from '@mui/icons-material/Close';
@@ -28,6 +29,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
     // Add discard confirmation state
     const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+    const [submitting, setSubmitting] = useState(false);
+const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     useEffect(() => {
         if (open) {
@@ -141,6 +145,100 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         setShowDiscardConfirm(false);
     };
 
+
+    const validateForm = () => {
+        if (!selectedPatient) {
+            setSnackbar({ open: true, message: 'Please select a patient', severity: 'error' });
+            return false;
+        }
+        if (!selectedService) {
+            setSnackbar({ open: true, message: 'Please select a service', severity: 'error' });
+            return false;
+        }
+        if (!appointmentDate) {
+            setSnackbar({ open: true, message: 'Please select appointment date', severity: 'error' });
+            return false;
+        }
+        if (!timeStart) {
+            setSnackbar({ open: true, message: 'Please select start time', severity: 'error' });
+            return false;
+        }
+        if (!timeEnd) {
+            setSnackbar({ open: true, message: 'Please select end time', severity: 'error' });
+            return false;
+        }
+        return true;
+    };
+    
+    // Add submit handler
+    const handleSubmit = async () => {
+        if (!validateForm()) return;
+    
+        setSubmitting(true);
+        try {
+            const appointmentData = {
+                patientId: selectedPatient.id,
+                serviceId: selectedService.id,
+                appointmentDate,
+                timeStart,
+                timeEnd,
+                comments: comments || '',
+                status: 'Scheduled'
+            };
+    
+            const response = await fetch(`${API_BASE}/appointments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(appointmentData),
+            });
+    
+            const result = await response.json();
+    
+            if (response.ok) {
+                setSnackbar({ 
+                    open: true, 
+                    message: 'Appointment created successfully!', 
+                    severity: 'success' 
+                });
+                
+                // Clear form
+                setSelectedPatient(null);
+                setSelectedService(null);
+                setAppointmentDate('');
+                setTimeStart('');
+                setTimeEnd('');
+                setComments('');
+                setInputValue('');
+                setServiceInputValue('');
+                
+                // Close dialog after a short delay
+                setTimeout(() => {
+                    onClose();
+                    setSnackbar({ open: false, message: '', severity: 'success' });
+                }, 1500);
+                
+            } else {
+                // Handle server errors
+                setSnackbar({ 
+                    open: true, 
+                    message: result.error || 'Failed to create appointment', 
+                    severity: 'error' 
+                });
+            }
+        } catch (error) {
+            console.error('Error creating appointment:', error);
+            setSnackbar({ 
+                open: true, 
+                message: 'Network error. Please try again.', 
+                severity: 'error' 
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     return (
         <>
             <Dialog open={open} onClose={handleRequestClose} maxWidth="sm" fullWidth>
@@ -247,18 +345,18 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                             if (!option || typeof option !== 'object') {
                                 return <li {...props}>Invalid service</li>;
                             }
-
+                        
                             const isInactive =
                                 typeof option.status === 'string' &&
                                 option.status.toLowerCase() !== 'active';
-
+                        
                             return (
                                 <li
                                     {...props}
                                     style={{
                                         ...props.style,
                                         color: isInactive ? '#aaa' : 'inherit',
-                                        background: isInactive ? '#f5f5f5' : props.style.background,
+                                        backgroundColor: isInactive ? '#f5f5f5' : (props.style?.backgroundColor || 'inherit'),
                                     }}
                                 >
                                     {option.name || ''}
@@ -340,9 +438,18 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                     {/* Add more appointment form fields here */}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleRequestClose} color="primary">CANCEL</Button>
-                    <Button onClick={onClose} variant="contained" color="primary">ADD</Button>
-                </DialogActions>
+    <Button onClick={handleRequestClose} color="primary" disabled={submitting}>
+        CANCEL
+    </Button>
+    <Button 
+        onClick={handleSubmit} 
+        variant="contained" 
+        color="primary"
+        disabled={submitting}
+    >
+        {submitting ? <CircularProgress size={20} color="inherit" /> : 'ADD'}
+    </Button>
+</DialogActions>
             </Dialog>
 
             {/* Discard confirmation dialog */}
@@ -362,6 +469,23 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+             {/* Snackbar for notifications */}
+             <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert 
+                    onClose={() => setSnackbar({ ...snackbar, open: false })} 
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
+       
         </>
     );
 }
