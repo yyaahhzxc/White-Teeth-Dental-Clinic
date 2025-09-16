@@ -234,7 +234,7 @@ function QuickActionButton() {
   return (
     // full-viewport container for bounding calculations.
     // pointerEvents toggles so the overlay can capture clicks only when actions are open.
-    <Box ref={containerRef} sx={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', pointerEvents: showActions ? 'auto' : 'none', zIndex: 1300 }}>                                                                                         
+    <Box ref={containerRef} sx={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', pointerEvents: showActions ? 'auto' : 'none', zIndex: 2000 }}>                                                                                         
       {/* backdrop shown only while actions are open; sits beneath the FAB/action buttons */}
       <Box
         onClick={(e) => { e.stopPropagation(); setShowActions(false); }}
@@ -249,7 +249,7 @@ function QuickActionButton() {
           bgcolor: 'rgba(0,0,0,0.54)',
           opacity: showActions ? 1 : 0,
           transition: 'opacity 180ms ease',
-          zIndex: 1400,
+          zIndex: 1500,
           pointerEvents: showActions ? 'auto' : 'none',
         }}
       />

@@ -13,6 +13,8 @@ clinic.db
 /build
 /dist
 /dist-electron
+/odontogram
+/teeth-selector-master
 
 # misc
 .DS_Store
