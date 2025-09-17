@@ -1,11 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Dialog, DialogTitle, DialogContent, DialogActions, Button,
-    Autocomplete, TextField, CircularProgress, Box, Typography, Grid,
-    Snackbar, Alert
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Box,
+  Typography,
+  Autocomplete,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  IconButton
 } from '@mui/material';
+import { Close as CloseIcon } from '@mui/icons-material';
 import { API_BASE } from './apiConfig';
-import CloseIcon from '@mui/icons-material/Close';
+
+// Add this utility function at the top of the file
+const normalizeDateForStorage = (dateString) => {
+    if (!dateString) return '';
+    // Create date in local timezone to avoid UTC conversion issues
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toISOString().split('T')[0];
+};
 
 function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     const [patients, setPatients] = useState([]);
@@ -31,65 +49,30 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
     const [submitting, setSubmitting] = useState(false);
-const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
+    // Snackbar state
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
+
+    // Helper function to add minutes to time string
+    const addMinutesToTime = (timeString, minutes) => {
+        const [hours, mins] = timeString.split(':').map(Number);
+        const totalMinutes = hours * 60 + mins + minutes;
+        const newHours = Math.floor(totalMinutes / 60) % 24;
+        const newMins = totalMinutes % 60;
+        return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
+    };
+
+    // Fetch patients
     useEffect(() => {
         if (open) {
-            setLoading(true);
-            fetch(`${API_BASE}/patients`)
-                .then(res => res.json())
-                .then(data => {
-                    setPatients(data);
-                    setLoading(false);
-                })
-                .catch(() => setLoading(false));
-
-            setServiceLoading(true);
-            fetch(`${API_BASE}/service-table`)
-                .then(res => res.json())
-                .then(data => {
-                    setServices(data);
-                    setServiceLoading(false);
-                })
-                .catch(() => setServiceLoading(false));
+            fetchPatients();
+            fetchServices();
         }
     }, [open]);
-
-    useEffect(() => {
-        if (!open) {
-            setSelectedPatient(null);
-            setInputValue('');
-            setSelectedService(null);
-            setServiceInputValue('');
-            setAppointmentDate('');
-            setTimeStart('');
-            setTimeEnd('');
-            setComments('');
-        }
-    }, [open]);
-
-    // Check if there are any matches for the current input
-    const filteredOptions = patients.filter(option =>
-        (option.firstName && option.lastName
-            ? `${option.firstName} ${option.lastName}`
-            : option.name || ''
-        ).toLowerCase().includes(inputValue.toLowerCase())
-    );
-
-    const filteredServiceOptions = services.filter(option =>
-        (option.name || '')
-            .toLowerCase()
-            .includes(serviceInputValue.toLowerCase())
-    );
-
-    // Add this helper at the top of your file (outside the component)
-    function addMinutesToTime(time, minutes) {
-        const [h, m] = time.split(':').map(Number);
-        const date = new Date(0, 0, 0, h, m + minutes, 0, 0);
-        const hh = String(date.getHours()).padStart(2, '0');
-        const mm = String(date.getMinutes()).padStart(2, '0');
-        return `${hh}:${mm}`;
-    }
 
     // When service or timeStart changes, adjust timeEnd and appointmentDate
     useEffect(() => {
@@ -102,90 +85,115 @@ const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: '
             // duration is in minutes
             const newTimeEnd = addMinutesToTime(timeStart, selectedService.duration);
             setTimeEnd(newTimeEnd);
-
+            
             // If the end time is past midnight, increment the date
             const [startHour, startMin] = timeStart.split(':').map(Number);
             const [endHour, endMin] = newTimeEnd.split(':').map(Number);
             if (endHour < startHour || (endHour === startHour && endMin < startMin)) {
-                // Add one day to appointmentDate
-                const dateObj = new Date(appointmentDate);
+                // Add one day to appointmentDate using local timezone
+                const dateObj = new Date(appointmentDate + 'T00:00:00');
                 dateObj.setDate(dateObj.getDate() + 1);
-                setAppointmentDate(dateObj.toISOString().slice(0, 10));
+                setAppointmentDate(dateObj.toISOString().split('T')[0]);
             }
         }
         // eslint-disable-next-line
     }, [selectedService, timeStart]);
 
-    // Helper to check if any input is filled
-    const hasInput = () =>
-        selectedPatient ||
-        selectedService ||
-        appointmentDate ||
-        timeStart ||
-        timeEnd ||
-        comments;
-
-    // Handler for close (X or Cancel)
-    const handleRequestClose = () => {
-        if (hasInput()) {
-            setShowDiscardConfirm(true);
-        } else {
-            onClose();
+    const fetchPatients = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE}/patients`);
+            if (response.ok) {
+                const data = await response.json();
+                setPatients(data);
+            } else {
+                console.error('Failed to fetch patients');
+            }
+        } catch (error) {
+            console.error('Error fetching patients:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Handler for confirming discard
-    const handleDiscard = () => {
-        setShowDiscardConfirm(false);
-        onClose();
+    const fetchServices = async () => {
+        setServiceLoading(true);
+        try {
+            const response = await fetch(`${API_BASE}/service-table`);
+            if (response.ok) {
+                const data = await response.json();
+                setServices(data);
+            } else {
+                console.error('Failed to fetch services');
+            }
+        } catch (error) {
+            console.error('Error fetching services:', error);
+        } finally {
+            setServiceLoading(false);
+        }
     };
 
-    // Handler for staying (cancel discard)
-    const handleStay = () => {
-        setShowDiscardConfirm(false);
-    };
-
-
+    // Validation function
     const validateForm = () => {
         if (!selectedPatient) {
-            setSnackbar({ open: true, message: 'Please select a patient', severity: 'error' });
+            setSnackbar({
+                open: true,
+                message: 'Please select a patient',
+                severity: 'error'
+            });
             return false;
         }
         if (!selectedService) {
-            setSnackbar({ open: true, message: 'Please select a service', severity: 'error' });
+            setSnackbar({
+                open: true,
+                message: 'Please select a service',
+                severity: 'error'
+            });
             return false;
         }
         if (!appointmentDate) {
-            setSnackbar({ open: true, message: 'Please select appointment date', severity: 'error' });
+            setSnackbar({
+                open: true,
+                message: 'Please select an appointment date',
+                severity: 'error'
+            });
             return false;
         }
         if (!timeStart) {
-            setSnackbar({ open: true, message: 'Please select start time', severity: 'error' });
+            setSnackbar({
+                open: true,
+                message: 'Please select a start time',
+                severity: 'error'
+            });
             return false;
         }
         if (!timeEnd) {
-            setSnackbar({ open: true, message: 'Please select end time', severity: 'error' });
+            setSnackbar({
+                open: true,
+                message: 'Please select an end time',
+                severity: 'error'
+            });
             return false;
         }
         return true;
     };
-    
-    // Add submit handler
+
+    // Replace your handleSubmit function
     const handleSubmit = async () => {
         if (!validateForm()) return;
-    
+
         setSubmitting(true);
         try {
             const appointmentData = {
                 patientId: selectedPatient.id,
                 serviceId: selectedService.id,
-                appointmentDate,
+                appointmentDate: normalizeDateForStorage(appointmentDate), // Fix here
                 timeStart,
                 timeEnd,
                 comments: comments || '',
                 status: 'Scheduled'
             };
-    
+
             const response = await fetch(`${API_BASE}/appointments`, {
                 method: 'POST',
                 headers: {
@@ -193,9 +201,9 @@ const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: '
                 },
                 body: JSON.stringify(appointmentData),
             });
-    
+
             const result = await response.json();
-    
+            
             if (response.ok) {
                 setSnackbar({ 
                     open: true, 
@@ -220,7 +228,6 @@ const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: '
                 }, 1500);
                 
             } else {
-                // Handle server errors
                 setSnackbar({ 
                     open: true, 
                     message: result.error || 'Failed to create appointment', 
@@ -239,253 +246,420 @@ const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: '
         }
     };
 
+    // Check if form has data to show discard confirmation
+    const hasFormData = () => {
+        return selectedPatient || selectedService || appointmentDate || timeStart || timeEnd || comments;
+    };
+
+    const handleClose = () => {
+        if (hasFormData()) {
+            setShowDiscardConfirm(true);
+        } else {
+            onClose();
+        }
+    };
+
+    const handleDiscardConfirm = () => {
+        // Clear all form data
+        setSelectedPatient(null);
+        setSelectedService(null);
+        setAppointmentDate('');
+        setTimeStart('');
+        setTimeEnd('');
+        setComments('');
+        setInputValue('');
+        setServiceInputValue('');
+        setShowDiscardConfirm(false);
+        onClose();
+    };
+
+    const handleDiscardCancel = () => {
+        setShowDiscardConfirm(false);
+    };
+
     return (
         <>
-            <Dialog open={open} onClose={handleRequestClose} maxWidth="sm" fullWidth>
-                <DialogTitle
-                    sx={{
-                        alignSelf: 'center',
-                        color: '#2148C0',
-                        fontWeight: 800,
-                        fontSize: '39.14px',
-                        fontFamily: 'Inter, sans-serif',
-                        pr: 5
-                    }}
-                >
-                    Add Appointment
-                    <Button
-                        onClick={handleRequestClose}
-                        sx={{
-                            position: 'absolute',
-                            right: 16,
-                            top: 16,
-                            minWidth: 0,
-                            padding: 0,
-                            color: '#888'
+            <Dialog 
+                open={open} 
+                onClose={handleClose}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: '16px',
+                        boxShadow: '0px 24px 48px rgba(0, 0, 0, 0.1)',
+                    }
+                }}
+            >
+                <DialogTitle sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '24px',
+                    fontWeight: '600',
+                    color: '#202124',
+                    pb: 1
+                }}>
+                    Add New Appointment
+                    <IconButton 
+                        onClick={handleClose}
+                        sx={{ 
+                            color: '#5f6368',
+                            '&:hover': {
+                                backgroundColor: '#f1f3f4'
+                            }
                         }}
                     >
                         <CloseIcon />
-                    </Button>
+                    </IconButton>
                 </DialogTitle>
-                <DialogContent>
-                    {/* Patient Dropdown */}
-                    <Autocomplete
-                        options={patients}
-                        getOptionLabel={(option) =>
-                            option.firstName && option.lastName
-                                ? `${option.firstName} ${option.lastName}`
-                                : option.name || ''
-                        }
-                        loading={loading}
-                        value={selectedPatient}
-                        onChange={(_, value) => setSelectedPatient(value)}
-                        inputValue={inputValue}
-                        onInputChange={(_, value) => setInputValue(value)}
-                        noOptionsText={
-                            <Box>
-                                <Typography color="text.secondary" sx={{ mb: 1 }}>
-                                    Patient not found.
-                                </Typography>
-                                <Button
-                                    color="primary"
-                                    size="small"
-                                    onClick={() => {
-                                        onClose();
-                                        if (onAddPatient) onAddPatient();
-                                    }}
-                                >
-                                    Create a new patient record
-                                </Button>
-                            </Box>
-                        }
-                        renderInput={(params) => (
-                            <TextField
-                                {...params}
-                                label="Select Patient"
-                                variant="outlined"
-                                margin="normal"
-                                fullWidth
-                                InputProps={{
-                                    ...params.InputProps,
-                                    endAdornment: (
-                                        <>
-                                            {loading ? <CircularProgress color="inherit" size={20} /> : null}
-                                            {params.InputProps.endAdornment}
-                                        </>
-                                    ),
-                                }}
-                            />
-                        )}
-                    />
 
-                    {/* Service Dropdown */}
-                    <Autocomplete
-                        options={Array.isArray(services) ? services : []}
-                        getOptionLabel={(option) =>
-                            option && typeof option === 'object' && typeof option.name === 'string'
-                                ? option.name
-                                : ''
-                        }
-                        loading={serviceLoading}
-                        value={selectedService}
-                        onChange={(_, value) => setSelectedService(value)}
-                        inputValue={serviceInputValue}
-                        onInputChange={(_, value) => setServiceInputValue(value)}
-                        isOptionDisabled={(option) => {
-                            if (!option || typeof option !== 'object') return false;
-                            if (!option.status || typeof option.status !== 'string') return false;
-                            return option.status.toLowerCase() !== 'active';
-                        }}
-                        noOptionsText={
-                            <Typography color="text.secondary">
-                                Service not found.
+                <DialogContent sx={{ pt: 2 }}>
+                    <Box sx={{ display: 'grid', gap: 3 }}>
+                        {/* Patient Selection */}
+                        <Box>
+                            <Typography variant="body2" sx={{ 
+                                mb: 1, 
+                                fontWeight: '600', 
+                                color: '#5f6368',
+                                fontFamily: 'Inter, sans-serif',
+                                fontSize: '14px'
+                            }}>
+                                Patient *
                             </Typography>
-                        }
-                        renderOption={(props, option) => {
-                            if (!option || typeof option !== 'object') {
-                                return <li {...props}>Invalid service</li>;
-                            }
-                        
-                            const isInactive =
-                                typeof option.status === 'string' &&
-                                option.status.toLowerCase() !== 'active';
-                        
-                            return (
-                                <li
-                                    {...props}
-                                    style={{
-                                        ...props.style,
-                                        color: isInactive ? '#aaa' : 'inherit',
-                                        backgroundColor: isInactive ? '#f5f5f5' : (props.style?.backgroundColor || 'inherit'),
-                                    }}
-                                >
-                                    {option.name || ''}
-                                    {isInactive && (
-                                        <span style={{ marginLeft: 8, fontSize: 12, color: '#c00' }}>
-                                            (Inactive)
-                                        </span>
-                                    )}
-                                </li>
-                            );
-                        }}
+                            <Autocomplete
+                                value={selectedPatient}
+                                onChange={(event, newValue) => {
+                                    setSelectedPatient(newValue);
+                                }}
+                                inputValue={inputValue}
+                                onInputChange={(event, newInputValue) => {
+                                    setInputValue(newInputValue);
+                                }}
+                                options={patients}
+                                getOptionLabel={(option) => 
+                                    option ? `${option.firstName} ${option.lastName}` : ''
+                                }
+                                loading={loading}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        placeholder="Search for a patient..."
+                                        InputProps={{
+                                            ...params.InputProps,
+                                            endAdornment: (
+                                                <>
+                                                    {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                                                    {params.InputProps.endAdornment}
+                                                </>
+                                            ),
+                                        }}
+                                        sx={{
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: '8px',
+                                                fontFamily: 'Inter, sans-serif'
+                                            }
+                                        }}
+                                    />
+                                )}
+                                renderOption={(props, option) => (
+                                    <Box {...props} sx={{ 
+                                        fontFamily: 'Inter, sans-serif',
+                                        fontSize: '14px'
+                                    }}>
+                                        <Box>
+                                            <Typography sx={{ fontWeight: '500' }}>
+                                                {option.firstName} {option.lastName}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+                                                {option.email || 'No email'} • {option.phone || 'No phone'}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+                                noOptionsText="No patients found"
+                                size="medium"
+                            />
+                        </Box>
 
-                        renderInput={(params) => (
+                        {/* Service Selection */}
+                        <Box>
+                            <Typography variant="body2" sx={{ 
+                                mb: 1, 
+                                fontWeight: '600', 
+                                color: '#5f6368',
+                                fontFamily: 'Inter, sans-serif',
+                                fontSize: '14px'
+                            }}>
+                                Service *
+                            </Typography>
+                            <Autocomplete
+                                value={selectedService}
+                                onChange={(event, newValue) => {
+                                    setSelectedService(newValue);
+                                }}
+                                inputValue={serviceInputValue}
+                                onInputChange={(event, newInputValue) => {
+                                    setServiceInputValue(newInputValue);
+                                }}
+                                options={services}
+                                getOptionLabel={(option) => option ? option.name : ''}
+                                loading={serviceLoading}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        placeholder="Search for a service..."
+                                        InputProps={{
+                                            ...params.InputProps,
+                                            endAdornment: (
+                                                <>
+                                                    {serviceLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                                                    {params.InputProps.endAdornment}
+                                                </>
+                                            ),
+                                        }}
+                                        sx={{
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: '8px',
+                                                fontFamily: 'Inter, sans-serif'
+                                            }
+                                        }}
+                                    />
+                                )}
+                                renderOption={(props, option) => (
+                                    <Box {...props} sx={{ 
+                                        fontFamily: 'Inter, sans-serif',
+                                        fontSize: '14px'
+                                    }}>
+                                        <Box>
+                                            <Typography sx={{ fontWeight: '500' }}>
+                                                {option.name}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+                                                ₱{option.price} • {option.duration} minutes
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+                                noOptionsText="No services found"
+                                size="medium"
+                            />
+                        </Box>
+
+                        {/* Date and Time Row */}
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
+                            {/* Date */}
+                            <Box>
+                                <Typography variant="body2" sx={{ 
+                                    mb: 1, 
+                                    fontWeight: '600', 
+                                    color: '#5f6368',
+                                    fontFamily: 'Inter, sans-serif',
+                                    fontSize: '14px'
+                                }}>
+                                    Date *
+                                </Typography>
+                                <TextField
+                                    type="date"
+                                    value={appointmentDate}
+                                    onChange={(e) => setAppointmentDate(e.target.value)}
+                                    fullWidth
+                                    InputLabelProps={{ shrink: true }}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '8px',
+                                            fontFamily: 'Inter, sans-serif'
+                                        }
+                                    }}
+                                />
+                            </Box>
+
+                            {/* Start Time */}
+                            <Box>
+                                <Typography variant="body2" sx={{ 
+                                    mb: 1, 
+                                    fontWeight: '600', 
+                                    color: '#5f6368',
+                                    fontFamily: 'Inter, sans-serif',
+                                    fontSize: '14px'
+                                }}>
+                                    Start Time *
+                                </Typography>
+                                <TextField
+                                    type="time"
+                                    value={timeStart}
+                                    onChange={(e) => setTimeStart(e.target.value)}
+                                    fullWidth
+                                    InputLabelProps={{ shrink: true }}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '8px',
+                                            fontFamily: 'Inter, sans-serif'
+                                        }
+                                    }}
+                                />
+                            </Box>
+
+                            {/* End Time */}
+                            <Box>
+                                <Typography variant="body2" sx={{ 
+                                    mb: 1, 
+                                    fontWeight: '600', 
+                                    color: '#5f6368',
+                                    fontFamily: 'Inter, sans-serif',
+                                    fontSize: '14px'
+                                }}>
+                                    End Time *
+                                </Typography>
+                                <TextField
+                                    type="time"
+                                    value={timeEnd}
+                                    onChange={(e) => setTimeEnd(e.target.value)}
+                                    fullWidth
+                                    InputLabelProps={{ shrink: true }}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '8px',
+                                            fontFamily: 'Inter, sans-serif'
+                                        }
+                                    }}
+                                />
+                            </Box>
+                        </Box>
+
+                        {/* Comments */}
+                        <Box>
+                            <Typography variant="body2" sx={{ 
+                                mb: 1, 
+                                fontWeight: '600', 
+                                color: '#5f6368',
+                                fontFamily: 'Inter, sans-serif',
+                                fontSize: '14px'
+                            }}>
+                                Comments
+                            </Typography>
                             <TextField
-                                {...params}
-                                label="Select Service"
-                                variant="outlined"
-                                margin="normal"
+                                multiline
+                                rows={3}
+                                value={comments}
+                                onChange={(e) => setComments(e.target.value)}
+                                placeholder="Add any additional notes..."
                                 fullWidth
-                                InputProps={{
-                                    ...params.InputProps,
-                                    endAdornment: (
-                                        <>
-                                            {serviceLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                                            {params.InputProps.endAdornment}
-                                        </>
-                                    ),
+                                sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                        borderRadius: '8px',
+                                        fontFamily: 'Inter, sans-serif'
+                                    }
                                 }}
                             />
-                        )}
-                    />
-
-                    {/* Appointment Date and Time Fields */}
-                    <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
-                        <Grid item xs={12} md={4}>
-                            <TextField
-                                label="Date"
-                                type="date"
-                                sx={{ mr: 11.4 }}
-                                fullWidth
-                                InputLabelProps={{ shrink: true }}
-                                value={appointmentDate || ''}
-                                onChange={e => setAppointmentDate(e.target.value)}
-                            />
-                        </Grid>
-                        <Grid item xs={12} md={4}>
-                            <TextField
-                                label="Time Start"
-                                type="time"
-                                fullWidth
-                                InputLabelProps={{ shrink: true }}
-                                value={timeStart || ''}
-                                onChange={e => setTimeStart(e.target.value)}
-                            />
-                        </Grid>
-                        <Grid item xs={12} md={4}>
-                            <TextField
-                                label="Time End"
-                                type="time"
-                                fullWidth
-                                InputLabelProps={{ shrink: true }}
-                                value={timeEnd || ''}
-                                onChange={e => setTimeEnd(e.target.value)}
-                            />
-                        </Grid>
-                    </Grid>
-
-                    {/* Comments Field */}
-                    <TextField
-                        label="Comments"
-                        multiline
-                        rows={4}
-                        fullWidth
-                        margin="normal"
-                        value={comments}
-                        onChange={e => setComments(e.target.value)}
-                    />
-
-                    {/* Add more appointment form fields here */}
+                        </Box>
+                    </Box>
                 </DialogContent>
-                <DialogActions>
-    <Button onClick={handleRequestClose} color="primary" disabled={submitting}>
-        CANCEL
-    </Button>
-    <Button 
-        onClick={handleSubmit} 
-        variant="contained" 
-        color="primary"
-        disabled={submitting}
-    >
-        {submitting ? <CircularProgress size={20} color="inherit" /> : 'ADD'}
-    </Button>
-</DialogActions>
+
+                <DialogActions sx={{ p: 3, pt: 2 }}>
+                    <Button 
+                        onClick={handleClose}
+                        sx={{ 
+                            color: '#5f6368',
+                            fontFamily: 'Inter, sans-serif',
+                            textTransform: 'none',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleSubmit}
+                        variant="contained"
+                        disabled={submitting}
+                        sx={{
+                            backgroundColor: '#1a73e8',
+                            fontFamily: 'Inter, sans-serif',
+                            textTransform: 'none',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            borderRadius: '8px',
+                            px: 3,
+                            '&:hover': {
+                                backgroundColor: '#1557b0'
+                            }
+                        }}
+                    >
+                        {submitting ? <CircularProgress size={20} color="inherit" /> : 'Create Appointment'}
+                    </Button>
+                </DialogActions>
             </Dialog>
 
-            {/* Discard confirmation dialog */}
-            <Dialog open={showDiscardConfirm} onClose={handleStay}>
-                <DialogTitle>Discard changes?</DialogTitle>
+            {/* Discard Confirmation Dialog */}
+            <Dialog
+                open={showDiscardConfirm}
+                onClose={handleDiscardCancel}
+                PaperProps={{
+                    sx: {
+                        borderRadius: '12px',
+                        padding: '8px'
+                    }
+                }}
+            >
+                <DialogTitle sx={{ 
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '18px',
+                    fontWeight: '600'
+                }}>
+                    Discard changes?
+                </DialogTitle>
                 <DialogContent>
-                    <Typography>
+                    <Typography sx={{ 
+                        fontFamily: 'Inter, sans-serif',
+                        color: '#5f6368'
+                    }}>
                         You have unsaved changes. Are you sure you want to discard them?
                     </Typography>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleStay} color="primary">
-                        Stay
+                    <Button 
+                        onClick={handleDiscardCancel}
+                        sx={{ 
+                            color: '#5f6368',
+                            fontFamily: 'Inter, sans-serif',
+                            textTransform: 'none'
+                        }}
+                    >
+                        Cancel
                     </Button>
-                    <Button onClick={handleDiscard} color="error" variant="contained">
+                    <Button 
+                        onClick={handleDiscardConfirm}
+                        color="error"
+                        sx={{ 
+                            fontFamily: 'Inter, sans-serif',
+                            textTransform: 'none'
+                        }}
+                    >
                         Discard
                     </Button>
                 </DialogActions>
             </Dialog>
 
-             {/* Snackbar for notifications */}
-             <Snackbar
+            {/* Snackbar for notifications */}
+            <Snackbar
                 open={snackbar.open}
-                autoHideDuration={6000}
+                autoHideDuration={4000}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert 
-                    onClose={() => setSnackbar({ ...snackbar, open: false })} 
+                <Alert
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
                     severity={snackbar.severity}
-                    sx={{ width: '100%' }}
+                    sx={{ 
+                        width: '100%',
+                        fontFamily: 'Inter, sans-serif'
+                    }}
                 >
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-       
         </>
     );
 }
