@@ -14,7 +14,8 @@ import {
   DialogActions,
   Chip,
   Snackbar,
-  Alert
+  Alert,
+  TextField
 } from '@mui/material';
 import { 
   ChevronLeft, 
@@ -25,7 +26,9 @@ import {
   CalendarToday,
   AccessTime,
   Person,
-  MedicalServices
+  MedicalServices,
+  Edit as EditIcon,
+  Save as SaveIcon
 } from '@mui/icons-material';
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
@@ -44,6 +47,37 @@ export default function Appointments() {
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [updateError, setUpdateError] = useState(null);
 
+  // Edit mode states
+  const [editMode, setEditMode] = useState(false);
+  const [editedAppointment, setEditedAppointment] = useState(null);
+
+  // Services state
+  const [services, setServices] = useState([]);
+
+  // Helper function to convert 24h to 12h format
+  const convertTo12Hour = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  // Helper function to convert 12h to 24h format
+  const convertTo24Hour = (time12) => {
+    if (!time12) return '';
+    const [time, modifier] = time12.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (hours === '12') {
+      hours = '00';
+    }
+    if (modifier === 'PM') {
+      hours = parseInt(hours, 10) + 12;
+    }
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -53,7 +87,25 @@ export default function Appointments() {
   
   useEffect(() => {
     fetchAppointmentsForWeek();
+    fetchServices();
   }, [currentDate]);
+
+  // Function to fetch services
+  const fetchServices = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/service-table`);
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data);
+      } else {
+        console.error('Failed to fetch services');
+        setServices([]);
+      }
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      setServices([]);
+    }
+  };
 
   // Function to fetch appointments
   const fetchAppointmentsForWeek = async () => {
@@ -123,31 +175,39 @@ export default function Appointments() {
     }
   };
 
-  // Function to update appointment status
-  const updateAppointmentStatus = async (appointmentId, newStatus) => {
+  // Handle edit mode toggle
+  const handleEditClick = () => {
+    setEditMode(true);
+    setEditedAppointment({ ...selectedAppointment });
+  };
+
+  // Handle saving changes
+  const handleSaveClick = async () => {
+    if (!editedAppointment) return;
+    
     setUpdating(true);
     setUpdateError(null);
     
     try {
-      console.log('Updating appointment:', { appointmentId, newStatus });
-      
-      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`, {
+      const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: newStatus
+          appointmentDate: editedAppointment.appointmentDate,
+          timeStart: editedAppointment.timeStart,
+          timeEnd: editedAppointment.timeEnd,
+          comments: editedAppointment.comments,
+          status: editedAppointment.status,
+          serviceId: editedAppointment.serviceId
         }),
       });
 
-      console.log('Update response status:', response.status);
-      
       if (response.ok) {
-        const responseData = await response.json();
-        console.log('Update successful:', responseData);
-        
         setUpdateSuccess(true);
+        setEditMode(false);
+        setEditedAppointment(null);
         
         // Refresh appointments data
         await fetchAppointmentsForWeek();
@@ -156,7 +216,6 @@ export default function Appointments() {
       } else {
         const errorText = await response.text();
         console.error('Failed to update appointment:', response.status, response.statusText);
-        console.error('Error response:', errorText);
         setUpdateError(`Failed to update: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
@@ -165,6 +224,14 @@ export default function Appointments() {
     } finally {
       setUpdating(false);
     }
+  };
+
+  // Handle input changes
+  const handleEditChange = (field, value) => {
+    setEditedAppointment(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   // Handle appointment click
@@ -177,13 +244,8 @@ export default function Appointments() {
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedAppointment(null);
-  };
-
-  // Handle status change
-  const handleStatusChange = (newStatus) => {
-    if (selectedAppointment) {
-      updateAppointmentStatus(selectedAppointment.id, newStatus);
-    }
+    setEditMode(false);
+    setEditedAppointment(null);
   };
 
   const statusColors = {
@@ -564,12 +626,13 @@ export default function Appointments() {
       <Dialog 
         open={modalOpen} 
         onClose={handleCloseModal}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         PaperProps={{
           sx: {
             borderRadius: '12px',
-            boxShadow: '0px 24px 48px rgba(0, 0, 0, 0.1)'
+            boxShadow: '0px 24px 48px rgba(0, 0, 0, 0.1)',
+            maxWidth: '700px'
           }
         }}
       >
@@ -583,127 +646,311 @@ export default function Appointments() {
           fontWeight: '600'
         }}>
           Appointment Details
-          <IconButton onClick={handleCloseModal} size="small">
-            <Close />
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <IconButton
+              color="primary"
+              onClick={editMode ? handleSaveClick : handleEditClick}
+              disabled={updating}
+              sx={{
+                borderRadius: 8,
+                backgroundColor: '#2148C0',
+                color: '#fff',
+                px: 2,
+                fontWeight: 'bold',
+                fontSize: 18,
+                '&:hover': {
+                  backgroundColor: '#3d5aa3'
+                }
+              }}
+            >
+              {editMode ? <SaveIcon /> : <EditIcon />}
+            </IconButton>
+            <IconButton onClick={handleCloseModal} size="small">
+              <Close />
+            </IconButton>
+          </Box>
         </DialogTitle>
         
         {selectedAppointment && (
-          <DialogContent sx={{ pt: 1 }}>
+          <DialogContent sx={{ pt: 2, pb: 3 }}>
             {/* Patient Info */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-              <Person sx={{ color: '#5f6368' }} />
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2, 
+              mb: 4,
+              p: 3,
+              backgroundColor: '#f8f9fa',
+              borderRadius: '12px'
+            }}>
+              <Person sx={{ color: '#5f6368', fontSize: 32 }} />
               <Box>
-                <Typography variant="h6" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', fontSize: '18px' }}>
+                <Typography variant="h6" sx={{ 
+                  fontFamily: 'Inter, sans-serif', 
+                  fontWeight: '600', 
+                  fontSize: '20px',
+                  color: '#202124'
+                }}>
                   {selectedAppointment.patientName}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif' }}>
+                <Typography variant="body2" sx={{ 
+                  color: '#5f6368', 
+                  fontFamily: 'Inter, sans-serif',
+                  fontSize: '14px'
+                }}>
                   Patient
                 </Typography>
               </Box>
             </Box>
 
-            {/* Appointment Info */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CalendarToday sx={{ color: '#5f6368', fontSize: 20 }} />
+            {/* Form Fields Grid */}
+            <Box sx={{ display: 'grid', gap: 3 }}>
+              {/* Date and Time Row */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 3 }}>
+                {/* Date */}
                 <Box>
-                  <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
-                    Date
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>
-                    {new Date(selectedAppointment.appointmentDate).toLocaleDateString()}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <CalendarToday sx={{ color: '#5f6368', fontSize: 18 }} />
+                    <Typography variant="body2" sx={{ 
+                      color: '#5f6368', 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '13px',
+                      fontWeight: '600'
+                    }}>
+                      Date
+                    </Typography>
+                  </Box>
+                  {editMode ? (
+                    <TextField
+                      type="date"
+                      value={editedAppointment?.appointmentDate || ''}
+                      onChange={(e) => handleEditChange('appointmentDate', e.target.value)}
+                      size="small"
+                      fullWidth
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '8px',
+                          fontFamily: 'Inter, sans-serif'
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="body1" sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '500',
+                      fontSize: '15px',
+                      color: '#202124',
+                      p: 1.5,
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px'
+                    }}>
+                      {new Date(selectedAppointment.appointmentDate).toLocaleDateString()}
+                    </Typography>
+                  )}
+                </Box>
+                
+                {/* Time */}
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <AccessTime sx={{ color: '#5f6368', fontSize: 18 }} />
+                    <Typography variant="body2" sx={{ 
+                      color: '#5f6368', 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '13px',
+                      fontWeight: '600'
+                    }}>
+                      Time
+                    </Typography>
+                  </Box>
+                  {editMode ? (
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                      <TextField
+                        type="time"
+                        value={editedAppointment?.timeStart || ''}
+                        onChange={(e) => handleEditChange('timeStart', e.target.value)}
+                        size="small"
+                        sx={{ 
+                          flex: 1,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '8px',
+                            fontFamily: 'Inter, sans-serif'
+                          }
+                        }}
+                      />
+                      <Typography sx={{ color: '#5f6368', fontWeight: '500' }}>to</Typography>
+                      <TextField
+                        type="time"
+                        value={editedAppointment?.timeEnd || ''}
+                        onChange={(e) => handleEditChange('timeEnd', e.target.value)}
+                        size="small"
+                        sx={{ 
+                          flex: 1,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '8px',
+                            fontFamily: 'Inter, sans-serif'
+                          }
+                        }}
+                      />
+                    </Box>
+                  ) : (
+                    <Typography variant="body1" sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '500',
+                      fontSize: '15px',
+                      color: '#202124',
+                      p: 1.5,
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px'
+                    }}>
+                      {convertTo12Hour(selectedAppointment.timeStart)} - {convertTo12Hour(selectedAppointment.timeEnd)}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <AccessTime sx={{ color: '#5f6368', fontSize: 20 }} />
+
+              {/* Service and Status Row */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
+                {/* Service */}
                 <Box>
-                  <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
-                    Time
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
+                    <Typography variant="body2" sx={{ 
+                      color: '#5f6368', 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '13px',
+                      fontWeight: '600'
+                    }}>
+                      Service
+                    </Typography>
+                  </Box>
+                  {editMode ? (
+                    <FormControl size="small" fullWidth>
+                      <Select
+                        value={editedAppointment?.serviceId || ''}
+                        onChange={(e) => {
+                          const selectedService = services.find(s => s.id === e.target.value);
+                          handleEditChange('serviceId', e.target.value);
+                          if (selectedService) {
+                            handleEditChange('procedure', selectedService.name);
+                          }
+                        }}
+                        sx={{ 
+                          borderRadius: '8px',
+                          fontFamily: 'Inter, sans-serif'
+                        }}
+                      >
+                        {services.map((service) => (
+                          <MenuItem key={service.id} value={service.id}>
+                            {service.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <Typography variant="body1" sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '500',
+                      fontSize: '15px',
+                      color: '#202124',
+                      p: 1.5,
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px'
+                    }}>
+                      {selectedAppointment.procedure}
+                    </Typography>
+                  )}
+                </Box>
+
+                {/* Status */}
+                <Box>
+                  <Typography variant="body2" sx={{ 
+                    color: '#5f6368', 
+                    fontFamily: 'Inter, sans-serif', 
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    mb: 1
+                  }}>
+                    Status
                   </Typography>
-                  <Typography variant="body1" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>
-                    {selectedAppointment.timeStart} - {selectedAppointment.timeEnd}
-                  </Typography>
+                  {editMode ? (
+                    <FormControl size="small" fullWidth>
+                      <Select
+                        value={editedAppointment?.status || ''}
+                        onChange={(e) => handleEditChange('status', e.target.value)}
+                        sx={{ 
+                          borderRadius: '8px',
+                          fontFamily: 'Inter, sans-serif'
+                        }}
+                      >
+                        {statusOptions.map((status) => (
+                          <MenuItem key={status.value} value={status.value}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Circle sx={{ color: status.color, fontSize: 12 }} />
+                              {status.label}
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <Chip 
+                      label={selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1)}
+                      sx={{ 
+                        backgroundColor: statusColors[selectedAppointment.status] || statusColors.scheduled,
+                        color: 'white',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: '500',
+                        width: '100%',
+                        height: '40px'
+                      }}
+                    />
+                  )}
                 </Box>
               </Box>
-            </Box>
 
-            {/* Service Info */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-              <MedicalServices sx={{ color: '#5f6368' }} />
+              {/* Comments Full Width */}
               <Box>
-                <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
-                  Service
-                </Typography>
-                <Typography variant="body1" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>
-                  {selectedAppointment.procedure}
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* Current Status */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px', mb: 1 }}>
-                Current Status
-              </Typography>
-              <Chip 
-                label={selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1)}
-                sx={{ 
-                  backgroundColor: statusColors[selectedAppointment.status] || statusColors.scheduled,
-                  color: 'white',
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: '500'
-                }}
-              />
-            </Box>
-
-            {/* Update Status */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px', mb: 2 }}>
-                Update Status
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {statusOptions.map((status) => (
-                  <Button
-                    key={status.value}
-                    variant={selectedAppointment.status === status.value ? "contained" : "outlined"}
-                    onClick={() => handleStatusChange(status.value)}
-                    disabled={updating || selectedAppointment.status === status.value}
-                    sx={{
-                      backgroundColor: selectedAppointment.status === status.value ? status.color : 'transparent',
-                      borderColor: status.color,
-                      color: selectedAppointment.status === status.value ? 'white' : status.color,
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '12px',
-                      textTransform: 'none',
-                      '&:hover': {
-                        backgroundColor: selectedAppointment.status === status.value ? status.color : `${status.color}10`,
-                        borderColor: status.color,
-                      },
-                      '&:disabled': {
-                        opacity: 0.6
-                      }
-                    }}
-                  >
-                    {updating && selectedAppointment.status !== status.value ? 'Updating...' : status.label}
-                  </Button>
-                ))}
-              </Box>
-            </Box>
-
-            {/* Comments */}
-            {selectedAppointment.comments && (
-              <Box>
-                <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px', mb: 1 }}>
+                <Typography variant="body2" sx={{ 
+                  color: '#5f6368', 
+                  fontFamily: 'Inter, sans-serif', 
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  mb: 1
+                }}>
                   Comments
                 </Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'Inter, sans-serif', backgroundColor: '#f8f9fa', p: 2, borderRadius: '8px' }}>
-                  {selectedAppointment.comments}
-                </Typography>
+                {editMode ? (
+                  <TextField
+                    multiline
+                    rows={4}
+                    fullWidth
+                    value={editedAppointment?.comments || ''}
+                    onChange={(e) => handleEditChange('comments', e.target.value)}
+                    placeholder="Add comments..."
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        fontFamily: 'Inter, sans-serif',
+                        backgroundColor: '#f8f9fa'
+                      }
+                    }}
+                  />
+                ) : (
+                  <Typography variant="body2" sx={{ 
+                    fontFamily: 'Inter, sans-serif', 
+                    backgroundColor: '#f8f9fa', 
+                    p: 2, 
+                    borderRadius: '8px',
+                    minHeight: '80px',
+                    fontSize: '14px',
+                    lineHeight: 1.6,
+                    color: selectedAppointment.comments ? '#202124' : '#5f6368'
+                  }}>
+                    {selectedAppointment.comments || 'No comments added'}
+                  </Typography>
+                )}
               </Box>
-            )}
+            </Box>
           </DialogContent>
         )}
         
@@ -714,7 +961,9 @@ export default function Appointments() {
             sx={{ 
               color: '#5f6368',
               fontFamily: 'Inter, sans-serif',
-              textTransform: 'none'
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: '500'
             }}
           >
             Close
