@@ -158,6 +158,33 @@ db.run(`
   }
 });
 
+// Create visit logs table
+db.run(`
+  CREATE TABLE IF NOT EXISTS visit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patientId INTEGER NOT NULL,
+    appointmentId INTEGER NOT NULL,
+    visitDate TEXT NOT NULL,
+    timeStart TEXT NOT NULL,
+    timeEnd TEXT NOT NULL,
+    attendingDentist TEXT NOT NULL,
+    concern TEXT,
+    proceduresDone TEXT,
+    progressNotes TEXT,
+    notes TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patientId) REFERENCES patients (id),
+    FOREIGN KEY (appointmentId) REFERENCES appointments (id)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating visit_logs table:', err);
+  } else {
+    console.log('✅ Visit logs table ready');
+  }
+});
+
 
 
 //APPOINTMENTS AYAW SAG HILABTI//
@@ -535,6 +562,151 @@ app.put('/appointments/:id', (req, res) => {
 });
 
 //APPOINTMENTS AYAW SAG HILABTI//
+
+//VISIT LOGS ENDPOINTS//
+
+// Create a new visit log
+app.post('/visit-logs', (req, res) => {
+  const {
+    patientId,
+    appointmentId,
+    visitDate,
+    timeStart,
+    timeEnd,
+    attendingDentist,
+    concern,
+    proceduresDone,
+    progressNotes,
+    notes
+  } = req.body;
+
+  const query = `
+    INSERT INTO visit_logs (
+      patientId, appointmentId, visitDate, timeStart, timeEnd,
+      attendingDentist, concern, proceduresDone, progressNotes, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.run(query, [
+    patientId, appointmentId, visitDate, timeStart, timeEnd,
+    attendingDentist, concern, proceduresDone, progressNotes, notes
+  ], function(err) {
+    if (err) {
+      console.error('Error creating visit log:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    console.log('Visit log created successfully with ID:', this.lastID);
+    res.json({ 
+      id: this.lastID, 
+      message: 'Visit log created successfully' 
+    });
+  });
+});
+
+// Get visit logs for a specific patient
+app.get('/visit-logs/patient/:patientId', (req, res) => {
+  const { patientId } = req.params;
+  
+  const query = `
+    SELECT 
+      vl.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      a.appointmentDate,
+      s.name as serviceName
+    FROM visit_logs vl
+    LEFT JOIN patients p ON vl.patientId = p.id
+    LEFT JOIN appointments a ON vl.appointmentId = a.id
+    LEFT JOIN services s ON a.serviceId = s.id
+    WHERE vl.patientId = ?
+    ORDER BY vl.visitDate DESC, vl.timeStart DESC
+  `;
+  
+  db.all(query, [patientId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching visit logs:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// Get visit logs for a specific appointment
+app.get('/visit-logs/appointment/:appointmentId', (req, res) => {
+  const { appointmentId } = req.params;
+  
+  const query = `
+    SELECT 
+      vl.*,
+      p.firstName || ' ' || p.lastName as patientName
+    FROM visit_logs vl
+    LEFT JOIN patients p ON vl.patientId = p.id
+    WHERE vl.appointmentId = ?
+    ORDER BY vl.createdAt DESC
+  `;
+  
+  db.get(query, [appointmentId], (err, row) => {
+    if (err) {
+      console.error('Error fetching visit log:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(row || null);
+  });
+});
+
+// Update a visit log
+app.put('/visit-logs/:id', (req, res) => {
+  const { id } = req.params;
+  const {
+    attendingDentist,
+    concern,
+    proceduresDone,
+    progressNotes,
+    notes
+  } = req.body;
+
+  const query = `
+    UPDATE visit_logs 
+    SET attendingDentist = ?, concern = ?, proceduresDone = ?, 
+        progressNotes = ?, notes = ?, updatedAt = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `;
+
+  db.run(query, [
+    attendingDentist, concern, proceduresDone, progressNotes, notes, id
+  ], function(err) {
+    if (err) {
+      console.error('Error updating visit log:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Visit log not found' });
+    }
+    
+    res.json({ message: 'Visit log updated successfully' });
+  });
+});
+
+// Delete a visit log
+app.delete('/visit-logs/:id', (req, res) => {
+  const { id } = req.params;
+  
+  db.run('DELETE FROM visit_logs WHERE id = ?', [id], function(err) {
+    if (err) {
+      console.error('Error deleting visit log:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Visit log not found' });
+    }
+    
+    res.json({ message: 'Visit log deleted successfully' });
+  });
+});
+
+//VISIT LOGS ENDPOINTS//
 
 
 
@@ -1159,6 +1331,16 @@ app.get('/patients', (req, res) => {
   db.all('SELECT * FROM patients', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
+  });
+});
+
+// Get individual patient by ID
+app.get('/patients/:id', (req, res) => {
+  const patientId = req.params.id;
+  db.get('SELECT * FROM patients WHERE id = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Patient not found' });
+    res.json(row);
   });
 });
 
