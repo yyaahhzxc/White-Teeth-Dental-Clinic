@@ -7,13 +7,25 @@ import {
   Select, 
   MenuItem, 
   FormControl,
-  Paper
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Chip,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import { 
   ChevronLeft, 
   ChevronRight,
   ArrowDropDown,
-  Circle
+  Circle,
+  Close,
+  CalendarToday,
+  AccessTime,
+  Person,
+  MedicalServices
 } from '@mui/icons-material';
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
@@ -24,6 +36,13 @@ export default function Appointments() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // Modal states
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [updateError, setUpdateError] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -36,72 +55,136 @@ export default function Appointments() {
     fetchAppointmentsForWeek();
   }, [currentDate]);
 
- // Update the fetchAppointmentsForWeek function
-const fetchAppointmentsForWeek = async () => {
-  setLoading(true);
-  try {
-    const weekDates = getWeekDates(currentDate);
-    const startDate = weekDates[0].toISOString().split('T')[0];
-    const endDate = weekDates[6].toISOString().split('T')[0];
+  // Function to fetch appointments
+  const fetchAppointmentsForWeek = async () => {
+    setLoading(true);
+    try {
+      const weekDates = getWeekDates(currentDate);
+      const startDate = weekDates[0].toISOString().split('T')[0];
+      const endDate = weekDates[6].toISOString().split('T')[0];
 
-    console.log('Fetching appointments for:', { startDate, endDate });
-    const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('Raw appointment data:', data);
+      console.log('Fetching appointments for:', { startDate, endDate });
+      const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       
-      const transformedAppointments = data.map(apt => {
-        const appointmentDate = new Date(apt.appointmentDate);
-        const dayIndex = appointmentDate.getDay();
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Raw appointment data:', data);
         
-        // Calculate actual duration based on start and end times
-        let calculatedDuration = 1; // Default to 1 hour
-        
-        if (apt.timeStart && apt.timeEnd) {
-          const [startHour, startMin] = apt.timeStart.split(':').map(Number);
-          const [endHour, endMin] = apt.timeEnd.split(':').map(Number);
+        const transformedAppointments = data.map(apt => {
+          const appointmentDate = new Date(apt.appointmentDate);
+          const dayIndex = appointmentDate.getDay();
           
-          const startMinutes = startHour * 60 + startMin;
-          const endMinutes = endHour * 60 + endMin;
+          // Calculate actual duration based on start and end times
+          let calculatedDuration = 1; // Default to 1 hour
           
-          const durationMinutes = endMinutes - startMinutes;
-          // Convert to hours and round to nearest 0.5 hour for better display
-          calculatedDuration = Math.max(0.5, Math.round((durationMinutes / 60) * 2) / 2);
-        }
+          if (apt.timeStart && apt.timeEnd) {
+            const [startHour, startMin] = apt.timeStart.split(':').map(Number);
+            const [endHour, endMin] = apt.timeEnd.split(':').map(Number);
+            
+            const startMinutes = startHour * 60 + startMin;
+            const endMinutes = endHour * 60 + endMin;
+            
+            const durationMinutes = endMinutes - startMinutes;
+            // Convert to hours and round to nearest 0.5 hour for better display
+            calculatedDuration = Math.max(0.5, Math.round((durationMinutes / 60) * 2) / 2);
+          }
+          
+          const transformed = {
+            id: apt.id,
+            patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+            procedure: apt.serviceName || 'No Service',
+            time: apt.timeStart,
+            day: dayIndex,
+            status: apt.status ? apt.status.toLowerCase() : 'scheduled',
+            duration: calculatedDuration,
+            appointmentDate: apt.appointmentDate,
+            timeStart: apt.timeStart,
+            timeEnd: apt.timeEnd,
+            comments: apt.comments,
+            patientId: apt.patientId,
+            serviceId: apt.serviceId
+          };
+          
+          console.log('Transformed appointment:', transformed);
+          return transformed;
+        });
         
-        const transformed = {
-          id: apt.id,
-          patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-          procedure: apt.serviceName || 'No Service',
-          time: apt.timeStart,
-          day: dayIndex,
-          status: apt.status ? apt.status.toLowerCase() : 'scheduled',
-          duration: calculatedDuration,
-          appointmentDate: apt.appointmentDate,
-          timeStart: apt.timeStart,
-          timeEnd: apt.timeEnd,
-          comments: apt.comments
-        };
-        
-        console.log('Transformed appointment:', transformed);
-        return transformed;
-      });
-      
-      console.log('All transformed appointments:', transformedAppointments);
-      setAppointments(transformedAppointments);
-    } else {
-      console.error('Failed to fetch appointments:', response.status, response.statusText);
+        console.log('All transformed appointments:', transformedAppointments);
+        setAppointments(transformedAppointments);
+      } else {
+        console.error('Failed to fetch appointments:', response.status, response.statusText);
+        setAppointments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
       setAppointments([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-    setAppointments([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
+  // Function to update appointment status
+  const updateAppointmentStatus = async (appointmentId, newStatus) => {
+    setUpdating(true);
+    setUpdateError(null);
+    
+    try {
+      console.log('Updating appointment:', { appointmentId, newStatus });
+      
+      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus
+        }),
+      });
+
+      console.log('Update response status:', response.status);
+      
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('Update successful:', responseData);
+        
+        setUpdateSuccess(true);
+        
+        // Refresh appointments data
+        await fetchAppointmentsForWeek();
+        setModalOpen(false);
+        setSelectedAppointment(null);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update appointment:', response.status, response.statusText);
+        console.error('Error response:', errorText);
+        setUpdateError(`Failed to update: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      setUpdateError(`Network error: ${error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Handle appointment click
+  const handleAppointmentClick = (appointment) => {
+    setSelectedAppointment(appointment);
+    setModalOpen(true);
+  };
+
+  // Close modal
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedAppointment(null);
+  };
+
+  // Handle status change
+  const handleStatusChange = (newStatus) => {
+    if (selectedAppointment) {
+      updateAppointmentStatus(selectedAppointment.id, newStatus);
+    }
+  };
 
   const statusColors = {
     cancelled: '#ea4335',
@@ -113,6 +196,14 @@ const fetchAppointmentsForWeek = async () => {
     scheduled: '#e8710a',
     upcoming: '#e8710a'
   };
+
+  const statusOptions = [
+    { value: 'scheduled', label: 'Scheduled', color: '#e8710a' },
+    { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' },
+    { value: 'done', label: 'Done', color: '#0d652d' },
+    { value: 'partial paid', label: 'Partial Paid', color: '#fbbc04' },
+    { value: 'cancelled', label: 'Cancelled', color: '#ea4335' }
+  ];
 
   const timeSlots = [
     '7 AM', '8 AM', '9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM', '8 PM', '9 PM', '10 PM'
@@ -158,35 +249,30 @@ const fetchAppointmentsForWeek = async () => {
     return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}`;
   };
 
- // Update the getAppointmentsForSlot function to handle overlapping appointments better
-const getAppointmentsForSlot = (dayIndex, timeSlot) => {
-  const [timeStr, period] = timeSlot.split(' ');
-  const hour = parseInt(timeStr, 10);
-  
-  let hour24;
-  if (period === 'AM') {
-    hour24 = hour === 12 ? 0 : hour;
-  } else {
-    hour24 = hour === 12 ? 12 : hour + 12;
-  }
-  
-  const slotAppointments = appointments.filter(apt => {
-    if (apt.day !== dayIndex) return false;
+  const getAppointmentsForSlot = (dayIndex, timeSlot) => {
+    const [timeStr, period] = timeSlot.split(' ');
+    const hour = parseInt(timeStr, 10);
     
-    const [aptHour, aptMinute] = apt.time.split(':').map(Number);
-    const aptStartMinutes = aptHour * 60 + aptMinute;
-    const slotStartMinutes = hour24 * 60;
-    const slotEndMinutes = slotStartMinutes + 60;
+    let hour24;
+    if (period === 'AM') {
+      hour24 = hour === 12 ? 0 : hour;
+    } else {
+      hour24 = hour === 12 ? 12 : hour + 12;
+    }
     
-    // Check if appointment starts within this hour slot
-    // This ensures each appointment only appears in one slot (where it starts)
-    return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
-  });
-  
-  console.log(`Appointments for day ${dayIndex}, slot ${timeSlot} (${hour24}:00):`, slotAppointments);
-  return slotAppointments;
-};
-
+    const slotAppointments = appointments.filter(apt => {
+      if (apt.day !== dayIndex) return false;
+      
+      const [aptHour, aptMinute] = apt.time.split(':').map(Number);
+      const aptStartMinutes = aptHour * 60 + aptMinute;
+      const slotStartMinutes = hour24 * 60;
+      const slotEndMinutes = slotStartMinutes + 60;
+      
+      return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
+    });
+    
+    return slotAppointments;
+  };
 
   const calculateCurrentTimePosition = () => {
     const now = currentTime;
@@ -206,10 +292,6 @@ const getAppointmentsForSlot = (dayIndex, timeSlot) => {
 
   const timeIndicatorPosition = calculateCurrentTimePosition();
   const todayIndex = weekDates.findIndex(d => d.toDateString() === new Date().toDateString());
-
-  // Debug: Show appointments count
-  console.log('Current appointments state:', appointments);
-  console.log('Appointments count:', appointments.length);
 
   return (
     <Box sx={{ bgcolor: '#2148c0', minHeight: '100vh' }}>
@@ -278,10 +360,6 @@ const getAppointmentsForSlot = (dayIndex, timeSlot) => {
               <Typography variant="h6" sx={{ color: '#70757a', fontSize: '22px', fontWeight: '400', fontFamily: 'Inter, sans-serif', ml: 1 }}>
                 {formatWeekRange(weekDates)}
                 {loading && <Typography component="span" sx={{ ml: 1, fontSize: '14px', color: '#999' }}>Loading...</Typography>}
-              </Typography>
-              {/* Debug info */}
-              <Typography variant="caption" sx={{ ml: 2, color: '#999' }}>
-                Appointments: {appointments.length}
               </Typography>
             </Box>
 
@@ -412,6 +490,7 @@ const getAppointmentsForSlot = (dayIndex, timeSlot) => {
                             <Paper
                               key={appointment.id}
                               elevation={0}
+                              onClick={() => handleAppointmentClick(appointment)}
                               sx={{
                                 p: '8px 12px',
                                 backgroundColor: statusColors[appointment.status] || statusColors.scheduled,
@@ -426,8 +505,10 @@ const getAppointmentsForSlot = (dayIndex, timeSlot) => {
                                 top: '4px',
                                 boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                                 zIndex: 20,
+                                transition: 'transform 0.2s, box-shadow 0.2s',
                                 '&:hover': {
-                                  opacity: 0.9
+                                  transform: 'translateY(-2px)',
+                                  boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
                                 }
                               }}
                             >
@@ -446,7 +527,7 @@ const getAppointmentsForSlot = (dayIndex, timeSlot) => {
                       {dayIndex === todayIndex && timeIndicatorPosition !== null && (
                         <Box sx={{
                           position: 'absolute',
-                          top: `${timeIndicatorPosition + 20}px`, // Add 20px to account for padding
+                          top: `${timeIndicatorPosition + 20}px`,
                           left: 0,
                           right: 0,
                           height: '2px',
@@ -478,6 +559,191 @@ const getAppointmentsForSlot = (dayIndex, timeSlot) => {
           </Box>
         </Paper>
       </Box>
+      
+      {/* Appointment Details Modal */}
+      <Dialog 
+        open={modalOpen} 
+        onClose={handleCloseModal}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            boxShadow: '0px 24px 48px rgba(0, 0, 0, 0.1)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          pb: 1,
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '20px',
+          fontWeight: '600'
+        }}>
+          Appointment Details
+          <IconButton onClick={handleCloseModal} size="small">
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        
+        {selectedAppointment && (
+          <DialogContent sx={{ pt: 1 }}>
+            {/* Patient Info */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <Person sx={{ color: '#5f6368' }} />
+              <Box>
+                <Typography variant="h6" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', fontSize: '18px' }}>
+                  {selectedAppointment.patientName}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif' }}>
+                  Patient
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Appointment Info */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CalendarToday sx={{ color: '#5f6368', fontSize: 20 }} />
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
+                    Date
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>
+                    {new Date(selectedAppointment.appointmentDate).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AccessTime sx={{ color: '#5f6368', fontSize: 20 }} />
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
+                    Time
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>
+                    {selectedAppointment.timeStart} - {selectedAppointment.timeEnd}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Service Info */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <MedicalServices sx={{ color: '#5f6368' }} />
+              <Box>
+                <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
+                  Service
+                </Typography>
+                <Typography variant="body1" sx={{ fontFamily: 'Inter, sans-serif', fontWeight: '500' }}>
+                  {selectedAppointment.procedure}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Current Status */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px', mb: 1 }}>
+                Current Status
+              </Typography>
+              <Chip 
+                label={selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1)}
+                sx={{ 
+                  backgroundColor: statusColors[selectedAppointment.status] || statusColors.scheduled,
+                  color: 'white',
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: '500'
+                }}
+              />
+            </Box>
+
+            {/* Update Status */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px', mb: 2 }}>
+                Update Status
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {statusOptions.map((status) => (
+                  <Button
+                    key={status.value}
+                    variant={selectedAppointment.status === status.value ? "contained" : "outlined"}
+                    onClick={() => handleStatusChange(status.value)}
+                    disabled={updating || selectedAppointment.status === status.value}
+                    sx={{
+                      backgroundColor: selectedAppointment.status === status.value ? status.color : 'transparent',
+                      borderColor: status.color,
+                      color: selectedAppointment.status === status.value ? 'white' : status.color,
+                      fontFamily: 'Inter, sans-serif',
+                      fontSize: '12px',
+                      textTransform: 'none',
+                      '&:hover': {
+                        backgroundColor: selectedAppointment.status === status.value ? status.color : `${status.color}10`,
+                        borderColor: status.color,
+                      },
+                      '&:disabled': {
+                        opacity: 0.6
+                      }
+                    }}
+                  >
+                    {updating && selectedAppointment.status !== status.value ? 'Updating...' : status.label}
+                  </Button>
+                ))}
+              </Box>
+            </Box>
+
+            {/* Comments */}
+            {selectedAppointment.comments && (
+              <Box>
+                <Typography variant="body2" sx={{ color: '#5f6368', fontFamily: 'Inter, sans-serif', fontSize: '12px', mb: 1 }}>
+                  Comments
+                </Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'Inter, sans-serif', backgroundColor: '#f8f9fa', p: 2, borderRadius: '8px' }}>
+                  {selectedAppointment.comments}
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+        )}
+        
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={handleCloseModal}
+            disabled={updating}
+            sx={{ 
+              color: '#5f6368',
+              fontFamily: 'Inter, sans-serif',
+              textTransform: 'none'
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Success/Error Snackbars */}
+      <Snackbar 
+        open={updateSuccess} 
+        autoHideDuration={3000} 
+        onClose={() => setUpdateSuccess(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setUpdateSuccess(false)} severity="success">
+          Appointment updated successfully!
+        </Alert>
+      </Snackbar>
+      
+      <Snackbar 
+        open={!!updateError} 
+        autoHideDuration={6000} 
+        onClose={() => setUpdateError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setUpdateError(null)} severity="error">
+          {updateError}
+        </Alert>
+      </Snackbar>
       
       <QuickActionButton />
     </Box>

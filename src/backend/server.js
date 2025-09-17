@@ -353,7 +353,7 @@ app.post('/appointments', (req, res) => {
   });
 });
 
-// PUT update appointment
+// Replace your existing PUT appointments endpoint with this updated version
 app.put('/appointments/:id', (req, res) => {
   const { id } = req.params;
   const {
@@ -366,90 +366,173 @@ app.put('/appointments/:id', (req, res) => {
     status
   } = req.body;
 
-  // Check for appointment conflicts (excluding current appointment)
-  const conflictQuery = `
-    SELECT id FROM appointments 
-    WHERE appointmentDate = ? 
-    AND id != ?
-    AND (
-      (timeStart <= ? AND timeEnd > ?) OR
-      (timeStart < ? AND timeEnd >= ?) OR
-      (timeStart >= ? AND timeEnd <= ?)
-    )
-    AND status != 'Cancelled'
-  `;
+  console.log('PUT request for appointment:', id);
+  console.log('Request body:', req.body);
 
-  db.get(conflictQuery, [
-    appointmentDate, 
-    id,
-    timeStart, timeStart, 
-    timeEnd, timeEnd, 
-    timeStart, timeEnd
-  ], (conflictErr, conflictRow) => {
-    if (conflictErr) {
-      console.error('Error checking appointment conflicts:', conflictErr);
-      return res.status(500).json({ error: 'Failed to check appointment conflicts' });
-    }
-
-    if (conflictRow) {
-      return res.status(409).json({ 
-        error: 'Appointment time conflict detected. Please choose a different time slot.' 
-      });
-    }
-
-    const updateQuery = `
-      UPDATE appointments 
-      SET patientId = ?, serviceId = ?, appointmentDate = ?, timeStart = ?, timeEnd = ?, 
-          comments = ?, status = ?, updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `;
-
-    db.run(updateQuery, [
-      patientId, 
-      serviceId, 
-      appointmentDate, 
-      timeStart, 
-      timeEnd, 
-      comments || '', 
-      status || 'Scheduled', 
-      id
-    ], function(updateErr) {
-      if (updateErr) {
-        console.error('Error updating appointment:', updateErr);
-        res.status(500).json({ error: 'Failed to update appointment' });
-      } else if (this.changes === 0) {
-        res.status(404).json({ error: 'Appointment not found' });
-      } else {
-        // Return updated appointment with joined data
-        const selectQuery = `
-          SELECT 
-            a.*,
-            p.firstName || ' ' || p.lastName as patientName,
-            p.firstName,
-            p.lastName,
-            s.name as serviceName,
-            s.duration as serviceDuration,
-            s.price as servicePrice
-          FROM appointments a
-          LEFT JOIN patients p ON a.patientId = p.id
-          LEFT JOIN services s ON a.serviceId = s.id
-          WHERE a.id = ?
-        `;
-        
-        db.get(selectQuery, [id], (selectErr, row) => {
-          if (selectErr) {
-            console.error('Error fetching updated appointment:', selectErr);
-            res.status(500).json({ error: 'Appointment updated but failed to fetch details' });
-          } else {
-            res.json(row);
-          }
-        });
+  // Build the update query dynamically based on what fields are provided
+  const updates = [];
+  const values = [];
+  
+  if (patientId !== undefined) {
+    updates.push('patientId = ?');
+    values.push(patientId);
+  }
+  
+  if (serviceId !== undefined) {
+    updates.push('serviceId = ?');
+    values.push(serviceId);
+  }
+  
+  if (appointmentDate !== undefined) {
+    updates.push('appointmentDate = ?');
+    values.push(appointmentDate);
+  }
+  
+  if (timeStart !== undefined) {
+    updates.push('timeStart = ?');
+    values.push(timeStart);
+  }
+  
+  if (timeEnd !== undefined) {
+    updates.push('timeEnd = ?');
+    values.push(timeEnd);
+  }
+  
+  if (comments !== undefined) {
+    updates.push('comments = ?');
+    values.push(comments);
+  }
+  
+  if (status !== undefined) {
+    // Convert frontend status to backend format
+    const statusMapping = {
+      'scheduled': 'Scheduled',
+      'ongoing': 'Ongoing', 
+      'done': 'Done',
+      'partial paid': 'Partial Paid',
+      'cancelled': 'Cancelled'
+    };
+    const backendStatus = statusMapping[status.toLowerCase()] || 'Scheduled';
+    updates.push('status = ?');
+    values.push(backendStatus);
+    console.log('Converting status:', status, '->', backendStatus);
+  }
+  
+  // Always update the updatedAt timestamp
+  updates.push('updatedAt = CURRENT_TIMESTAMP');
+  
+  if (updates.length === 1) { // Only updatedAt was added
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+  
+  // Add the ID for the WHERE clause
+  values.push(id);
+  
+  const query = `UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`;
+  
+  console.log('Update query:', query);
+  console.log('Query values:', values);
+  
+  // If we're updating time-related fields, check for conflicts
+  if (appointmentDate !== undefined || timeStart !== undefined || timeEnd !== undefined) {
+    // For partial updates, we need to get current values first
+    db.get('SELECT * FROM appointments WHERE id = ?', [id], (err, currentAppt) => {
+      if (err) {
+        console.error('Error fetching current appointment:', err);
+        return res.status(500).json({ error: 'Database error' });
       }
+      
+      if (!currentAppt) {
+        return res.status(404).json({ error: 'Appointment not found' });
+      }
+      
+      // Use provided values or fall back to current values
+      const checkDate = appointmentDate || currentAppt.appointmentDate;
+      const checkStartTime = timeStart || currentAppt.timeStart;
+      const checkEndTime = timeEnd || currentAppt.timeEnd;
+      
+      // Check for conflicts with other appointments
+      const conflictQuery = `
+        SELECT id FROM appointments 
+        WHERE appointmentDate = ? 
+        AND id != ?
+        AND (
+          (timeStart <= ? AND timeEnd > ?) OR
+          (timeStart < ? AND timeEnd >= ?) OR
+          (timeStart >= ? AND timeEnd <= ?)
+        )
+        AND status NOT IN ('Cancelled', 'cancelled')
+      `;
+
+      db.get(conflictQuery, [
+        checkDate, 
+        id,
+        checkStartTime, checkStartTime, 
+        checkEndTime, checkEndTime, 
+        checkStartTime, checkEndTime
+      ], (conflictErr, conflictRow) => {
+        if (conflictErr) {
+          console.error('Error checking appointment conflicts:', conflictErr);
+          return res.status(500).json({ error: 'Failed to check appointment conflicts' });
+        }
+
+        if (conflictRow) {
+          return res.status(409).json({ 
+            error: 'Appointment time conflict detected. Please choose a different time slot.' 
+          });
+        }
+
+        // No conflicts, proceed with update
+        performUpdate();
+      });
     });
-  });
+  } else {
+    // No time-related updates, skip conflict check
+    performUpdate();
+  }
+
+  function performUpdate() {
+    db.run(query, values, function(err) {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Database error', details: err.message });
+      }
+      
+      if (this.changes === 0) {
+        console.log('No appointment found with ID:', id);
+        return res.status(404).json({ error: 'Appointment not found' });
+      }
+      
+      console.log('Appointment updated successfully. Changes:', this.changes);
+      
+      // Return the updated appointment with joined data
+      const selectQuery = `
+        SELECT 
+          a.*,
+          p.firstName || ' ' || p.lastName as patientName,
+          p.firstName,
+          p.lastName,
+          s.name as serviceName,
+          s.duration as serviceDuration,
+          s.price as servicePrice
+        FROM appointments a
+        LEFT JOIN patients p ON a.patientId = p.id
+        LEFT JOIN services s ON a.serviceId = s.id
+        WHERE a.id = ?
+      `;
+      
+      db.get(selectQuery, [id], (err, row) => {
+        if (err) {
+          console.error('Error fetching updated appointment:', err);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        
+        console.log('Returning updated appointment:', row);
+        res.json({ message: 'Appointment updated successfully', appointment: row });
+      });
+    });
+  }
 });
-
-
 
 //APPOINTMENTS AYAW SAG HILABTI//
 
