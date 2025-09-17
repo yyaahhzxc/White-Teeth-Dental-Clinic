@@ -17,62 +17,100 @@ import {
 } from '@mui/icons-material';
 import Header from './header';
 import QuickActionButton from './QuickActionButton';
+import { API_BASE } from './apiConfig';
 
 export default function Appointments() {
-  const [currentDate, setCurrentDate] = useState(new Date('2025-09-16T14:30:00'));
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 60000);
     return () => clearInterval(timer);
   }, []);
   
-  const appointments = [
-    {
-      id: 1,
-      patientName: 'Haytham Reyes',
-      procedure: 'Wisdom Tooth',
-      time: '12:00',
-      day: 1, // Monday  
-      status: 'ongoing',
-      duration: 1
-    },
-    {
-      id: 2,
-      patientName: 'Drake Lamar',
-      procedure: 'Halitosis',
-      time: '14:00',
-      day: 1, // Monday
-      status: 'cancelled',
-      duration: 1
-    },
-    {
-      id: 3,
-      patientName: 'Jan Kenneth Andao',
-      procedure: 'Braces',
-      time: '16:00',
-      day: 2, // Tuesday
-      status: 'ongoing',
-      duration: 1
-    },
-    {
-      id: 4,
-      patientName: 'Vince Valmores',
-      procedure: 'Tooth Replacement',
-      time: '14:00',
-      day: 3, // Wednesday
-      status: 'done',
-      duration: 2
+  useEffect(() => {
+    fetchAppointmentsForWeek();
+  }, [currentDate]);
+
+ // Update the fetchAppointmentsForWeek function
+const fetchAppointmentsForWeek = async () => {
+  setLoading(true);
+  try {
+    const weekDates = getWeekDates(currentDate);
+    const startDate = weekDates[0].toISOString().split('T')[0];
+    const endDate = weekDates[6].toISOString().split('T')[0];
+
+    console.log('Fetching appointments for:', { startDate, endDate });
+    const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Raw appointment data:', data);
+      
+      const transformedAppointments = data.map(apt => {
+        const appointmentDate = new Date(apt.appointmentDate);
+        const dayIndex = appointmentDate.getDay();
+        
+        // Calculate actual duration based on start and end times
+        let calculatedDuration = 1; // Default to 1 hour
+        
+        if (apt.timeStart && apt.timeEnd) {
+          const [startHour, startMin] = apt.timeStart.split(':').map(Number);
+          const [endHour, endMin] = apt.timeEnd.split(':').map(Number);
+          
+          const startMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+          
+          const durationMinutes = endMinutes - startMinutes;
+          // Convert to hours and round to nearest 0.5 hour for better display
+          calculatedDuration = Math.max(0.5, Math.round((durationMinutes / 60) * 2) / 2);
+        }
+        
+        const transformed = {
+          id: apt.id,
+          patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+          procedure: apt.serviceName || 'No Service',
+          time: apt.timeStart,
+          day: dayIndex,
+          status: apt.status ? apt.status.toLowerCase() : 'scheduled',
+          duration: calculatedDuration,
+          appointmentDate: apt.appointmentDate,
+          timeStart: apt.timeStart,
+          timeEnd: apt.timeEnd,
+          comments: apt.comments
+        };
+        
+        console.log('Transformed appointment:', transformed);
+        return transformed;
+      });
+      
+      console.log('All transformed appointments:', transformedAppointments);
+      setAppointments(transformedAppointments);
+    } else {
+      console.error('Failed to fetch appointments:', response.status, response.statusText);
+      setAppointments([]);
     }
-  ];
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    setAppointments([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const statusColors = {
     cancelled: '#ea4335',
+    canceled: '#ea4335',
     'partial paid': '#fbbc04', 
     done: '#0d652d',
+    completed: '#0d652d',
     ongoing: '#1a73e8',
+    scheduled: '#e8710a',
     upcoming: '#e8710a'
   };
 
@@ -120,39 +158,46 @@ export default function Appointments() {
     return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}`;
   };
 
-  const getAppointmentsForSlot = (dayIndex, timeSlot) => {
-    // Parse time slot like "2 PM" or "11 AM"
-    const [timeStr, period] = timeSlot.split(' ');
-    const hour = parseInt(timeStr, 10);
+ // Update the getAppointmentsForSlot function to handle overlapping appointments better
+const getAppointmentsForSlot = (dayIndex, timeSlot) => {
+  const [timeStr, period] = timeSlot.split(' ');
+  const hour = parseInt(timeStr, 10);
+  
+  let hour24;
+  if (period === 'AM') {
+    hour24 = hour === 12 ? 0 : hour;
+  } else {
+    hour24 = hour === 12 ? 12 : hour + 12;
+  }
+  
+  const slotAppointments = appointments.filter(apt => {
+    if (apt.day !== dayIndex) return false;
     
-    // Convert to 24-hour format
-    let hour24;
-    if (period === 'AM') {
-      hour24 = hour === 12 ? 0 : hour;
-    } else { // PM
-      hour24 = hour === 12 ? 12 : hour + 12;
-    }
+    const [aptHour, aptMinute] = apt.time.split(':').map(Number);
+    const aptStartMinutes = aptHour * 60 + aptMinute;
+    const slotStartMinutes = hour24 * 60;
+    const slotEndMinutes = slotStartMinutes + 60;
     
-    const timeString = `${hour24.toString().padStart(2, '0')}:00`;
-    
-    return appointments.filter(apt => 
-      apt.day === dayIndex && apt.time === timeString
-    );
-  };
+    // Check if appointment starts within this hour slot
+    // This ensures each appointment only appears in one slot (where it starts)
+    return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
+  });
+  
+  console.log(`Appointments for day ${dayIndex}, slot ${timeSlot} (${hour24}:00):`, slotAppointments);
+  return slotAppointments;
+};
+
 
   const calculateCurrentTimePosition = () => {
     const now = currentTime;
-    const startHour = 7; // 7 AM
-    const slotHeight = 80; // 80px per slot
+    const startHour = 7;
+    const slotHeight = 80;
     const currentHour = now.getHours();
     const currentMinutes = now.getMinutes();
-    // Only show time indicator if current time is within business hours
+    
     if (currentHour >= startHour && currentHour <= 22) {
-      // Calculate which time slot we're in (0-based index)
       const slotIndex = currentHour - startHour;
-      // Calculate position within the current hour (0-1)
       const progressWithinHour = currentMinutes / 60;
-      // Compute pixel position relative to the top of the time grid container (no header offset)
       const pixelPosition = (slotIndex * slotHeight) + (progressWithinHour * slotHeight);
       return pixelPosition;
     }
@@ -161,6 +206,10 @@ export default function Appointments() {
 
   const timeIndicatorPosition = calculateCurrentTimePosition();
   const todayIndex = weekDates.findIndex(d => d.toDateString() === new Date().toDateString());
+
+  // Debug: Show appointments count
+  console.log('Current appointments state:', appointments);
+  console.log('Appointments count:', appointments.length);
 
   return (
     <Box sx={{ bgcolor: '#2148c0', minHeight: '100vh' }}>
@@ -212,14 +261,27 @@ export default function Appointments() {
               >
                 Today
               </Button>
-              <IconButton onClick={() => navigateWeek(-1)} sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}>
+              <IconButton 
+                onClick={() => navigateWeek(-1)} 
+                disabled={loading}
+                sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}
+              >
                 <ChevronLeft />
               </IconButton>
-              <IconButton onClick={() => navigateWeek(1)} sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}>
+              <IconButton 
+                onClick={() => navigateWeek(1)} 
+                disabled={loading}
+                sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}
+              >
                 <ChevronRight />
               </IconButton>
               <Typography variant="h6" sx={{ color: '#70757a', fontSize: '22px', fontWeight: '400', fontFamily: 'Inter, sans-serif', ml: 1 }}>
                 {formatWeekRange(weekDates)}
+                {loading && <Typography component="span" sx={{ ml: 1, fontSize: '14px', color: '#999' }}>Loading...</Typography>}
+              </Typography>
+              {/* Debug info */}
+              <Typography variant="caption" sx={{ ml: 2, color: '#999' }}>
+                Appointments: {appointments.length}
               </Typography>
             </Box>
 
@@ -252,7 +314,9 @@ export default function Appointments() {
                 </Select>
               </FormControl>
               
-              {Object.entries(statusColors).map(([status, color]) => (
+              {Object.entries(statusColors).filter(([status]) => 
+                !['canceled', 'completed'].includes(status)
+              ).map(([status, color]) => (
                 <Box key={status} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Circle sx={{ color, fontSize: 16 }} />
                   <Typography variant="caption" sx={{ textTransform: 'capitalize', color: '#3c4043', fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px' }}>
@@ -263,7 +327,7 @@ export default function Appointments() {
             </Box>
           </Box>
 
-          {/* Day Headers (Fixed/Sticky) */}
+          {/* Day Headers */}
           <Box sx={{ display: 'flex', position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'white' }}>
             <Box sx={{ width: '80px', height: '80px', flexShrink: 0, backgroundColor: 'white' }} />
             {weekDates.map((date, dayIndex) => (
@@ -296,58 +360,53 @@ export default function Appointments() {
 
           {/* Calendar Grid */}
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            {/* Combined scrollable area for entire calendar */}
             <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
               {/* Time Column */}
               <Box sx={{ width: '80px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-                 {/* Add padding above first time slot to prevent header overlap */}
-                 <Box sx={{ height: '20px', flexShrink: 0 }} />
-                 {timeSlots.map((timeSlot, idx) => (
-                   // removed borderTop here; long horizontal lines are drawn from the day columns and extend into this time column
-                   <Box key={timeSlot} sx={{ height: '80px', position: 'relative', flexShrink: 0 }}>
-                     <Typography
-                       variant="body2"
-                       sx={{
-                         color: '#70757a',
-                         fontWeight: '400',
-                         fontFamily: 'Inter, sans-serif',
-                         fontSize: '10px',
-                         position: 'absolute',
-                         left: 8,
-                         top: 0,
-                         transform: 'translateY(-50%)',
-                         backgroundColor: 'white',
-                         px: '6px',
-                         height: '16px',
-                         display: 'flex',
-                         alignItems: 'center',
-                         borderRadius: '2px',
-                         zIndex: 3 // keep label above the shortened line
-                       }}
-                     >
-                       {timeSlot}
-                     </Typography>
-                   </Box>
-                 ))}
+                <Box sx={{ height: '20px', flexShrink: 0 }} />
+                {timeSlots.map((timeSlot, idx) => (
+                  <Box key={timeSlot} sx={{ height: '80px', position: 'relative', flexShrink: 0 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#70757a',
+                        fontWeight: '400',
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: '10px',
+                        position: 'absolute',
+                        left: 8,
+                        top: 0,
+                        transform: 'translateY(-50%)',
+                        backgroundColor: 'white',
+                        px: '6px',
+                        height: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderRadius: '2px',
+                        zIndex: 3
+                      }}
+                    >
+                      {timeSlot}
+                    </Typography>
+                  </Box>
+                ))}
               </Box>
 
               {/* Day Columns */}
-              <Box sx={{ flex: 1, display: 'flex', minHeight: '1280px' }}> {/* Fixed minimum height to ensure full coverage */}
+              <Box sx={{ flex: 1, display: 'flex', minHeight: '1280px' }}>
                 {weekDates.map((date, dayIndex) => (
                   <Box key={dayIndex} sx={{ 
                     flex: 1, 
-                    borderLeft: '1px solid #e0e0e0', // Add border to all columns including Sunday
+                    borderLeft: '1px solid #e0e0e0',
                     display: 'flex',
                     flexDirection: 'column',
                     position: 'relative',
                     minHeight: '100%'
                   }}>
                     <Box sx={{ flex: 1, position: 'relative', minHeight: '1280px' }}>
-                      {/* Add padding above first time slot to prevent header overlap */}
                       <Box sx={{ height: '20px', flexShrink: 0 }} />
                       {timeSlots.map((timeSlot, timeIndex) => (
                         <Box key={timeSlot} sx={{ height: '80px', p: 0, position: 'relative', flexShrink: 0 }}>
-                          {/* long horizontal line that extends into the time column (left) so it becomes the main time/grid line */}
                           <Box sx={{ position: 'absolute', top: 0, left: '-24px', right: '12px', height: '1px', bgcolor: '#e0e0e0', zIndex: 1 }} />
                           {getAppointmentsForSlot(dayIndex, timeSlot).map((appointment) => (
                             <Paper
@@ -355,7 +414,7 @@ export default function Appointments() {
                               elevation={0}
                               sx={{
                                 p: '8px 12px',
-                                backgroundColor: statusColors[appointment.status],
+                                backgroundColor: statusColors[appointment.status] || statusColors.scheduled,
                                 color: 'white',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
@@ -366,7 +425,7 @@ export default function Appointments() {
                                 right: '4px',
                                 top: '4px',
                                 boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                                zIndex: 20, // above grid lines but below sticky header
+                                zIndex: 20,
                                 '&:hover': {
                                   opacity: 0.9
                                 }
@@ -383,11 +442,11 @@ export default function Appointments() {
                         </Box>
                       ))}
                       
-                      {/* Current Time Indicator - only show on today's column */}
+                      {/* Current Time Indicator */}
                       {dayIndex === todayIndex && timeIndicatorPosition !== null && (
                         <Box sx={{
                           position: 'absolute',
-                          top: `${timeIndicatorPosition}px`,
+                          top: `${timeIndicatorPosition + 20}px`, // Add 20px to account for padding
                           left: 0,
                           right: 0,
                           height: '2px',
@@ -396,7 +455,6 @@ export default function Appointments() {
                           display: 'flex',
                           alignItems: 'center'
                         }}>
-                          {/* Red circle indicator */}
                           <Box sx={{
                             position: 'absolute',
                             left: '-6px',
@@ -405,7 +463,6 @@ export default function Appointments() {
                             borderRadius: '50%',
                             bgcolor: '#ea4335'
                           }}/>
-                          {/* Red line extending across the column */}
                           <Box sx={{
                             width: '100%',
                             height: '2px',

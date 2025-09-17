@@ -164,8 +164,43 @@ db.run(`
 
 
 
+// GET appointments by date range
+app.get('/appointments/date-range', (req, res) => {
+  const { startDate, endDate } = req.query;
+  
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'startDate and endDate parameters are required' });
+  }
+
+  const query = `
+    SELECT 
+      a.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      p.firstName,
+      p.lastName,
+      s.name as serviceName,
+      s.duration as serviceDuration,
+      s.price as servicePrice
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    LEFT JOIN services s ON a.serviceId = s.id
+    WHERE a.appointmentDate BETWEEN ? AND ?
+    ORDER BY a.appointmentDate ASC, a.timeStart ASC
+  `;
+  
+  db.all(query, [startDate, endDate], (err, rows) => {
+    if (err) {
+      console.error('Error fetching appointments by date range:', err);
+      res.status(500).json({ error: 'Failed to fetch appointments' });
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
+
 // GET all appointments
-app.get('/api/appointments', (req, res) => {
+app.get('/appointments', (req, res) => {
   const query = `
     SELECT 
       a.*,
@@ -222,7 +257,7 @@ app.get('/appointments/:id', (req, res) => {
   });
 });
 
-// POST new appointment
+// POST 
 app.post('/appointments', (req, res) => {
   const {
     patientId,
@@ -414,55 +449,7 @@ app.put('/appointments/:id', (req, res) => {
   });
 });
 
-// DELETE appointment
-app.delete('/appointments/:id', (req, res) => {
-  const { id } = req.params;
-  
-  db.run('DELETE FROM appointments WHERE id = ?', [id], function(err) {
-    if (err) {
-      console.error('Error deleting appointment:', err);
-      res.status(500).json({ error: 'Failed to delete appointment' });
-    } else if (this.changes === 0) {
-      res.status(404).json({ error: 'Appointment not found' });
-    } else {
-      res.json({ message: 'Appointment deleted successfully' });
-    }
-  });
-});
 
-// GET appointments by date range
-app.get('/api/appointments/date-range', (req, res) => {
-  const { startDate, endDate } = req.query;
-  
-  if (!startDate || !endDate) {
-    return res.status(400).json({ error: 'startDate and endDate parameters are required' });
-  }
-
-  const query = `
-    SELECT 
-      a.*,
-      p.firstName || ' ' || p.lastName as patientName,
-      p.firstName,
-      p.lastName,
-      s.name as serviceName,
-      s.duration as serviceDuration,
-      s.price as servicePrice
-    FROM appointments a
-    LEFT JOIN patients p ON a.patientId = p.id
-    LEFT JOIN services s ON a.serviceId = s.id
-    WHERE a.appointmentDate BETWEEN ? AND ?
-    ORDER BY a.appointmentDate ASC, a.timeStart ASC
-  `;
-  
-  db.all(query, [startDate, endDate], (err, rows) => {
-    if (err) {
-      console.error('Error fetching appointments by date range:', err);
-      res.status(500).json({ error: 'Failed to fetch appointments' });
-    } else {
-      res.json(rows);
-    }
-  });
-});
 
 //APPOINTMENTS AYAW SAG HILABTI//
 
