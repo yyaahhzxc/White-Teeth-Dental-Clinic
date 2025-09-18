@@ -182,6 +182,20 @@ export default function FilterComponent({
   activeFilters = [{ category: '', type: '' }],
   showFilterBox = false
 }) {
+  // Helper function to compute age
+  const computeAge = (birthDate) => {
+    if (!birthDate) return 0;
+    const birth = new Date(birthDate);
+    if (isNaN(birth.getTime())) return 0;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   // Apply filters to data
   useEffect(() => {
     if (onFilteredData && data.length > 0) {
@@ -194,8 +208,44 @@ export default function FilterComponent({
 
       const filtered = data.filter(item => {
         return validFilters.every(filter => {
-          const itemValue = item[filter.category];
-          return itemValue === filter.type;
+          if (filter.category === 'ageRange') {
+            const age = computeAge(item.dateOfBirth);
+            const range = filter.type;
+            switch (range) {
+              case '0-18': return age >= 0 && age <= 18;
+              case '19-35': return age >= 19 && age <= 35;
+              case '36-50': return age >= 36 && age <= 50;
+              case '51-65': return age >= 51 && age <= 65;
+              case '65+': return age > 65;
+              default: return true;
+            }
+          } else if (filter.category === 'priceRange') {
+            const price = parseFloat(item.price) || 0;
+            const range = filter.type;
+            switch (range) {
+              case '0-500': return price >= 0 && price <= 500;
+              case '501-1000': return price >= 501 && price <= 1000;
+              case '1001-2000': return price >= 1001 && price <= 2000;
+              case '2001-5000': return price >= 2001 && price <= 5000;
+              case '5000+': return price > 5000;
+              default: return true;
+            }
+          } else if (filter.category === 'durationRange') {
+            const duration = parseInt(item.duration) || 0;
+            const range = filter.type;
+            switch (range) {
+              case '0-30 mins': return duration >= 0 && duration <= 30;
+              case '31-60 mins': return duration >= 31 && duration <= 60;
+              case '61-90 mins': return duration >= 61 && duration <= 90;
+              case '91-120 mins': return duration >= 91 && duration <= 120;
+              case '120+ mins': return duration > 120;
+              default: return true;
+            }
+          } else {
+            // Handle direct field matching (like status, type, sex, etc.)
+            const itemValue = item[filter.category];
+            return itemValue === filter.type;
+          }
         });
       });
 
