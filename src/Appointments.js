@@ -43,6 +43,10 @@ const normalizeDateFromStorage = (dateString) => {
   return date;
 };
 
+function parseLocalDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
 // MonthGrid component for month view
 function MonthGrid({ appointments, currentDate, statusColors }) {
@@ -244,9 +248,9 @@ function Appointments() {
         console.log('Raw appointment data:', data);
         
         const transformedAppointments = data.map(apt => {
-          const appointmentDate = normalizeDateFromStorage(apt.appointmentDate); // Fixed
-          const dayIndex = appointmentDate.getDay();
-          
+          const apptDate = parseLocalDate(apt.appointmentDate);
+          const dayIndex = apptDate.getDay();
+
           // Calculate actual duration based on start and end times
           let calculatedDuration = 1; // Default to 1 hour
           
@@ -432,20 +436,14 @@ function Appointments() {
 
   const statusColors = {
     cancelled: '#ea4335',
-    canceled: '#ea4335',
-    'partial paid': '#fbbc04', 
     done: '#0d652d',
-    completed: '#0d652d',
     ongoing: '#1a73e8',
-    scheduled: '#e8710a',
-    upcoming: '#e8710a'
+    scheduled: '#e8710a'
   };
 
   const statusOptions = [
     { value: 'scheduled', label: 'Scheduled', color: '#e8710a' },
-    { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' },
     { value: 'done', label: 'Done', color: '#0d652d' },
-    { value: 'partial paid', label: 'Partial Paid', color: '#fbbc04' },
     { value: 'cancelled', label: 'Cancelled', color: '#ea4335' }
   ];
 

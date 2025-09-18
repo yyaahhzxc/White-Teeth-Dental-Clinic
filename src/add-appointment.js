@@ -19,10 +19,8 @@ import { API_BASE } from './apiConfig';
 
 // Add this utility function at the top of the file
 const normalizeDateForStorage = (dateString) => {
-    if (!dateString) return '';
-    // Create date in local timezone to avoid UTC conversion issues
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toISOString().split('T')[0];
+    // Always return the string as-is (assume it's already YYYY-MM-DD)
+    return dateString || '';
 };
 
 function AddAppointmentDialog({ open, onClose, onAddPatient }) {
@@ -397,6 +395,10 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                             <Autocomplete
                                 value={selectedService}
                                 onChange={(event, newValue) => {
+                                    // Prevent selecting inactive service via keyboard
+                                    if (newValue && typeof newValue.status === 'string' && newValue.status.toLowerCase() !== 'active') {
+                                        return;
+                                    }
                                     setSelectedService(newValue);
                                 }}
                                 inputValue={serviceInputValue}
@@ -406,6 +408,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                                 options={services}
                                 getOptionLabel={(option) => option ? option.name : ''}
                                 loading={serviceLoading}
+                                isOptionDisabled={(option) =>
+                                    option && typeof option.status === 'string' && option.status.toLowerCase() !== 'active'
+                                }
                                 renderInput={(params) => (
                                     <TextField
                                         {...params}
@@ -427,21 +432,35 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                                         }}
                                     />
                                 )}
-                                renderOption={(props, option) => (
-                                    <Box {...props} sx={{ 
-                                        fontFamily: 'Inter, sans-serif',
-                                        fontSize: '14px'
-                                    }}>
-                                        <Box>
-                                            <Typography sx={{ fontWeight: '500' }}>
-                                                {option.name}
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
-                                                ₱{option.price} • {option.duration} minutes
-                                            </Typography>
+                                renderOption={(props, option) => {
+                                    const isInactive = option && typeof option.status === 'string' && option.status.toLowerCase() !== 'active';
+                                    return (
+                                        <Box
+                                            {...props}
+                                            sx={{
+                                                fontFamily: 'Inter, sans-serif',
+                                                fontSize: '14px',
+                                                color: isInactive ? '#aaa' : 'inherit',
+                                                backgroundColor: isInactive ? '#f5f5f5' : 'inherit',
+                                                cursor: isInactive ? 'not-allowed' : 'pointer',
+                                            }}
+                                        >
+                                            <Box>
+                                                <Typography sx={{ fontWeight: '500' }}>
+                                                    {option.name}
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+                                                    ₱{option.price} • {option.duration} minutes
+                                                    {isInactive && (
+                                                        <span style={{ marginLeft: 8, fontSize: 12, color: '#c00' }}>
+                                                            (Inactive)
+                                                        </span>
+                                                    )}
+                                                </Typography>
+                                            </Box>
                                         </Box>
-                                    </Box>
-                                )}
+                                    );
+                                }}
                                 noOptionsText="No services found"
                                 size="medium"
                             />
