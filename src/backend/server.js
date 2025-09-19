@@ -460,9 +460,9 @@ app.put('/appointments/:id', (req, res) => {
   console.log('Update query:', query);
   console.log('Query values:', values);
   
-  // If we're updating time-related fields, check for conflicts
+  // FIXED CONFLICT DETECTION - Only check if we're updating time-related fields
   if (appointmentDate !== undefined || timeStart !== undefined || timeEnd !== undefined) {
-    // For partial updates, we need to get current values first
+    // Get current appointment data first
     db.get('SELECT * FROM appointments WHERE id = ?', [id], (err, currentAppt) => {
       if (err) {
         console.error('Error fetching current appointment:', err);
@@ -478,43 +478,60 @@ app.put('/appointments/:id', (req, res) => {
       const checkStartTime = timeStart || currentAppt.timeStart;
       const checkEndTime = timeEnd || currentAppt.timeEnd;
       
-      // Check for conflicts with other appointments
+      console.log('Checking for conflicts with:', {
+        date: checkDate,
+        startTime: checkStartTime,
+        endTime: checkEndTime,
+        excludeId: id
+      });
+      
+      // CORRECTED conflict query - simpler and more accurate overlap detection
       const conflictQuery = `
-        SELECT id FROM appointments 
+        SELECT id, patientId, appointmentDate, timeStart, timeEnd, status 
+        FROM appointments 
         WHERE appointmentDate = ? 
         AND id != ?
+        AND status NOT IN ('Cancelled', 'cancelled', 'Done', 'done')
         AND (
-          (timeStart <= ? AND timeEnd > ?) OR
-          (timeStart < ? AND timeEnd >= ?) OR
-          (timeStart >= ? AND timeEnd <= ?)
+          (timeStart < ? AND timeEnd > ?) OR
+          (timeStart < ? AND timeEnd > ?) OR
+          (timeStart >= ? AND timeStart < ?)
         )
-        AND status NOT IN ('Cancelled', 'cancelled')
       `;
 
-      db.get(conflictQuery, [
+      db.all(conflictQuery, [
         checkDate, 
         id,
-        checkStartTime, checkStartTime, 
-        checkEndTime, checkEndTime, 
-        checkStartTime, checkEndTime
-      ], (conflictErr, conflictRow) => {
+        checkEndTime, checkStartTime,  // New appointment starts before existing ends AND existing starts before new ends
+        checkStartTime, checkEndTime,  // New appointment ends after existing starts AND existing ends after new starts  
+        checkStartTime, checkEndTime   // Existing appointment starts within new appointment time
+      ], (conflictErr, conflictRows) => {
         if (conflictErr) {
           console.error('Error checking appointment conflicts:', conflictErr);
           return res.status(500).json({ error: 'Failed to check appointment conflicts' });
         }
 
-        if (conflictRow) {
+        console.log('Conflict check results:', conflictRows);
+
+        if (conflictRows && conflictRows.length > 0) {
+          console.log('Time conflict detected with appointments:', conflictRows.map(r => ({ 
+            id: r.id, 
+            time: `${r.timeStart}-${r.timeEnd}` 
+          })));
           return res.status(409).json({ 
-            error: 'Appointment time conflict detected. Please choose a different time slot.' 
+            error: 'Appointment time conflict detected. Please choose a different time slot.',
+            conflicts: conflictRows
           });
         }
 
         // No conflicts, proceed with update
+        console.log('No conflicts found, proceeding with update');
         performUpdate();
       });
     });
   } else {
     // No time-related updates, skip conflict check
+    console.log('No time fields being updated, skipping conflict check');
     performUpdate();
   }
 
