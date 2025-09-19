@@ -425,7 +425,9 @@ function ServiceList() {
                           letterSpacing: '0.5px',
                         }}
                       >
-                        ₱{service.price || '-'}
+                        {typeof service.price === 'number' || !isNaN(Number(service.price))
+      ? `₱${Number(service.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : '₱0.00'}
                       </Typography>
                     </Box>
 
