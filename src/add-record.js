@@ -16,7 +16,8 @@ import {
   Paper,
   Box,
   IconButton,
-  MenuItem
+  MenuItem,
+  Dialog as MuiDialog
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
@@ -184,69 +185,122 @@ const [toothChartData, setToothChartData] = useState({
     }
   };
 
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth={false}
-      sx={{ '& .MuiDialog-paper': { width: '70%' } }}
-    >
-      <DialogTitle
-        sx={{
-          color: '#2148C0',
-          // fontFamily: 'Inter',
-          fontSize: 32,
-          fontWeight: 800,
-          textAlign: 'center',
-          marginBottom: -4,
+  // Add state for confirmation dialog
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-        }}
+  // Helper to check if any field has value
+  const hasUnsavedInput = () => {
+    return (
+      firstName || lastName || middleName || suffix || maritalStatus ||
+      contactNumber || occupation || address || dateOfBirth || sex ||
+      contactPersonName || contactPersonRelationship || contactPersonNumber || contactPersonAddress ||
+      allergies || bloodType || bloodborneDiseases || pregnancyStatus ||
+      medications || additionalNotes || bloodPressure || diabetic ||
+      (toothChartData.selectedTeeth && toothChartData.selectedTeeth.length > 0) ||
+      (toothChartData.toothSummaries && Object.keys(toothChartData.toothSummaries).length > 0)
+    );
+  };
+
+  // Clear all fields
+  const clearAllFields = () => {
+    setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
+    setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
+    setDateOfBirth(''); setSex('');
+    setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
+    setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
+    setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
+    setTabIndex(0);
+    setToothChartData({ selectedTeeth: [], toothSummaries: {} });
+    setRequiredFields({});
+    setRequiredError(false);
+    setContactNumberError(false);
+    setContactPersonNumberError(false);
+  };
+
+  // Intercept close
+  const handleRequestClose = () => {
+    if (hasUnsavedInput()) {
+      setConfirmOpen(true);
+    } else {
+      clearAllFields();
+      onClose();
+    }
+  };
+
+  // Confirm discard
+  const handleConfirmDiscard = () => {
+    setConfirmOpen(false);
+    clearAllFields();
+    onClose();
+  };
+
+  // Cancel discard
+  const handleConfirmStay = () => {
+    setConfirmOpen(false);
+  };
+
+  return (
+    <>
+      <Dialog
+        open={open}
+        onClose={handleRequestClose}
+        fullWidth
+        maxWidth={false}
+        sx={{ '& .MuiDialog-paper': { width: '70%' } }}
       >
-        Add Patient Record
-        <IconButton
-          aria-label="close"
-          onClick={onClose}
+        <DialogTitle
           sx={{
-            position: 'absolute',
-            right: 8,
-            top: 8,
-            color: (theme) => theme.palette.grey[700],
+            color: '#2148C0',
+            fontSize: 32,
+            fontWeight: 800,
+            textAlign: 'center',
+            marginBottom: -4,
           }}
         >
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
-        <Tabs value={tabIndex} onChange={handleTabChange}>
-          <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
-          <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
-        </Tabs>
-      </Box>
-      <DialogContent
-        dividers
-        sx={{
-          backgroundColor: '#f5f7fa', // Change background color
-          minHeight: 200,             // Set a minimum height
-          px: 4,                      // Horizontal padding
-          py: 3,                      // Vertical padding
-          borderRadius: 3,            // Rounded corners (if you want)
-          // Add any other styles you want here
-        }}
-      >
-        {tabIndex === 0 && (
-          <Paper
-            elevation={0}
+          Add Patient Record
+          <IconButton
+            aria-label="close"
+            onClick={handleRequestClose}
             sx={{
-              bgcolor: '#ddd',
-              borderRadius: 4,
-              p: 3,
-              display: 'flex',
-              gap: 2,
-              alignItems: 'stretch',
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              color: (theme) => theme.palette.grey[700],
             }}
           >
-          <Grid
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
+          <Tabs value={tabIndex} onChange={handleTabChange}>
+            <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
+            <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
+          </Tabs>
+        </Box>
+        <DialogContent
+          dividers
+          sx={{
+            backgroundColor: '#f5f7fa', // Change background color
+            minHeight: 200,             // Set a minimum height
+            px: 4,                      // Horizontal padding
+            py: 3,                      // Vertical padding
+            borderRadius: 3,            // Rounded corners (if you want)
+            // Add any other styles you want here
+          }}
+        >
+          {tabIndex === 0 && (
+            <Paper
+              elevation={0}
+              sx={{
+                bgcolor: '#ddd',
+                borderRadius: 4,
+                p: 3,
+                display: 'flex',
+                gap: 2,
+                alignItems: 'stretch',
+              }}
+            >
+            <Grid
   maxWidth="48%"
   padding={1}
 >
@@ -605,6 +659,17 @@ const [toothChartData, setToothChartData] = useState({
 
       </DialogActions>
     </Dialog>
+    <MuiDialog open={confirmOpen} onClose={handleConfirmStay}>
+        <DialogTitle>Discard changes?</DialogTitle>
+        <DialogContent>
+          <Typography>There are unsaved changes. Do you want to discard them?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleConfirmStay} color="primary">Stay</Button>
+          <Button onClick={handleConfirmDiscard} color="error">Discard</Button>
+        </DialogActions>
+      </MuiDialog>
+    </>
   );
 };
 
