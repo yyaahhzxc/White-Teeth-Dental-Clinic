@@ -110,10 +110,10 @@ import {
   Edit as EditIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import Header from './header';
-import QuickActionButton from './QuickActionButton';
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
 import ViewRecord from './view-record';
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 
 function Appointments() {
   const [currentDate, setCurrentDate] = useState(new Date());

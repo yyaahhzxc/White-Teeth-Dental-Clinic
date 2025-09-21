@@ -4,7 +4,7 @@ import {
     Autocomplete, TextField, CircularProgress, Box, Typography, Grid,
     Snackbar, Alert
 } from '@mui/material';
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 import CloseIcon from '@mui/icons-material/Close';
 
 function AddAppointmentDialog({ open, onClose, onAddPatient }) {

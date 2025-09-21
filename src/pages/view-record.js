@@ -22,7 +22,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 
 
 const bloodTypes = [

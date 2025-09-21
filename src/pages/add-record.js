@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 
 const AddPatientRecord = ({ open, onClose }) => {
   const [tabIndex, setTabIndex] = useState(0);

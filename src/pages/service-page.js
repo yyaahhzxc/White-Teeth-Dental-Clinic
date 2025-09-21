@@ -9,16 +9,16 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-import Header from './header';
-import QuickActionButton from './QuickActionButton';
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
 import AddPatientRecord from './add-record';
 import AddService from './add-service';
 import ViewService from './view-service';
-import DataTable from './DataTable';
-import SearchBar from './SearchBar';
-import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
-import SortableHeader, { sortData } from './SortableHeader';
-import Pagination from './Pagination';
+import DataTable from '../components/DataTable';
+import SearchBar from '../components/SearchBar';
+import FilterComponent, { FilterButton, FilterContent } from '../components/FilterComponent';
+import SortableHeader, { sortData } from '../components/SortableHeader';
+import Pagination from '../components/Pagination';
 
 // API Base URL
 const API_BASE = 'http://localhost:3001';
