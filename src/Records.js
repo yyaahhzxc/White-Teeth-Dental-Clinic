@@ -194,6 +194,13 @@ function PatientList() {
   const totalPages = Math.ceil(sortedPatients.length / rowsPerPage);
   const visiblePatients = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
+  // Reset page if current page exceeds total pages (e.g., after adding/deleting patients)
+  useEffect(() => {
+    if (totalPages > 0 && page >= totalPages) {
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }, [totalPages, page]);
+
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };

@@ -491,6 +491,13 @@ export default function Accounts() {
   const totalPages = Math.ceil(sortedUsers.length / rowsPerPage);
   const visibleUsers = sortedUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
+  // Reset page if current page exceeds total pages (e.g., after adding/deleting users)
+  useEffect(() => {
+    if (totalPages > 0 && page >= totalPages) {
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }, [totalPages, page]);
+
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };
