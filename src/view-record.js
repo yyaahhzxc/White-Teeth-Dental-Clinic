@@ -22,6 +22,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
+import { FaTooth } from 'react-icons/fa';
 import { API_BASE } from './apiConfig';
 
 
@@ -735,9 +736,23 @@ function ToothChart({ onDataChange, initialData = { selectedTeeth: [], toothSumm
                     fontSize: 12,
                   }}
                 >
-                  ⊠
+                  <FaTooth 
+                    size={16} 
+                    color={selectedTeeth.includes(num) ? "#fff" : "#666"}
+                  />
                 </Box>
-                <Typography variant="caption" display="block" align="center" sx={{ mt: 0.5 }}>
+                <Typography 
+                  variant="caption" 
+                  display="block" 
+                  align="center" 
+                  sx={{ 
+                    mt: 0.5,
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none'
+                  }}
+                >
                   {num}
                 </Typography>
               </Grid>

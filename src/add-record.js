@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import { FaTooth } from 'react-icons/fa';
 import { API_BASE } from './apiConfig';
 
 const isValidContactNumber = (number) => {
@@ -764,14 +765,23 @@ function ToothChart({ onDataChange }) {
                     fontSize: 12,
                   }}
                 >
-                  ⊠
+                  <FaTooth 
+                    size={16} 
+                    color={selectedTeeth.includes(num) ? "#fff" : "#666"}
+                  />
                 </Box>
                 <Typography
                   variant="caption"
                   display="block"
                   align="center"
                   marginTop={-3}
-                  sx={{ mt: 0.5 }}
+                  sx={{ 
+                    mt: 0.5,
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none'
+                  }}
                 >
                   {num}
                 </Typography>
