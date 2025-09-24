@@ -23,6 +23,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import { API_BASE } from './apiConfig';
+import SaveChangesDialog from './SaveChangesDialog';
 
 
 const bloodTypes = [
@@ -621,20 +622,13 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
           {editMode ? <SaveIcon /> : <EditIcon />}
         </IconButton>
       </DialogActions>
-      <Dialog
+      <SaveChangesDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-      >
-        <DialogTitle>Save changes?</DialogTitle>
-        <DialogContent>
+        onSave={handleConfirmSave}
+        onDiscard={handleConfirmDiscard}
+      />
       <Snackbar open={snackbarOpen} message={snackbarMsg} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
-          <Typography>Do you want to save your changes before closing?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleConfirmDiscard} color="error">Discard</Button>
-          <Button onClick={handleConfirmSave} color="primary" variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
     </Dialog>
 
   );
