@@ -16,11 +16,17 @@ import {
   Paper,
   Box,
   IconButton,
-  MenuItem
+  MenuItem,
+  Dialog as MuiDialog
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import { API_BASE } from '../apiConfig';
+
+const isValidContactNumber = (number) => {
+  // Accept only numbers, must match the pattern exactly
+  return /^09\d{9}$/.test(number) || /^639\d{9}$/.test(number);
+};
 
 const AddPatientRecord = ({ open, onClose }) => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -51,6 +57,14 @@ const AddPatientRecord = ({ open, onClose }) => {
   const [bloodPressure, setBloodPressure] = useState('');
   const [diabetic, setDiabetic] = useState('');
 
+  // New state for required fields validation
+const [requiredError, setRequiredError] = useState(false);
+const [requiredFields, setRequiredFields] = useState({});
+
+// New state for contact number validation
+const [contactNumberError, setContactNumberError] = useState(false);
+const [contactPersonNumberError, setContactPersonNumberError] = useState(false);
+
   const handleTabChange = (event, newValue) => setTabIndex(newValue);
 
   useEffect(() => {
@@ -65,6 +79,42 @@ const [toothChartData, setToothChartData] = useState({
 });
   // Save Patient + Medical Info
   const handleAddPatient = async () => {
+  const errors = {};
+
+  // Required fields
+  if (!firstName.trim()) errors.firstName = true;
+  if (!lastName.trim()) errors.lastName = true;
+  if (!contactNumber.trim()) errors.contactNumber = true;
+  if (!address.trim()) errors.address = true;
+  if (!dateOfBirth.trim()) errors.dateOfBirth = true;
+  if (!sex.trim()) errors.sex = true;
+  if (!contactPersonName.trim()) errors.contactPersonName = true;
+  if (!contactPersonRelationship.trim()) errors.contactPersonRelationship = true;
+  if (!contactPersonNumber.trim()) errors.contactPersonNumber = true;
+  if (!contactPersonAddress.trim()) errors.contactPersonAddress = true;
+  if (!bloodType.trim()) errors.bloodType = true;
+  if (!bloodPressure.trim()) errors.bloodPressure = true;
+  if (!diabetic.trim()) errors.diabetic = true;
+
+  // Contact number format validation
+  const contactNumberInvalid = contactNumber && !isValidContactNumber(contactNumber);
+  const contactPersonNumberInvalid = contactPersonNumber && !isValidContactNumber(contactPersonNumber);
+
+  setContactNumberError(contactNumberInvalid);
+  setContactPersonNumberError(contactPersonNumberInvalid);
+
+  // Mark as error if format is wrong
+  if (contactNumberInvalid) errors.contactNumber = true;
+  if (contactPersonNumberInvalid) errors.contactPersonNumber = true;
+
+  setRequiredFields(errors);
+
+  if (Object.keys(errors).length > 0) {
+    setRequiredError(true);
+    setTimeout(() => setRequiredError(false), 2000);
+    return;
+  }
+
     try {
       // 1. Save patient info
       const patient = {
@@ -135,69 +185,122 @@ const [toothChartData, setToothChartData] = useState({
     }
   };
 
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth={false}
-      sx={{ '& .MuiDialog-paper': { width: '70%' } }}
-    >
-      <DialogTitle
-        sx={{
-          color: '#2148C0',
-          // fontFamily: 'Inter',
-          fontSize: 32,
-          fontWeight: 800,
-          textAlign: 'center',
-          marginBottom: -4,
+  // Add state for confirmation dialog
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-        }}
+  // Helper to check if any field has value
+  const hasUnsavedInput = () => {
+    return (
+      firstName || lastName || middleName || suffix || maritalStatus ||
+      contactNumber || occupation || address || dateOfBirth || sex ||
+      contactPersonName || contactPersonRelationship || contactPersonNumber || contactPersonAddress ||
+      allergies || bloodType || bloodborneDiseases || pregnancyStatus ||
+      medications || additionalNotes || bloodPressure || diabetic ||
+      (toothChartData.selectedTeeth && toothChartData.selectedTeeth.length > 0) ||
+      (toothChartData.toothSummaries && Object.keys(toothChartData.toothSummaries).length > 0)
+    );
+  };
+
+  // Clear all fields
+  const clearAllFields = () => {
+    setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
+    setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
+    setDateOfBirth(''); setSex('');
+    setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
+    setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
+    setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
+    setTabIndex(0);
+    setToothChartData({ selectedTeeth: [], toothSummaries: {} });
+    setRequiredFields({});
+    setRequiredError(false);
+    setContactNumberError(false);
+    setContactPersonNumberError(false);
+  };
+
+  // Intercept close
+  const handleRequestClose = () => {
+    if (hasUnsavedInput()) {
+      setConfirmOpen(true);
+    } else {
+      clearAllFields();
+      onClose();
+    }
+  };
+
+  // Confirm discard
+  const handleConfirmDiscard = () => {
+    setConfirmOpen(false);
+    clearAllFields();
+    onClose();
+  };
+
+  // Cancel discard
+  const handleConfirmStay = () => {
+    setConfirmOpen(false);
+  };
+
+  return (
+    <>
+      <Dialog
+        open={open}
+        onClose={handleRequestClose}
+        fullWidth
+        maxWidth={false}
+        sx={{ '& .MuiDialog-paper': { width: '70%' } }}
       >
-        Add Patient Record
-        <IconButton
-          aria-label="close"
-          onClick={onClose}
+        <DialogTitle
           sx={{
-            position: 'absolute',
-            right: 8,
-            top: 8,
-            color: (theme) => theme.palette.grey[700],
+            color: '#2148C0',
+            fontSize: 32,
+            fontWeight: 800,
+            textAlign: 'center',
+            marginBottom: -4,
           }}
         >
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
-        <Tabs value={tabIndex} onChange={handleTabChange}>
-          <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
-          <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
-        </Tabs>
-      </Box>
-      <DialogContent
-        dividers
-        sx={{
-          backgroundColor: '#f5f7fa', // Change background color
-          minHeight: 200,             // Set a minimum height
-          px: 4,                      // Horizontal padding
-          py: 3,                      // Vertical padding
-          borderRadius: 3,            // Rounded corners (if you want)
-          // Add any other styles you want here
-        }}
-      >
-        {tabIndex === 0 && (
-          <Paper
-            elevation={0}
+          Add Patient Record
+          <IconButton
+            aria-label="close"
+            onClick={handleRequestClose}
             sx={{
-              bgcolor: '#ddd',
-              borderRadius: 4,
-              p: 3,
-              display: 'flex',
-              gap: 2,
-              alignItems: 'stretch',
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              color: (theme) => theme.palette.grey[700],
             }}
           >
-          <Grid
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
+          <Tabs value={tabIndex} onChange={handleTabChange}>
+            <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
+            <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
+          </Tabs>
+        </Box>
+        <DialogContent
+          dividers
+          sx={{
+            backgroundColor: '#f5f7fa', // Change background color
+            minHeight: 200,             // Set a minimum height
+            px: 4,                      // Horizontal padding
+            py: 3,                      // Vertical padding
+            borderRadius: 3,            // Rounded corners (if you want)
+            // Add any other styles you want here
+          }}
+        >
+          {tabIndex === 0 && (
+            <Paper
+              elevation={0}
+              sx={{
+                bgcolor: '#ddd',
+                borderRadius: 4,
+                p: 3,
+                display: 'flex',
+                gap: 2,
+                alignItems: 'stretch',
+              }}
+            >
+            <Grid
   maxWidth="48%"
   padding={1}
 >
@@ -212,17 +315,28 @@ const [toothChartData, setToothChartData] = useState({
         sx={{ width: 400, backgroundColor: '#ffffff9e' }} 
         value={firstName}
         onChange={(e) => setFirstName(e.target.value)}
+        error={requiredError && requiredFields.firstName}
+        helperText={requiredError && requiredFields.firstName ? '' : ''}
       />
     </Grid>
     <Grid item xs={4}>
-      <TextField 
-        fullWidth 
-        label="Suffix" 
-        sx={{ width: 90, backgroundColor: '#ffffff9e' }} 
-        value={suffix}
-        onChange={(e) => setSuffix(e.target.value)}
-      />
-    </Grid>
+  <TextField
+    select
+    fullWidth
+    label="Suffix"
+    sx={{ width: 90, backgroundColor: '#ffffff9e' }}
+    value={suffix}
+    onChange={(e) => setSuffix(e.target.value)}
+  >
+    <MenuItem value="">None</MenuItem>
+    <MenuItem value="Jr.">Jr.</MenuItem>
+    <MenuItem value="Sr.">Sr.</MenuItem>
+    <MenuItem value="II">II</MenuItem>
+    <MenuItem value="III">III</MenuItem>
+    <MenuItem value="IV">IV</MenuItem>
+    <MenuItem value="V">V</MenuItem>
+  </TextField>
+</Grid>
     <Grid item xs={12}>
       <TextField 
         fullWidth 
@@ -239,6 +353,8 @@ const [toothChartData, setToothChartData] = useState({
         sx={{ width: 350, backgroundColor: '#ffffff9e' }} 
         value={lastName}
         onChange={(e) => setLastName(e.target.value)}
+        error={requiredError && requiredFields.lastName}
+        helperText={requiredError && requiredFields.lastName ? '' : ''}
       />
     </Grid>
     <Grid item xs={12}>
@@ -250,8 +366,10 @@ const [toothChartData, setToothChartData] = useState({
         value={maritalStatus}
         onChange={(e) => setMaritalStatus(e.target.value)}
       >
-        <MenuItem value="Married">Married</MenuItem>
+        
         <MenuItem value="Single">Single</MenuItem>
+        <MenuItem value="Married">Married</MenuItem>
+        <MenuItem value="Widowed">Widowed</MenuItem>
       </TextField>
     </Grid>
     <Grid item xs={6}>
@@ -260,7 +378,17 @@ const [toothChartData, setToothChartData] = useState({
         label="Contact Number" 
         sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
         value={contactNumber}
-        onChange={(e) => setContactNumber(e.target.value)}
+        onChange={(e) => {
+          const value = e.target.value;
+          setContactNumber(value);
+          setContactNumberError(value.length > 0 && !isValidContactNumber(value));
+        }}
+        error={requiredError && requiredFields.contactNumber || (contactNumber.length > 0 && !isValidContactNumber(contactNumber))}
+        helperText={
+          contactNumber.length > 0 && !isValidContactNumber(contactNumber)
+            ? ""
+            : (requiredError && requiredFields.contactNumber ? '' : '')
+        }
       />
     </Grid>
     <Grid item xs={6}>
@@ -281,6 +409,8 @@ const [toothChartData, setToothChartData] = useState({
         sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} 
         value={address}
         onChange={(e) => setAddress(e.target.value)}
+        error={requiredError && requiredFields.address}
+        helperText={requiredError && requiredFields.address ? '' : ''}
       />
     </Grid>
     <Grid item xs={12}>
@@ -292,18 +422,35 @@ const [toothChartData, setToothChartData] = useState({
         InputLabelProps={{ shrink: true }}
         value={dateOfBirth}
         onChange={(e) => setDateOfBirth(e.target.value)}
+        inputProps={{
+          max: new Date().toISOString().split('T')[0] // Prevent future dates
+        }}
+        error={requiredError && requiredFields.dateOfBirth}
+        helperText={requiredError && requiredFields.dateOfBirth ? '' : ''}
       />
     </Grid>
     <Grid item xs={4} sx={{ ml: 3 }}>
-      <Typography variant="body2">Sex</Typography>
+      <Typography sx={{
+      color: requiredError && requiredFields.sex ? '#d32f2f' : 'inherit',
+    }} variant="body2">Sex</Typography>
       <RadioGroup 
+      sx={{
+      color: requiredError && requiredFields.sex ? '#d32f2f' : 'inherit',
+      fontWeight: 600,
+      fontSize: '14px',
+      mb: 1
+    }}
         row
         value={sex}
         onChange={(e) => setSex(e.target.value)}
+        error={requiredError && requiredFields.sex}
       >
         <FormControlLabel value="M" control={<Radio />} label="M" />
         <FormControlLabel value="F" control={<Radio />} label="F" />
       </RadioGroup>
+      {requiredError && requiredFields.sex && (
+    <Typography variant="caption" color="error"></Typography>
+  )}
     </Grid>
   </Grid>
 </Grid>
@@ -327,24 +474,49 @@ const [toothChartData, setToothChartData] = useState({
         sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
         value={contactPersonName}
         onChange={(e) => setContactPersonName(e.target.value)}
+        error={requiredError && requiredFields.contactPersonName}
+        helperText={requiredError && requiredFields.contactPersonName ? '' : ''}
       />
     </Grid>
     <Grid item xs={6}>
-      <TextField 
-        fullWidth 
-        label="Relationship" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
-        value={contactPersonRelationship}
-        onChange={(e) => setContactPersonRelationship(e.target.value)}
-      />
-    </Grid>
+  <TextField
+    select
+    fullWidth
+    label="Relationship"
+    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+    value={contactPersonRelationship}
+    onChange={(e) => setContactPersonRelationship(e.target.value)}
+    error={requiredError && requiredFields.contactPersonRelationship}
+    helperText={requiredError && requiredFields.contactPersonRelationship ? '' : ''}
+  >
+    <MenuItem value="">Select</MenuItem>
+    <MenuItem value="Parent">Parent</MenuItem>
+    <MenuItem value="Spouse">Spouse</MenuItem>
+    <MenuItem value="Sibling">Sibling</MenuItem>
+    <MenuItem value="Child">Child</MenuItem>
+    <MenuItem value="Relative">Relative</MenuItem>
+    <MenuItem value="Friend">Friend</MenuItem>
+    <MenuItem value="Guardian">Guardian</MenuItem>
+    <MenuItem value="Other">Other</MenuItem>
+  </TextField>
+</Grid>
     <Grid item xs={6}>
       <TextField 
         fullWidth 
         label="Contact Number" 
         sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
         value={contactPersonNumber}
-        onChange={(e) => setContactPersonNumber(e.target.value)}
+        onChange={(e) => {
+          const value = e.target.value;
+          setContactPersonNumber(value);
+          setContactPersonNumberError(value.length > 0 && !isValidContactNumber(value));
+        }}
+        error={requiredError && requiredFields.contactPersonNumber || (contactPersonNumber.length > 0 && !isValidContactNumber(contactPersonNumber))}
+        helperText={
+          contactPersonNumber.length > 0 && !isValidContactNumber(contactPersonNumber)
+            ? ""
+            : (requiredError && requiredFields.contactPersonNumber ? '' : '')
+        }
       />
     </Grid>
     <Grid item xs={12}>
@@ -356,6 +528,8 @@ const [toothChartData, setToothChartData] = useState({
         sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
         value={contactPersonAddress}
         onChange={(e) => setContactPersonAddress(e.target.value)}
+        error={requiredError && requiredFields.contactPersonAddress}
+        helperText={requiredError && requiredFields.contactPersonAddress ? '' : ''}
       />
     </Grid>
   </Grid>
@@ -392,6 +566,8 @@ const [toothChartData, setToothChartData] = useState({
                       sx={{ width: 140, backgroundColor: '#ffffff9e' }}
                       value={bloodType} 
                       onChange={(e) => setBloodType(e.target.value)}
+                      error={requiredError && requiredFields.bloodType}
+                      helperText={requiredError && requiredFields.bloodType ? '' : ''}
                     >
                       <MenuItem value="A+">A+</MenuItem>
                       <MenuItem value="A-">A-</MenuItem>
@@ -419,20 +595,29 @@ const [toothChartData, setToothChartData] = useState({
                   </Grid>
                   <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
                   <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
-                 <Grid item xs={4} sx={{ ml: 3 }}>
-                    <Typography variant="body2">Blood Pressure</Typography>
-                    <RadioGroup row value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)}>
+                 <Grid item xs={4} sx={{ ml: 3,
+      color: requiredError && requiredFields.sex ? '#d32f2f' : 'inherit',}}>
+                    <Typography sx={{
+      color: requiredError && requiredFields.bloodPressure ? '#d32f2f' : 'inherit',
+    }} variant="body2">Blood Pressure</Typography>
+                    <RadioGroup row value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} error={requiredError && requiredFields.bloodPressure}>
                       <FormControlLabel value="High" control={<Radio />} label="High" />
                       <FormControlLabel value="Normal" control={<Radio />} label="Normal" />
                       <FormControlLabel value="Low" control={<Radio />} label="Low" />
                     </RadioGroup>
+                    {requiredError && requiredFields.bloodPressure && (
+    <Typography variant="caption" color="error"></Typography>
+  )}
                   </Grid>
-                  <Grid item xs={4} sx={{ ml:6, mb: 4}}>
+                  <Grid item xs={4} sx={{ ml:6, mb: 4, color: requiredError && requiredFields.diabetic ? '#d32f2f' : 'inherit',}}>
                     <Typography variant="body2">Diabetic</Typography>
-                    <RadioGroup row value={diabetic} onChange={(e) => setDiabetic(e.target.value)}>
+                    <RadioGroup row value={diabetic} onChange={(e) => setDiabetic(e.target.value)} error={requiredError && requiredFields.diabetic}>
                       <FormControlLabel value="Yes" control={<Radio />} label="Yes" />
                       <FormControlLabel value="No" control={<Radio />} label="No" />
                     </RadioGroup>
+                    {requiredError && requiredFields.diabetic && (
+    <Typography variant="caption" color="error"></Typography>
+  )}
                   </Grid>
                 </Grid>
 
@@ -474,6 +659,17 @@ const [toothChartData, setToothChartData] = useState({
 
       </DialogActions>
     </Dialog>
+    <MuiDialog open={confirmOpen} onClose={handleConfirmStay}>
+        <DialogTitle>Discard changes?</DialogTitle>
+        <DialogContent>
+          <Typography>There are unsaved changes. Do you want to discard them?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleConfirmStay} color="primary">Stay</Button>
+          <Button onClick={handleConfirmDiscard} color="error">Discard</Button>
+        </DialogActions>
+      </MuiDialog>
+    </>
   );
 };
 

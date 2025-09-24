@@ -149,6 +149,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
               onChange={handleChange}
               InputProps={{ readOnly: !isEditing }}
               sx={{ backgroundColor: '#ffffff9e' }}
+              disabled={!isEditing}
             />
             <TextField
               fullWidth
@@ -160,6 +161,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
               rows={2}
               InputProps={{ readOnly: !isEditing }}
               sx={{ backgroundColor: '#ffffff9e' }}
+              disabled={!isEditing}
             />
             <TextField
               fullWidth
@@ -170,6 +172,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
               type="number"
               InputProps={{ readOnly: !isEditing }}
               sx={{ backgroundColor: '#ffffff9e' }}
+              disabled={!isEditing}
             />
             <TextField
               fullWidth
@@ -180,6 +183,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
               type="number"
               InputProps={{ readOnly: !isEditing }}
               sx={{ backgroundColor: '#ffffff9e' }}
+              disabled={!isEditing}
             />
             <TextField
               select
@@ -190,6 +194,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
               onChange={handleChange}
               InputProps={{ readOnly: !isEditing }}
               sx={{ backgroundColor: '#ffffff9e' }}
+              disabled={!isEditing}
             >
               {serviceTypes.map((type) => (
                 <MenuItem key={type} value={type}>{type}</MenuItem>
@@ -204,6 +209,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
               onChange={handleChange}
               InputProps={{ readOnly: !isEditing }}
               sx={{ backgroundColor: '#ffffff9e' }}
+              disabled={!isEditing}
             >
               {statusOptions.map((status) => (
                 <MenuItem key={status} value={status}>{status}</MenuItem>

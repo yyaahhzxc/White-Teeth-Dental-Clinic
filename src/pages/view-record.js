@@ -161,7 +161,10 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   await fetch(`${API_BASE}/tooth-chart/${patient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedTeth: toothChartData.selectedTeeth, toothSummaries: toothChartData.toothSummaries })
+        body: JSON.stringify({ 
+          selectedTeeth: toothChartData.selectedTeeth, // <-- fixed key
+          toothSummaries: toothChartData.toothSummaries 
+        })
       });
 
       setEditMode(false); // Exit edit mode on successful save
@@ -227,7 +230,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
       onClose={handleDialogClose}
       fullWidth
       maxWidth={false}
-      sx={{ '& .MuiDialog-paper': { width: '70%' } }}
+      sx={{ '& .MuiDialog-paper': { width: '70%', borderRadius: 3 } }}
     >
       <DialogTitle
         sx={{
@@ -292,7 +295,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 400, backgroundColor: '#ffffff9e' }}
                     value={firstName}
                     onChange={e => setFirstName(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={4}>
@@ -302,7 +305,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 90, backgroundColor: '#ffffff9e' }}
                     value={suffix}
                     onChange={e => setSuffix(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -312,7 +315,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 498, backgroundColor: '#ffffff9e' }}
                     value={middleName}
                     onChange={e => setMiddleName(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -322,7 +325,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 350, backgroundColor: '#ffffff9e' }}
                     value={lastName}
                     onChange={e => setLastName(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -333,7 +336,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 140, backgroundColor: '#ffffff9e' }}
                     value={maritalStatus}
                     onChange={e => setMaritalStatus(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   >
                     <MenuItem value="Married">Married</MenuItem>
                     <MenuItem value="Single">Single</MenuItem>
@@ -346,7 +349,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={contactNumber}
                     onChange={e => setContactNumber(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={6}>
@@ -356,7 +359,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={occupation}
                     onChange={e => setOccupation(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -368,7 +371,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }}
                     value={address}
                     onChange={e => setAddress(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -380,7 +383,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     InputLabelProps={{ shrink: true }}
                     value={dateOfBirth}
                     onChange={e => setDateOfBirth(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={4} sx={{ ml: 3 }}>
@@ -390,8 +393,8 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     value={sex}
                     onChange={e => setSex(e.target.value)}
                   >
-                    <FormControlLabel value="M" control={<Radio />} label="M" disabled={!editMode} />
-                    <FormControlLabel value="F" control={<Radio />} label="F" disabled={!editMode} />
+                    <FormControlLabel value="M" control={<Radio disabled={!editMode} />} label="M" />
+                    <FormControlLabel value="F" control={<Radio disabled={!editMode} />} label="F" />
                   </RadioGroup>
                 </Grid>
               </Grid>
@@ -415,7 +418,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 498, backgroundColor: '#ffffff9e' }}
                     value={contactPersonName}
                     onChange={e => setContactPersonName(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={6}>
@@ -425,7 +428,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={contactPersonRelationship}
                     onChange={e => setContactPersonRelationship(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={6}>
@@ -435,7 +438,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={contactPersonNumber}
                     onChange={e => setContactPersonNumber(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -447,7 +450,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
                     sx={{ width: 498, backgroundColor: '#ffffff9e' }}
                     value={contactPersonAddress}
                     onChange={e => setContactPersonAddress(e.target.value)}
-                    InputProps={{ readOnly: !editMode }}
+                    disabled={!editMode}
                   />
                 </Grid>
               </Grid>
@@ -464,7 +467,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
       display: 'flex',
       gap: 2,
       alignItems: 'stretch',
-      m: 3
+      maxHeight: '100%'
     }}
   >
     <Grid container spacing={2}>
@@ -712,9 +715,6 @@ function ToothChart({ onDataChange, initialData = { selectedTeeth: [], toothSumm
 
   return (
     <Paper sx={{ p: 2, borderRadius: 3 }}>
-      <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-        Tooth Chart
-      </Typography>
       <Box sx={{ backgroundColor: "white", p: 2, borderRadius: 3 }}>
         {teethNumbers.map((row, rowIndex) => (
           <Grid container justifyContent="center" spacing={1} key={rowIndex} sx={{ mb: 2 }}>
