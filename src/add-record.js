@@ -246,15 +246,25 @@ const [toothChartData, setToothChartData] = useState({
         onClose={handleRequestClose}
         fullWidth
         maxWidth={false}
-        sx={{ '& .MuiDialog-paper': { width: '70%' } }}
+        PaperProps={{
+          sx: {
+            width: '70%',
+            borderRadius: '12px',
+            boxShadow: '0px 24px 48px rgba(0, 0, 0, 0.1)',
+          }
+        }}
       >
         <DialogTitle
           sx={{
+            display: 'flex',
+            justifyContent: 'center', 
+            alignItems: 'center',
             color: '#2148C0',
-            fontSize: 32,
-            fontWeight: 800,
-            textAlign: 'center',
-            marginBottom: -4,
+            fontSize: '24px',
+            fontWeight: '600',
+            fontFamily: 'Inter, sans-serif',
+            pb: 1,
+            position: 'relative',
           }}
         >
           Add Patient Record
@@ -265,46 +275,73 @@ const [toothChartData, setToothChartData] = useState({
               position: 'absolute',
               right: 8,
               top: 8,
-              color: (theme) => theme.palette.grey[700],
+              color: (theme) => theme.palette.grey[500],
             }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
-          <Tabs value={tabIndex} onChange={handleTabChange}>
-            <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
-            <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
+        <Box display="flex" sx={{ borderBottom: '1px solid #e0e0e0', px: 2 }}>
+          <Tabs 
+            value={tabIndex} 
+            onChange={handleTabChange}
+            sx={{
+              '& .MuiTab-root': {
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: '500',
+                fontSize: '14px',
+                textTransform: 'none',
+                borderRadius: '8px',
+                mx: 0.5,
+                '&.Mui-selected': {
+                  backgroundColor: '#2148C0',
+                  color: '#fff',
+                },
+                '&:not(.Mui-selected)': {
+                  backgroundColor: '#f8f9fa',
+                  color: '#5f6368',
+                },
+              },
+              '& .MuiTabs-indicator': {
+                display: 'none',
+              },
+            }}
+          >
+            <Tab label="Patient Information" />
+            <Tab label="Medical Information" />
           </Tabs>
         </Box>
         <DialogContent
           dividers
           sx={{
-            backgroundColor: '#f5f7fa', // Change background color
-            minHeight: 200,             // Set a minimum height
-            px: 4,                      // Horizontal padding
-            py: 3,                      // Vertical padding
-            borderRadius: 3,            // Rounded corners (if you want)
-            // Add any other styles you want here
+            backgroundColor: '#f8f9fa',
+            minHeight: 400,
+            px: 3,
+            py: 3,
           }}
         >
           {tabIndex === 0 && (
             <Paper
               elevation={0}
               sx={{
-                bgcolor: '#ddd',
-                borderRadius: 4,
+                bgcolor: '#ffffff',
+                borderRadius: '12px',
                 p: 3,
                 display: 'flex',
-                gap: 2,
+                gap: 3,
                 alignItems: 'stretch',
+                boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.05)',
               }}
             >
             <Grid
   maxWidth="48%"
   padding={1}
 >
-  <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+  <Typography variant="subtitle1" fontWeight="600" mb={2} sx={{ 
+    fontFamily: 'Inter, sans-serif',
+    color: '#202124',
+    fontSize: '18px'
+  }}>
     Personal Information
   </Typography>
   <Grid container spacing={1}>
@@ -312,7 +349,14 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="First Name" 
-        sx={{ width: 400, backgroundColor: '#ffffff9e' }} 
+        sx={{ 
+          width: 400, 
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          }
+        }} 
         value={firstName}
         onChange={(e) => setFirstName(e.target.value)}
         error={requiredError && requiredFields.firstName}
@@ -324,7 +368,14 @@ const [toothChartData, setToothChartData] = useState({
     select
     fullWidth
     label="Suffix"
-    sx={{ width: 90, backgroundColor: '#ffffff9e' }}
+    sx={{ 
+      width: 90, 
+      '& .MuiOutlinedInput-root': {
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        fontFamily: 'Inter, sans-serif',
+      }
+    }}
     value={suffix}
     onChange={(e) => setSuffix(e.target.value)}
   >
@@ -341,7 +392,14 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Middle Name" 
-        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ 
+          width: 498, 
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          }
+        }} 
         value={middleName}
         onChange={(e) => setMiddleName(e.target.value)}
       />
@@ -350,7 +408,14 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Last Name" 
-        sx={{ width: 350, backgroundColor: '#ffffff9e' }} 
+        sx={{ 
+          width: 350, 
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          }
+        }} 
         value={lastName}
         onChange={(e) => setLastName(e.target.value)}
         error={requiredError && requiredFields.lastName}
@@ -362,7 +427,11 @@ const [toothChartData, setToothChartData] = useState({
         select
         fullWidth
         label="Marital Status"
-        sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+        sx={{ width: 140, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }}
         value={maritalStatus}
         onChange={(e) => setMaritalStatus(e.target.value)}
       >
@@ -376,7 +445,11 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Contact Number" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 245, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         value={contactNumber}
         onChange={(e) => {
           const value = e.target.value;
@@ -395,7 +468,11 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Occupation" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 245, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         value={occupation}
         onChange={(e) => setOccupation(e.target.value)}
       />
@@ -406,7 +483,11 @@ const [toothChartData, setToothChartData] = useState({
         label="Address" 
         multiline 
         rows={3} 
-        sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ mb: 0.8, width: 498, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         value={address}
         onChange={(e) => setAddress(e.target.value)}
         error={requiredError && requiredFields.address}
@@ -418,7 +499,11 @@ const [toothChartData, setToothChartData] = useState({
         fullWidth 
         label="Date of Birth" 
         type="date" 
-        sx={{ width: 250, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 250, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         InputLabelProps={{ shrink: true }}
         value={dateOfBirth}
         onChange={(e) => setDateOfBirth(e.target.value)}
@@ -463,7 +548,11 @@ const [toothChartData, setToothChartData] = useState({
   sx={{ pl: { md: 2 }, pt: 1 }}
   maxWidth="48%"
 >
-  <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+  <Typography variant="subtitle1" fontWeight="600" mb={2} sx={{ 
+    fontFamily: 'Inter, sans-serif',
+    color: '#202124',
+    fontSize: '18px'
+  }}>
     Contact Person
   </Typography>
   <Grid container spacing={1}>
@@ -471,7 +560,11 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Name" 
-        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 498, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         value={contactPersonName}
         onChange={(e) => setContactPersonName(e.target.value)}
         error={requiredError && requiredFields.contactPersonName}
@@ -483,7 +576,11 @@ const [toothChartData, setToothChartData] = useState({
     select
     fullWidth
     label="Relationship"
-    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+    sx={{ width: 245, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }}
     value={contactPersonRelationship}
     onChange={(e) => setContactPersonRelationship(e.target.value)}
     error={requiredError && requiredFields.contactPersonRelationship}
@@ -504,7 +601,11 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Contact Number" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 245, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         value={contactPersonNumber}
         onChange={(e) => {
           const value = e.target.value;
@@ -525,7 +626,11 @@ const [toothChartData, setToothChartData] = useState({
         label="Address" 
         multiline 
         rows={3} 
-        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 498, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} 
         value={contactPersonAddress}
         onChange={(e) => setContactPersonAddress(e.target.value)}
         error={requiredError && requiredFields.contactPersonAddress}
@@ -542,28 +647,41 @@ const [toothChartData, setToothChartData] = useState({
           <Paper
             elevation={0}
             sx={{
-              bgcolor: '#ddd',
-              borderRadius: 4,
+              bgcolor: '#ffffff',
+              borderRadius: '12px',
               p: 3,
               display: 'flex',
-              gap: 2,
+              gap: 3,
               alignItems: 'stretch',
+              boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.05)',
             }}
           >
             <Grid container spacing={2}>
               {/* Left: Health Profile */}
               <Grid item xs={12} md={7} maxWidth="48%">
-                <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+                <Typography variant="subtitle1" fontWeight="600" mb={2} sx={{ 
+                  fontFamily: 'Inter, sans-serif',
+                  color: '#202124',
+                  fontSize: '18px'
+                }}>
                   Health Profile
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: '#ffffff9e' }}value={allergies} onChange={(e) => setAllergies(e.target.value)} /></Grid>
+                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }}value={allergies} onChange={(e) => setAllergies(e.target.value)} /></Grid>
                   <Grid item xs={4}>
                     <TextField
                       select
                       fullWidth
                       label="Blood Type"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+                      sx={{ width: 140, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }}
                       value={bloodType} 
                       onChange={(e) => setBloodType(e.target.value)}
                       error={requiredError && requiredFields.bloodType}
@@ -579,13 +697,21 @@ const [toothChartData, setToothChartData] = useState({
                       <MenuItem value="O-">O-</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: '#ffffff9e' }} value={bloodborneDiseases} onChange={(e) => setBloodborneDiseases(e.target.value)} /></Grid>
+                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} value={bloodborneDiseases} onChange={(e) => setBloodborneDiseases(e.target.value)} /></Grid>
                   <Grid item xs={12}>
                     <TextField
                       select
                       fullWidth
                       label="Pregnancy Status"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+                      sx={{ width: 140, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }}
                       value={pregnancyStatus} 
                       onChange={(e) => setPregnancyStatus(e.target.value)}
                     >
@@ -593,8 +719,16 @@ const [toothChartData, setToothChartData] = useState({
                       <MenuItem value="Not Pregnant">Not Pregnant</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, '& .MuiOutlinedInput-root': {
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+          } }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
                  <Grid item xs={4} sx={{ ml: 3,
       color: requiredError && requiredFields.sex ? '#d32f2f' : 'inherit',}}>
                     <Typography sx={{
@@ -621,9 +755,13 @@ const [toothChartData, setToothChartData] = useState({
                   </Grid>
                 </Grid>
 
-                <Typography variant="subtitle1" fontWeight="bold" mb={2}>
-                X-Ray Uploads
-              </Typography>
+                <Typography variant="subtitle1" fontWeight="600" mb={2} sx={{ 
+                  fontFamily: 'Inter, sans-serif',
+                  color: '#202124',
+                  fontSize: '18px'
+                }}>
+                  X-Ray Uploads
+                </Typography>
               <Grid item xs={12}>
                 <Button
                   variant="outlined"
@@ -647,16 +785,27 @@ const [toothChartData, setToothChartData] = useState({
           </Paper>
         )}
       </DialogContent>
-      <DialogActions>
-      <Button
-  variant="contained"
-  color="primary"
-  sx={{ borderRadius: 8, px: 2, fontWeight: 'bold', fontSize: 18, mt: 1, mb: 1, mr: 2, backgroundColor: '#2148C0' }}
-  onClick={handleAddPatient} // <-- added this
->
-  Add Patient
-</Button>
-
+      <DialogActions sx={{ p: 3, pt: 1 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          sx={{ 
+            borderRadius: '8px', 
+            px: 3, 
+            py: 1.5,
+            fontWeight: '500', 
+            fontSize: '14px',
+            fontFamily: 'Inter, sans-serif',
+            backgroundColor: '#2148C0',
+            textTransform: 'none',
+            '&:hover': {
+              backgroundColor: '#1e3a9f'
+            }
+          }}
+          onClick={handleAddPatient}
+        >
+          Add Patient
+        </Button>
       </DialogActions>
     </Dialog>
     <MuiDialog open={confirmOpen} onClose={handleConfirmStay}>
