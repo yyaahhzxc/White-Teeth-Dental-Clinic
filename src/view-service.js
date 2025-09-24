@@ -10,13 +10,13 @@ import {
   Box,
   IconButton,
   MenuItem,
-  Dialog as MuiDialog,
   Snackbar
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import { API_BASE } from './apiConfig';
+import SaveChangesDialog from './SaveChangesDialog';
 
 const serviceTypes = [
   'Single Treatment',
@@ -235,19 +235,12 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
           </IconButton>
         </DialogActions>
       </Dialog>
-      <MuiDialog
+      <SaveChangesDialog
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-      >
-        <DialogTitle>Save changes?</DialogTitle>
-        <DialogContent>
-          <Typography>Do you want to save your changes before closing?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleConfirmDiscard} color="error">Discard</Button>
-          <Button onClick={handleConfirmSave} color="primary" variant="contained">Save</Button>
-        </DialogActions>
-      </MuiDialog>
+        onSave={handleConfirmSave}
+        onDiscard={handleConfirmDiscard}
+      />
     <Snackbar open={snackbarOpen} message={snackbarMsg} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
     </>
   );
