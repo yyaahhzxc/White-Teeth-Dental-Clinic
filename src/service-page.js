@@ -138,6 +138,13 @@ function ServiceList() {
   const sortedServices = sortData(filteredServices, sortConfig);
   const totalPages = Math.ceil(sortedServices.length / rowsPerPage);
   const visibleServices = sortedServices.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  // Reset page if current page exceeds total pages (e.g., after adding new data)
+  useEffect(() => {
+    if (totalPages > 0 && page >= totalPages) {
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }, [totalPages, page]);
   // Calculate scrollbar display value for table rows
   const scrollbarDisplay = visibleServices && visibleServices.length > 5 ? 'block' : 'none';
 
