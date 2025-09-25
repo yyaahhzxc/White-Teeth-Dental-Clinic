@@ -28,11 +28,6 @@ const isValidContactNumber = (number) => {
   return /^09\d{9}$/.test(number) || /^639\d{9}$/.test(number);
 };
 
-const isValidContactNumber = (number) => {
-  // Accept only numbers, must match the pattern exactly
-  return /^09\d{9}$/.test(number) || /^639\d{9}$/.test(number);
-};
-
 const AddPatientRecord = ({ open, onClose }) => {
   const [tabIndex, setTabIndex] = useState(0);
 
