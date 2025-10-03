@@ -38,6 +38,7 @@ function computeAge(birthDate) {
 
 function PatientList() {
   const [patients, setPatients] = useState([]);
+  const [categoryFilteredPatients, setCategoryFilteredPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -144,14 +145,32 @@ function PatientList() {
     setPage(0); // Reset to first page when filters change
   }, [activeFilters, showFilterBox]);
 
-  // Search filter - now handled by SearchBar component
+  // Initialize category filtered data when patients change
+  useEffect(() => {
+    setCategoryFilteredPatients(patients);
+  }, [patients]);
+
+  // Search filter - handle both search and empty search cases
   useEffect(() => {
     if (!search) {
-      setFilteredPatients(patients);
+      setFilteredPatients(categoryFilteredPatients);
+      setPage(0);
+    } else {
+      // Apply search filter manually since SearchBar might not handle empty case
+      const filtered = categoryFilteredPatients.filter(patient => {
+        const fullName = [
+          patient.lastName,
+          patient.firstName,
+          patient.middleName ? patient.middleName.charAt(0) + '.' : '',
+          patient.suffix
+        ].filter(Boolean).join(' ').toLowerCase();
+        return fullName.includes(search.toLowerCase()) || 
+               (patient.address && patient.address.toLowerCase().includes(search.toLowerCase()));
+      });
+      setFilteredPatients(filtered);
       setPage(0);
     }
-    // The actual filtering is now handled by the SearchBar component
-  }, [search, patients]);
+  }, [search, categoryFilteredPatients]);
 
   const handleAddPatientRecord = () => setShowPatientModal(true);
 
@@ -239,19 +258,7 @@ function PatientList() {
                 onChange={setSearch}
                 placeholder="Search by patient name or address"
                 searchFields={['firstName', 'lastName', 'middleName', 'address']}
-                data={patients}
-                onFilteredData={setFilteredPatients}
-                customFilter={(patients, searchTerm) => {
-                  return patients.filter(patient => {
-                    const fullName = [
-                      patient.lastName,
-                      patient.firstName,
-                      patient.middleName ? patient.middleName.charAt(0) + '.' : '',
-                      patient.suffix
-                    ].filter(Boolean).join(' ').toLowerCase();
-                    return fullName.includes(searchTerm.toLowerCase());
-                  });
-                }}
+                data={categoryFilteredPatients}
               />
               {/* Filter and Add Patient buttons */}
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
@@ -510,7 +517,7 @@ function PatientList() {
       <FilterComponent
         filterCategories={filterCategories}
         data={patients}
-        onFilteredData={setFilteredPatients}
+        onFilteredData={setCategoryFilteredPatients}
         activeFilters={activeFilters}
         showFilterBox={showFilterBox}
       />

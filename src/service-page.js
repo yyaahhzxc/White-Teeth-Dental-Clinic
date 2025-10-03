@@ -26,6 +26,7 @@ const API_BASE = 'http://localhost:3001';
 function ServiceList() {
   // ...existing code...
   const [services, setServices] = useState([]);
+  const [categoryFilteredServices, setCategoryFilteredServices] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -75,73 +76,48 @@ function ServiceList() {
     return params.length ? `?${params.join('&')}` : '';
   };
 
-  // Modified fetchServices to accept filters
-  const fetchServices = async (filters = activeFilters) => {
+  // Fetch services from backend (no filtering - let FilterComponent handle all filtering)
+  const fetchServices = async () => {
     try {
-      const query = buildFilterQuery(filters);
-      const response = await fetch(`${API_BASE}/service-table${query}`);
+      const response = await fetch(`${API_BASE}/service-table`);
       if (response.ok) {
         const data = await response.json();
-        let processedData = data;
-        
-        // Apply price range and duration range filtering on frontend
-        if (showFilterBox) {
-          filters.forEach(f => {
-            if (f.category === 'priceRange' && f.type) {
-              processedData = processedData.filter(service => {
-                const price = parseFloat(service.price) || 0;
-                switch (f.type) {
-                  case '0-500': return price >= 0 && price <= 500;
-                  case '501-1000': return price >= 501 && price <= 1000;
-                  case '1001-2000': return price >= 1001 && price <= 2000;
-                  case '2001-5000': return price >= 2001 && price <= 5000;
-                  case '5000+': return price > 5000;
-                  default: return true;
-                }
-              });
-            }
-            if (f.category === 'durationRange' && f.type) {
-              processedData = processedData.filter(service => {
-                const duration = parseInt(service.duration) || 0;
-                switch (f.type) {
-                  case '0-30 mins': return duration >= 0 && duration <= 30;
-                  case '31-60 mins': return duration >= 31 && duration <= 60;
-                  case '61-90 mins': return duration >= 61 && duration <= 90;
-                  case '91-120 mins': return duration >= 91 && duration <= 120;
-                  case '120+ mins': return duration > 120;
-                  default: return true;
-                }
-              });
-            }
-          });
-        }
-        
-        setServices(processedData);
-        setFilteredServices(processedData);
+        setServices(data);
       }
     } catch (error) {
       console.error('Error fetching services:', error);
     }
   };
 
-  // Refetch services when filters change
+  // Fetch services on mount and when needed
   useEffect(() => {
-    if (showFilterBox) {
-      fetchServices(activeFilters);
-    } else {
-      fetchServices([]); // fetch all services when filter box is closed
-    }
+    fetchServices();
+  }, []);
+
+  // Reset page when filters change
+  useEffect(() => {
     setPage(0); // Reset to first page when filters change
   }, [activeFilters, showFilterBox]);
 
-  // Search filter - now handled by SearchBar component
+  // Initialize category filtered data when services change
+  useEffect(() => {
+    setCategoryFilteredServices(services);
+  }, [services]);
+
+  // Search filter - handle both search and empty search cases
   useEffect(() => {
     if (!search) {
-      setFilteredServices(services);
+      setFilteredServices(categoryFilteredServices);
+      setPage(0);
+    } else {
+      // Apply search filter manually
+      const filtered = categoryFilteredServices.filter(service => {
+        return service.name && service.name.toLowerCase().includes(search.toLowerCase());
+      });
+      setFilteredServices(filtered);
       setPage(0);
     }
-    // The actual filtering is now handled by the SearchBar component
-  }, [search, services]);
+  }, [search, categoryFilteredServices]);
 
   // Handle filter changes from FilterComponent
   const handleFilterChange = (filters) => {
@@ -181,7 +157,7 @@ function ServiceList() {
       .then(res => res.json())
       .then(data => {
         setServices(data);
-        setFilteredServices(data);
+        // Remove setFilteredServices - let FilterComponent handle filtering
       });
     setShowServiceModal(false);
   };
@@ -246,8 +222,7 @@ function ServiceList() {
                 onChange={setSearch}
                 placeholder="Search by service name"
                 searchFields={['name']}
-                data={services}
-                onFilteredData={setFilteredServices}
+                data={categoryFilteredServices}
               />
               {/* Filter and Add Service buttons */}
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
@@ -527,7 +502,7 @@ function ServiceList() {
       <FilterComponent
         filterCategories={filterCategories}
         data={services}
-        onFilteredData={setFilteredServices}
+        onFilteredData={setCategoryFilteredServices}
         activeFilters={activeFilters}
         showFilterBox={showFilterBox}
       />
@@ -549,7 +524,7 @@ function ServiceList() {
             .then(res => res.json())
             .then(data => {
               setServices(data);
-              setFilteredServices(data);
+              // Remove setFilteredServices - let FilterComponent handle filtering
             });
         }}
       />
