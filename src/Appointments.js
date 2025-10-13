@@ -70,11 +70,14 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
   
   // Helper to get events for a date - FIXED to use parseLocalDate
   const getEventsForDate = (date) => {
-    const targetDateStr = date.toISOString().split('T')[0];
+    // Create date string in local timezone to match appointment data format
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`;
+    
     return appointments.filter(apt => {
-      // Use parseLocalDate to avoid timezone issues
-      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
-      const aptDateStr = aptDate.toISOString().split('T')[0];
+      const aptDateStr = apt.appointmentDate.split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
