@@ -49,7 +49,7 @@ function parseLocalDate(dateStr) {
 }
 
 // MonthGrid component for month view
-function MonthGrid({ appointments, currentDate, statusColors }) {
+function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick }) {
   // Get first day of month
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -68,11 +68,13 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
     d.setDate(d.getDate() + 1);
   }
   
-  // Helper to get events for a date
+  // Helper to get events for a date - FIXED to use parseLocalDate
   const getEventsForDate = (date) => {
     const targetDateStr = date.toISOString().split('T')[0];
     return appointments.filter(apt => {
-      const aptDateStr = apt.appointmentDate.split('T')[0];
+      // Use parseLocalDate to avoid timezone issues
+      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
+      const aptDateStr = aptDate.toISOString().split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
@@ -107,7 +109,9 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
                 {date.getDate()}
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
-                <Box key={eventIdx} sx={{
+                <Box key={eventIdx}
+                onClick={() => onAppointmentClick(event)}
+                sx={{
                   backgroundColor: statusColors[event.status] || statusColors.scheduled,
                   color: 'white',
                   p: 0.5,
@@ -175,6 +179,16 @@ function Appointments() {
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
 
+  // ...existing code...
+
+  const refreshAppointments = () => {
+    if (calendarView === 'Week') {
+      fetchAppointmentsForWeek();
+    } else if (calendarView === 'Month') {
+      fetchAppointmentsForMonth();
+    }
+  };
+
   // Helper function to convert 24h to 12h format
   const convertTo12Hour = (time24) => {
     if (!time24) return '';
@@ -198,22 +212,6 @@ function Appointments() {
     }
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
   };
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
-  
-  useEffect(() => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else {
-      fetchAppointmentsForMonth();
-    }
-    fetchServices();
-  }, [currentDate, calendarView]);
 
   // Function to fetch services
   const fetchServices = async () => {
@@ -340,6 +338,42 @@ function Appointments() {
       setLoading(false);
     }
   };
+
+  // Listen for appointment updates from other components
+  useEffect(() => {
+    const handleAppointmentAdded = () => {
+      refreshAppointments();
+    };
+
+    // Listen for custom events
+    window.addEventListener('appointmentAdded', handleAppointmentAdded);
+    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
+
+    return () => {
+      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
+      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
+    };
+  }, [calendarView]);
+
+  // Effect to update current time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Effect to fetch data when date or view changes
+  useEffect(() => {
+    if (calendarView === 'Week') {
+      fetchAppointmentsForWeek();
+    } else {
+      fetchAppointmentsForMonth();
+    }
+    fetchServices();
+  }, [currentDate, calendarView]);
+
+  // ...existing code...
 
   // Handle edit mode toggle
   const handleEditClick = () => {
@@ -670,6 +704,7 @@ function Appointments() {
               appointments={appointments}
               currentDate={currentDate}
               statusColors={statusColors}
+              onAppointmentClick={handleAppointmentClick}
             />
           ) : (
             <>
