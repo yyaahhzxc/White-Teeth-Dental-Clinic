@@ -23,6 +23,14 @@ const normalizeDateForStorage = (dateString) => {
   return dateString || '';
 };
 
+// Helper function to format date without timezone conversion
+function formatDateForAPI(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -91,7 +99,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         // Add one day to appointmentDate using local timezone
         const dateObj = new Date(appointmentDate + 'T00:00:00');
         dateObj.setDate(dateObj.getDate() + 1);
-        setAppointmentDate(dateObj.toISOString().split('T')[0]);
+        setAppointmentDate(formatDateForAPI(dateObj));
       }
     }
     // eslint-disable-next-line

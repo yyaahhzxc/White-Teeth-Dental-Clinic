@@ -30,9 +30,9 @@ import {
   Edit as EditIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import Header from './header';
-import QuickActionButton from './QuickActionButton';
-import { API_BASE } from './apiConfig';
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
+import { API_BASE } from '../apiConfig';
 
 
 // Add this utility function at the top of Appointments.js after your imports
@@ -46,6 +46,14 @@ const normalizeDateFromStorage = (dateString) => {
 function parseLocalDate(dateStr) {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
+}
+
+// Helper function to format date without timezone conversion
+function formatDateForAPI(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // MonthGrid component for month view
@@ -77,9 +85,8 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
     const targetDateStr = `${year}-${month}-${day}`;
     
     return appointments.filter(apt => {
-      // Use parseLocalDate to avoid timezone issues
-      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
-      const aptDateStr = aptDate.toISOString().split('T')[0];
+      // Extract just the date part, no timezone conversion
+      const aptDateStr = apt.appointmentDate.split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
@@ -238,8 +245,8 @@ function Appointments() {
     setLoading(true);
     try {
       const weekDates = getWeekDates(currentDate);
-      const startDate = weekDates[0].toISOString().split('T')[0];
-      const endDate = weekDates[6].toISOString().split('T')[0];
+      const startDate = formatDateForAPI(weekDates[0]);
+      const endDate = formatDateForAPI(weekDates[6]);
 
       console.log('Fetching appointments for week:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
@@ -307,8 +314,8 @@ function Appointments() {
     try {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
-      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      const startDate = formatDateForAPI(new Date(year, month, 1));
+      const endDate = formatDateForAPI(new Date(year, month + 1, 0));
 
       console.log('Fetching appointments for month:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
