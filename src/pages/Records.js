@@ -5,29 +5,41 @@ import {
   Button,
   IconButton,
   Collapse,
-  Chip,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-import Header from './header';
-import QuickActionButton from './QuickActionButton';
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
 import AddPatientRecord from './add-record';
-import AddService from './add-service';
-import ViewService from './view-service';
-import DataTable from './DataTable';
-import SearchBar from './SearchBar';
-import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
-import SortableHeader, { sortData } from './SortableHeader';
-import Pagination from './Pagination';
+import DataTable from '../components/DataTable';
+import SearchBar from '../components/SearchBar';
+import FilterComponent, { FilterButton, FilterContent } from '../components/FilterComponent';
+import SortableHeader, { sortData } from '../components/SortableHeader';
+import DualSortableHeader, { sortDualData } from '../components/DualSortableHeader';
+import Pagination from '../components/Pagination';
+import ViewRecord from './view-record';
 
 // API Base URL
 const API_BASE = 'http://localhost:3001';
 
-function ServiceList() {
-  // ...existing code...
-  const [services, setServices] = useState([]);
-  const [categoryFilteredServices, setCategoryFilteredServices] = useState([]);
-  const [filteredServices, setFilteredServices] = useState([]);
+// Utility function to compute age
+function computeAge(birthDate) {
+  if (!birthDate) return '';
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function PatientList() {
+  const [patients, setPatients] = useState([]);
+  const [categoryFilteredPatients, setCategoryFilteredPatients] = useState([]);
+  const [filteredPatients, setFilteredPatients] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -40,25 +52,36 @@ function ServiceList() {
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  // ...existing code...
 
   const navigate = useNavigate();
-  const [showServiceModal, setShowServiceModal] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [medInfo, setMedInfo] = useState(null);
+  // Handler to open patient view modal
+  const handleViewPatient = async (patient) => {
+    setSelectedPatient(patient);
+    try {
+      const res = await fetch(`${API_BASE}/medical-information/${patient.id}`);
+      const data = await res.json();
+      setMedInfo(data || null);
+    } catch (err) {
+      console.error("Error fetching medical info:", err);
+      setMedInfo(null);
+    }
+    setViewDialogOpen(true);
+  };
 
-  // Filter categories for services
+  // Filter categories for patient records
   const filterCategories = [
-    { label: 'Price Range', value: 'priceRange', types: ['0-500', '501-1000', '1001-2000', '2001-5000', '5000+'] },
-    { label: 'Duration Range', value: 'durationRange', types: ['0-30 mins', '31-60 mins', '61-90 mins', '91-120 mins', '120+ mins'] },
-    { label: 'Treatment Type', value: 'type', types: ['Single Treatment', 'Package Treatment'] },
-    { label: 'Status', value: 'status', types: ['Active', 'Inactive'] },
+    { label: 'Sex', value: 'sex', types: ['Male', 'Female'] },
+    { label: 'Age Range', value: 'ageRange', types: ['0-18', '19-35', '36-50', '51-65', '65+'] },
   ];
 
-  // Fetch services from backend
+
+  // Fetch patients from backend
   useEffect(() => {
-    fetchServices();
+    fetchPatients();
   }, []);
 
   // Helper to build query string from filters
@@ -66,8 +89,8 @@ function ServiceList() {
     const params = [];
     filters.forEach(f => {
       if (f.category && f.type) {
-        if (f.category === 'priceRange' || f.category === 'durationRange') {
-          // Handle price range and duration range filtering on frontend since backend may not support it
+        if (f.category === 'ageRange') {
+          // Handle age range filtering on frontend since backend may not support it
           return;
         }
         params.push(`${encodeURIComponent(f.category)}=${encodeURIComponent(f.type)}`);
@@ -76,48 +99,80 @@ function ServiceList() {
     return params.length ? `?${params.join('&')}` : '';
   };
 
-  // Fetch services from backend (no filtering - let FilterComponent handle all filtering)
-  const fetchServices = async () => {
+  // Modified fetchPatients to accept filters
+  const fetchPatients = async (filters = activeFilters) => {
     try {
-      const response = await fetch(`${API_BASE}/service-table`);
+      const query = buildFilterQuery(filters);
+      const response = await fetch(`${API_BASE}/patients${query}`);
       if (response.ok) {
         const data = await response.json();
-        setServices(data);
+        let processedData = data;
+        
+        // Apply age range filtering on frontend
+        if (showFilterBox) {
+          filters.forEach(f => {
+            if (f.category === 'ageRange' && f.type) {
+              processedData = processedData.filter(patient => {
+                const age = computeAge(patient.dateOfBirth);
+                switch (f.type) {
+                  case '0-18': return age >= 0 && age <= 18;
+                  case '19-35': return age >= 19 && age <= 35;
+                  case '36-50': return age >= 36 && age <= 50;
+                  case '51-65': return age >= 51 && age <= 65;
+                  case '65+': return age > 65;
+                  default: return true;
+                }
+              });
+            }
+          });
+        }
+        
+        setPatients(processedData);
+        setFilteredPatients(processedData);
       }
     } catch (error) {
-      console.error('Error fetching services:', error);
+      console.error('Error fetching patients:', error);
     }
   };
 
-  // Fetch services on mount and when needed
+  // Refetch patients when filters change
   useEffect(() => {
-    fetchServices();
-  }, []);
-
-  // Reset page when filters change
-  useEffect(() => {
+    if (showFilterBox) {
+      fetchPatients(activeFilters);
+    } else {
+      fetchPatients([]); // fetch all patients when filter box is closed
+    }
     setPage(0); // Reset to first page when filters change
   }, [activeFilters, showFilterBox]);
 
-  // Initialize category filtered data when services change
+  // Initialize category filtered data when patients change
   useEffect(() => {
-    setCategoryFilteredServices(services);
-  }, [services]);
+    setCategoryFilteredPatients(patients);
+  }, [patients]);
 
   // Search filter - handle both search and empty search cases
   useEffect(() => {
     if (!search) {
-      setFilteredServices(categoryFilteredServices);
+      setFilteredPatients(categoryFilteredPatients);
       setPage(0);
     } else {
-      // Apply search filter manually
-      const filtered = categoryFilteredServices.filter(service => {
-        return service.name && service.name.toLowerCase().includes(search.toLowerCase());
+      // Apply search filter manually since SearchBar might not handle empty case
+      const filtered = categoryFilteredPatients.filter(patient => {
+        const fullName = [
+          patient.lastName,
+          patient.firstName,
+          patient.middleName ? patient.middleName.charAt(0) + '.' : '',
+          patient.suffix
+        ].filter(Boolean).join(' ').toLowerCase();
+        return fullName.includes(search.toLowerCase()) || 
+               (patient.address && patient.address.toLowerCase().includes(search.toLowerCase()));
       });
-      setFilteredServices(filtered);
+      setFilteredPatients(filtered);
       setPage(0);
     }
-  }, [search, categoryFilteredServices]);
+  }, [search, categoryFilteredPatients]);
+
+  const handleAddPatientRecord = () => setShowPatientModal(true);
 
   // Handle filter changes from FilterComponent
   const handleFilterChange = (filters) => {
@@ -135,34 +190,15 @@ function ServiceList() {
   }, [search, activeFilters, rowsPerPage]);
 
   // Pagination calculations with sorting
-  const sortedServices = sortData(filteredServices, sortConfig);
-  const totalPages = Math.ceil(sortedServices.length / rowsPerPage);
-  const visibleServices = sortedServices.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  // Calculate scrollbar display value for table rows
-  const scrollbarDisplay = visibleServices && visibleServices.length > 5 ? 'block' : 'none';
+  const sortedPatients = sortDualData(filteredPatients, sortConfig);
+  const totalPages = Math.ceil(sortedPatients.length / rowsPerPage);
+  const visiblePatients = sortedPatients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };
 
-  // Handler to open service view modal
-  const handleViewService = async (service) => {
-    setSelectedService(service);
-    setViewDialogOpen(true);
-  };
-
-  const handleAddService = () => {
-    // After adding, fetch the updated list
-    fetch(`${API_BASE}/service-table`)
-      .then(res => res.json())
-      .then(data => {
-        setServices(data);
-        // Remove setFilteredServices - let FilterComponent handle filtering
-      });
-    setShowServiceModal(false);
-  };
-
-  const handleAddPatientRecord = () => setShowPatientModal(true);
+  // View handler
   const handleAddAppointment = () => navigate('/add-appointment');
 
   return (
@@ -176,7 +212,7 @@ function ServiceList() {
     >
       <Header />
       
-      {/* Services Title */}
+      {/* Patient Records Title */}
       <Box
         sx={{
           display: 'flex',
@@ -196,7 +232,7 @@ function ServiceList() {
             fontFamily: 'Inter, sans-serif',
           }}
         >
-          Services
+          Patient Records
         </Typography>
       </Box>
 
@@ -220,16 +256,16 @@ function ServiceList() {
               <SearchBar
                 value={search}
                 onChange={setSearch}
-                placeholder="Search by service name"
-                searchFields={['name']}
-                data={categoryFilteredServices}
+                placeholder="Search by patient name or address"
+                searchFields={['firstName', 'lastName', 'middleName', 'address']}
+                data={categoryFilteredPatients}
               />
-              {/* Filter and Add Service buttons */}
+              {/* Filter and Add Patient buttons */}
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
                 <FilterButton onClick={() => setShowFilterBox(v => !v)} />
                 <Button
                   variant="contained"
-                  onClick={() => setShowServiceModal(true)}
+                  onClick={() => setShowPatientModal(true)}
                   sx={{
                     backgroundColor: '#2148c0',
                     color: 'white',
@@ -247,7 +283,7 @@ function ServiceList() {
                     },
                   }}
                 >
-                  Add Service
+                  Add Patient
                 </Button>
               </Box>
             </Box>
@@ -277,71 +313,58 @@ function ServiceList() {
                 alignItems: 'center',
               }}
             >
-                <SortableHeader
-                  label="Service Name"
-                  sortKey="name"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                  textAlign="left"
-                  sx={{ flex: '2' }}
-                />
-                <SortableHeader
-                  label="Price"
-                  sortKey="price"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                  textAlign="center"
-                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
-                  customSort={(a, b, direction) => {
-                    const priceA = parseFloat(a.price) || 0;
-                    const priceB = parseFloat(b.price) || 0;
-                    return direction === 'asc' ? priceA - priceB : priceB - priceA;
-                  }}
-                />
-                <SortableHeader
-                  label="Duration"
-                  sortKey="duration"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                  textAlign="center"
-                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
-                  customSort={(a, b, direction) => {
-                    const durationA = parseInt(a.duration) || 0;
-                    const durationB = parseInt(b.duration) || 0;
-                    return direction === 'asc' ? durationA - durationB : durationB - durationA;
-                  }}
-                />
-                <SortableHeader
-                  label="Type"
-                  sortKey="type"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                  textAlign="center"
-                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
-                />
-                <SortableHeader
-                  label="Status"
-                  sortKey="status"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                  textAlign="center"
-                  sx={{ flex: '1', textAlign: 'center', justifyContent: 'center', display: 'flex' }}
-                />
-              </Box>
+              <DualSortableHeader
+                firstSortKey="firstName"
+                secondSortKey="lastName"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="left"
+              />
+              <SortableHeader
+                label="Age"
+                sortKey="age"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+                customSort={(a, b, direction) => {
+                  const ageA = computeAge(a.dateOfBirth);
+                  const ageB = computeAge(b.dateOfBirth);
+                  return direction === 'asc' ? ageA - ageB : ageB - ageA;
+                }}
+              />
+              <SortableHeader
+                label="Sex"
+                sortKey="sex"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                textAlign="center"
+              />
+              <SortableHeader
+                label="Contact Number"
+                textAlign="center"
+                sortable={false}
+              />
+              <SortableHeader
+                label="Address"
+                textAlign="center"
+                sortable={false}
+              />
             </Box>
-          }
-          tableRows={
-            <Box sx={{ 
-              px: 3, 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column',
-              minHeight: '402px',
-              maxHeight: '402px',
-              overflow: visibleServices.length > 5 ? 'auto' : 'hidden',
-              '&::-webkit-scrollbar': {
-                width: '6px',
-              },
+          </Box>
+        }
+        tableRows={
+          <Box sx={{ 
+            px: 3, 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column',
+            minHeight: '402px',
+            maxHeight: '402px',
+            overflow: visiblePatients.length > 5 ? 'auto' : 'hidden',
+            '&::-webkit-scrollbar': {
+              width: '6px',
+              display: visiblePatients.length > 5 ? 'block' : 'none',
+            },
             '&::-webkit-scrollbar-track': {
               background: '#f1f1f1',
               borderRadius: '3px',
@@ -355,10 +378,10 @@ function ServiceList() {
             },
           }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
-              {visibleServices.length > 0 ? (
-                visibleServices.map((service) => (
+              {visiblePatients.length > 0 ? (
+                visiblePatients.map((patient) => (
                   <Box 
-                    key={service.id}
+                    key={patient.id}
                     sx={{ 
                       display: 'flex', 
                       px: 2,
@@ -372,9 +395,9 @@ function ServiceList() {
                         cursor: 'pointer'
                       }
                     }}
-                    onClick={() => handleViewService(service)}
+                    onClick={() => handleViewPatient(patient)}
                   >
-                    <Box sx={{ flex: '2', textAlign: 'left' }}>
+                    <Box sx={{ flex: '1', textAlign: 'left' }}>
                       <Typography
                         sx={{
                           fontFamily: 'Roboto, sans-serif',
@@ -385,10 +408,9 @@ function ServiceList() {
                           letterSpacing: '0.5px',
                         }}
                       >
-                        {service.name || '-'}
+                        {`${patient.firstName || ''} ${patient.lastName || ''}`}
                       </Typography>
                     </Box>
-
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
                         sx={{
@@ -400,12 +422,9 @@ function ServiceList() {
                           letterSpacing: '0.5px',
                         }}
                       >
-                        {typeof service.price === 'number' || !isNaN(Number(service.price))
-      ? `₱${Number(service.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : '₱0.00'}
+                        {computeAge(patient.dateOfBirth)}
                       </Typography>
                     </Box>
-
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
                         sx={{
@@ -417,10 +436,9 @@ function ServiceList() {
                           letterSpacing: '0.5px',
                         }}
                       >
-                        {service.duration ? `${service.duration} mins` : '-'}
+                        {patient.sex || '-'}
                       </Typography>
                     </Box>
-
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
                         sx={{
@@ -432,27 +450,22 @@ function ServiceList() {
                           letterSpacing: '0.5px',
                         }}
                       >
-                        {service.type || '-'}
+                        {patient.contactNumber || patient.contact || '-'}
                       </Typography>
                     </Box>
-
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
-                      <Chip
-                        label={service.status === 'Active' ? 'Active' : 'Inactive'}
+                      <Typography
                         sx={{
-                          backgroundColor: service.status === 'Active' ? '#4CAF50' : '#F44336',
-                          color: 'white',
-                          fontWeight: 500,
-                          fontSize: '12.5px',
                           fontFamily: 'Roboto, sans-serif',
-                          borderRadius: '17px',
-                          height: '26px',
-                          minWidth: '72px',
-                          '& .MuiChip-label': {
-                            px: 1.6,
-                          }
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
                         }}
-                      />
+                      >
+                        {patient.address || '-'}
+                      </Typography>
                     </Box>
                   </Box>
                 ))
@@ -475,7 +488,7 @@ function ServiceList() {
                       color: '#6d6b80',
                     }}
                   >
-                    No services found.
+                    No patient records found.
                   </Typography>
                 </Box>
               )}
@@ -503,8 +516,8 @@ function ServiceList() {
       {/* FilterComponent for data filtering logic */}
       <FilterComponent
         filterCategories={filterCategories}
-        data={services}
-        onFilteredData={setCategoryFilteredServices}
+        data={patients}
+        onFilteredData={setCategoryFilteredPatients}
         activeFilters={activeFilters}
         showFilterBox={showFilterBox}
       />
@@ -515,33 +528,25 @@ function ServiceList() {
         onAddAppointment={handleAddAppointment}
       />
 
-      {/* View Service Dialog */}
-      <ViewService
+      {/* Patient Modal */}
+      <ViewRecord
         open={viewDialogOpen}
         onClose={() => setViewDialogOpen(false)}
-        service={selectedService}
-        onServiceUpdated={() => {
+        patient={selectedPatient}
+        medInfo={medInfo}
+        onRecordUpdated={() => {
           // Refresh the list after edit
-          fetch(`${API_BASE}/service-table`)
+          fetch(`${API_BASE}/patients`)
             .then(res => res.json())
             .then(data => {
-              setServices(data);
-              // Remove setFilteredServices - let FilterComponent handle filtering
+              setPatients(data);
+              setFilteredPatients(data);
             });
         }}
       />
-
-      {/* Service Modal */}
-      <AddService
-        open={showServiceModal}
-        onClose={() => setShowServiceModal(false)}
-        handleAddService={handleAddService}
-      />
-
-      {/* Patient Modal */}
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
     </Box>
   );
 }
 
-export default ServiceList;
+export default PatientList;

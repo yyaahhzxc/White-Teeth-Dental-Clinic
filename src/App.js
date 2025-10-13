@@ -5,19 +5,19 @@ import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { Routes, Route, useNavigate } from 'react-router-dom';
-import Dashboard from './Dashboard';
-import PatientList from './Records'
-import AddService from './add-service';
-import ServiceList from './service-page';
-import HomePage from './HomePage';
-import ForgotPassword from './ForgotPassword';
-import Appointments from './Appointments';
-import Invoice from './Invoice';
-import Accounting from './Accounting';
-import Profile from './Profile';
-import Settings from './Settings';
-import Logs from './Logs';
-import Accounts from './Accounts';
+import Dashboard from './pages/Dashboard';
+import PatientList from './pages/Records'
+import AddService from './pages/add-service';
+import ServiceList from './pages/service-page';
+import HomePage from './pages/HomePage';
+import ForgotPassword from './pages/ForgotPassword';
+import Appointments from './pages/Appointments';
+import Invoice from './pages/Invoice';
+import Accounting from './pages/Accounting';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import Logs from './pages/Logs';
+import Accounts from './pages/Accounts';
 import { API_BASE } from './apiConfig';
 
 

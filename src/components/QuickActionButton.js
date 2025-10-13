@@ -5,8 +5,8 @@ import { Box, Fab, Fade } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
-import AddAppointmentDialog from './add-appointment';
-import AddPatientRecord from './add-record';
+import AddAppointmentDialog from '../pages/add-appointment';
+import AddPatientRecord from '../pages/add-record';
 
 function QuickActionButton() {
   // Make size calculations dynamic functions instead of constants

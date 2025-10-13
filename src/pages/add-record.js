@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 
 const isValidContactNumber = (number) => {
   // Accept only numbers, must match the pattern exactly

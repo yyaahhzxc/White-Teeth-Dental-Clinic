@@ -20,8 +20,8 @@ import {
   VisibilityOff 
 } from "@mui/icons-material";
 import { useNavigate } from 'react-router-dom';
-import Header from "./header";
-import { API_BASE } from './apiConfig';
+import Header from "../components/header";
+import { API_BASE } from '../apiConfig';
 
 export default function Profile() {
   const [formData, setFormData] = useState({

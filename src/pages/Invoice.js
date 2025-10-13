@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import Header from './header';
+import Header from '../components/header';
 
 export default function Invoice() {
   return (
