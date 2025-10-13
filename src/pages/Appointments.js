@@ -30,9 +30,9 @@ import {
   Edit as EditIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import Header from '../components/header';
-import QuickActionButton from '../components/QuickActionButton';
-import { API_BASE } from '../apiConfig';
+import Header from './header';
+import QuickActionButton from './QuickActionButton';
+import { API_BASE } from './apiConfig';
 
 
 // Add this utility function at the top of Appointments.js after your imports
@@ -70,7 +70,12 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
   
   // Helper to get events for a date - FIXED to use parseLocalDate
   const getEventsForDate = (date) => {
-    const targetDateStr = date.toISOString().split('T')[0];
+    // Create date string in local timezone to match appointment data format
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`;
+    
     return appointments.filter(apt => {
       // Use parseLocalDate to avoid timezone issues
       const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
@@ -78,6 +83,7 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
       return aptDateStr === targetDateStr;
     });
   };
+
 
   return (
     <Box sx={{ width: '100%', p: 2 }}>
@@ -179,16 +185,6 @@ function Appointments() {
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
 
-  // ...existing code...
-
-  const refreshAppointments = () => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else if (calendarView === 'Month') {
-      fetchAppointmentsForMonth();
-    }
-  };
-
   // Helper function to convert 24h to 12h format
   const convertTo12Hour = (time24) => {
     if (!time24) return '';
@@ -216,12 +212,19 @@ function Appointments() {
   // Function to fetch services
   const fetchServices = async () => {
     try {
-      const response = await fetch(`${API_BASE}/services`);
+      console.log('Fetching services from:', `${API_BASE}/service-table`);
+      const response = await fetch(`${API_BASE}/service-table`);
+      console.log('Services response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Services data received:', data);
+        console.log('Number of services:', data.length);
         setServices(data);
       } else {
-        console.error('Failed to fetch services');
+        console.error('Failed to fetch services - Status:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         setServices([]);
       }
     } catch (error) {
