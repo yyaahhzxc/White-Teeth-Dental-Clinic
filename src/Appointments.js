@@ -49,7 +49,7 @@ function parseLocalDate(dateStr) {
 }
 
 // MonthGrid component for month view
-function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick }) {
+function MonthGrid({ appointments, currentDate, statusColors }) {
   // Get first day of month
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -68,17 +68,14 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
     d.setDate(d.getDate() + 1);
   }
   
-  // Helper to get events for a date - FIXED to use parseLocalDate
+  // Helper to get events for a date
   const getEventsForDate = (date) => {
     const targetDateStr = date.toISOString().split('T')[0];
     return appointments.filter(apt => {
-      // Use parseLocalDate to avoid timezone issues
-      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
-      const aptDateStr = aptDate.toISOString().split('T')[0];
+      const aptDateStr = apt.appointmentDate.split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
-
 
   return (
     <Box sx={{ width: '100%', p: 2 }}>
@@ -110,9 +107,7 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
                 {date.getDate()}
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
-                <Box key={eventIdx}
-                onClick={() => onAppointmentClick(event)}
-                sx={{
+                <Box key={eventIdx} sx={{
                   backgroundColor: statusColors[event.status] || statusColors.scheduled,
                   color: 'white',
                   p: 0.5,
@@ -179,31 +174,6 @@ function Appointments() {
   
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
-
-  const refreshAppointments = () => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else if (calendarView === 'Month') {
-      fetchAppointmentsForMonth();
-    }
-  };
-
-  // Listen for appointment updates from other components
-  useEffect(() => {
-    const handleAppointmentAdded = () => {
-      refreshAppointments();
-    };
-
-    // Listen for custom events
-    window.addEventListener('appointmentAdded', handleAppointmentAdded);
-    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
-
-    return () => {
-      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
-      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
-    };
-  }, [calendarView]);
-
 
   // Helper function to convert 24h to 12h format
   const convertTo12Hour = (time24) => {
@@ -700,7 +670,6 @@ function Appointments() {
               appointments={appointments}
               currentDate={currentDate}
               statusColors={statusColors}
-              onAppointmentClick={handleAppointmentClick}
             />
           ) : (
             <>
