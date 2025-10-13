@@ -203,6 +203,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
             const result = await response.json();
             
             if (response.ok) {
+
+                  // ADD THIS: Dispatch event to trigger refresh in Appointments.js
+            window.dispatchEvent(new CustomEvent('appointmentAdded'));
                 setSnackbar({ 
                     open: true, 
                     message: 'Appointment created successfully!', 
