@@ -18,7 +18,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import BookmarksIcon from '@mui/icons-material/Bookmarks';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 
 function Header() {
   const navigate = useNavigate();

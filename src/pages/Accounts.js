@@ -25,20 +25,20 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { Search, FilterList, Add, Edit } from '@mui/icons-material';
-import Header from './header';
-import QuickActionButton from './QuickActionButton';
-import DataTable from './DataTable';
-import SearchBar from './SearchBar';
-import FilterComponent, { FilterButton, FilterContent } from './FilterComponent';
-import SortableHeader, { sortData } from './SortableHeader';
-import DualSortableHeader, { sortDualData } from './DualSortableHeader';
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
+import DataTable from '../components/DataTable';
+import SearchBar from '../components/SearchBar';
+import FilterComponent, { FilterButton, FilterContent } from '../components/FilterComponent';
+import SortableHeader, { sortData } from '../components/SortableHeader';
+import DualSortableHeader, { sortDualData } from '../components/DualSortableHeader';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert from '@mui/material/Alert';
 import Fade from '@mui/material/Fade';
 import Collapse from '@mui/material/Collapse';
-import { API_BASE, MASTER_PASSWORD } from './apiConfig';
+import { API_BASE, MASTER_PASSWORD } from '../apiConfig';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
-import Pagination from './Pagination';
+import Pagination from '../components/Pagination';
 
 export default function Accounts() {
   const [users, setUsers] = useState([]);

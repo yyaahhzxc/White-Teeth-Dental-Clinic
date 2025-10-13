@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import Header from './header';
+import Header from '../components/header';
 
-export default function Accounting() {
+export default function Settings() {
   return (
     <Box
       sx={{
@@ -17,9 +17,9 @@ export default function Accounting() {
       <Header />
       <Box sx={{ p: 4, flex: 1 }}>
         <Typography variant="h4" sx={{ color: '#2148C0', fontWeight: 700 }}>
-          Accounting
+          Settings
         </Typography>
-        <Typography sx={{ mt: 2 }}>This is the accounting page placeholder.</Typography>
+        <Typography sx={{ mt: 2 }}>Application settings placeholder.</Typography>
       </Box>
     </Box>
   );

@@ -23,7 +23,7 @@ const statusOptions = [
   'Inactive'
 ];
 
-import { API_BASE } from './apiConfig';
+import { API_BASE } from '../apiConfig';
 
 const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
   const [service, setService] = useState({
