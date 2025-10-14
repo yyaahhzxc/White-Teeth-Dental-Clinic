@@ -30,10 +30,9 @@ import {
   Edit as EditIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import Header from './header';
-import QuickActionButton from './QuickActionButton';
-import { API_BASE } from './apiConfig';
-
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
+import { API_BASE } from '../apiConfig';
 
 // Add this utility function at the top of Appointments.js after your imports
 const normalizeDateFromStorage = (dateString) => {
@@ -375,8 +374,6 @@ function Appointments() {
     }
     fetchServices();
   }, [currentDate, calendarView]);
-
-  // ...existing code...
 
   // Handle edit mode toggle
   const handleEditClick = () => {
