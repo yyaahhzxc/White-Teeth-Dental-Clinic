@@ -64,6 +64,23 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
   };
 
+  const isValidBusinessTime = (timeString) => {
+    if (!timeString) return false;
+    const [hours] = timeString.split(':').map(Number);
+    return hours >= 8 && hours < 17; // 8am to 5pm (17 is 5pm in 24hr format)
+  };
+  
+  // Helper function to validate appointment end time doesn't exceed business hours
+  const validateAppointmentTime = (startTime, duration) => {
+    if (!startTime || !duration) return true;
+    
+    const endTime = addMinutesToTime(startTime, duration);
+    const [endHours] = endTime.split(':').map(Number);
+    
+    return endHours <= 17; // End time should not exceed 5pm
+  };
+
+
   // Fetch patients
   useEffect(() => {
     if (open) {
@@ -74,28 +91,50 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
   // When service or timeStart changes, adjust timeEnd and appointmentDate
   useEffect(() => {
-    if (
-      selectedService &&
-      typeof selectedService.duration === 'number' &&
-      timeStart &&
-      appointmentDate
-    ) {
-      // duration is in minutes
-      const newTimeEnd = addMinutesToTime(timeStart, selectedService.duration);
-      setTimeEnd(newTimeEnd);
-            
-      // If the end time is past midnight, increment the date
-      const [startHour, startMin] = timeStart.split(':').map(Number);
-      const [endHour, endMin] = newTimeEnd.split(':').map(Number);
-      if (endHour < startHour || (endHour === startHour && endMin < startMin)) {
-        // Add one day to appointmentDate using local timezone
-        const dateObj = new Date(appointmentDate + 'T00:00:00');
-        dateObj.setDate(dateObj.getDate() + 1);
-        setAppointmentDate(dateObj.toISOString().split('T')[0]);
-      }
+  if (
+    selectedService &&
+    typeof selectedService.duration === 'number' &&
+    timeStart &&
+    appointmentDate
+  ) {
+    // Validate start time is within business hours
+    if (!isValidBusinessTime(timeStart)) {
+      setSnackbar({
+        open: true,
+        message: 'Start time must be between 8:00 AM and 5:00 PM',
+        severity: 'error'
+      });
+      setTimeStart('');
+      return;
     }
-    // eslint-disable-next-line
-  }, [selectedService, timeStart]);
+
+    // Validate that appointment doesn't go beyond business hours
+    if (!validateAppointmentTime(timeStart, selectedService.duration)) {
+      setSnackbar({
+        open: true,
+        message: `Appointment would end after 5:00 PM. Please select an earlier time or choose a shorter service.`,
+        severity: 'warning'
+      });
+      setTimeStart('');
+      return;
+    }
+
+    // duration is in minutes
+    const newTimeEnd = addMinutesToTime(timeStart, selectedService.duration);
+    setTimeEnd(newTimeEnd);
+          
+    // If the end time is past midnight, increment the date
+    const [startHour, startMin] = timeStart.split(':').map(Number);
+    const [endHour, endMin] = newTimeEnd.split(':').map(Number);
+    if (endHour < startHour || (endHour === startHour && endMin < startMin)) {
+      // Add one day to appointmentDate using local timezone
+      const dateObj = new Date(appointmentDate + 'T00:00:00');
+      dateObj.setDate(dateObj.getDate() + 1);
+      setAppointmentDate(dateObj.toISOString().split('T')[0]);
+    }
+  }
+  // eslint-disable-next-line
+}, [selectedService, timeStart]);
 
   const fetchPatients = async () => {
     setLoading(true);
@@ -165,10 +204,27 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       });
       return false;
     }
+    if (!isValidBusinessTime(timeStart)) {
+      setSnackbar({
+        open: true,
+        message: 'Start time must be between 8:00 AM and 5:00 PM',
+        severity: 'error'
+      });
+      return false;
+    }
     if (!timeEnd) {
       setSnackbar({
         open: true,
         message: 'Please select an end time',
+        severity: 'error'
+      });
+      return false;
+    }
+    const [endHours] = timeEnd.split(':').map(Number);
+    if (endHours > 17) {
+      setSnackbar({
+        open: true,
+        message: 'End time cannot be after 5:00 PM',
         severity: 'error'
       });
       return false;
@@ -509,18 +565,34 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                   Start Time *
                 </Typography>
                 <TextField
-                  type="time"
-                  value={timeStart}
-                  onChange={(e) => setTimeStart(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                      fontFamily: 'Inter, sans-serif'
-                    }
-                  }}
-                />
+  type="time"
+  value={timeStart}
+  onChange={(e) => {
+    const newTime = e.target.value;
+    if (!newTime || isValidBusinessTime(newTime)) {
+      setTimeStart(newTime);
+    } else {
+      setSnackbar({
+        open: true,
+        message: 'Please select a time between 8:00 AM and 5:00 PM',
+        severity: 'error'
+      });
+    }
+  }}
+  fullWidth
+  InputLabelProps={{ shrink: true }}
+  inputProps={{
+    min: "08:00",
+    max: "17:00",
+    step: "900" // 15-minute intervals (900 seconds)
+  }}
+  sx={{
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '8px',
+      fontFamily: 'Inter, sans-serif'
+    }
+  }}
+/>
               </Box>
 
               {/* End Time */}
@@ -535,18 +607,35 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                   End Time *
                 </Typography>
                 <TextField
-                  type="time"
-                  value={timeEnd}
-                  onChange={(e) => setTimeEnd(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                      fontFamily: 'Inter, sans-serif'
-                    }
-                  }}
-                />
+  type="time"
+  value={timeEnd}
+  onChange={(e) => {
+    const newTime = e.target.value;
+    const [hours] = newTime.split(':').map(Number);
+    if (hours <= 17) {
+      setTimeEnd(newTime);
+    } else {
+      setSnackbar({
+        open: true,
+        message: 'End time cannot be after 5:00 PM',
+        severity: 'error'
+      });
+    }
+  }}
+  fullWidth
+  InputLabelProps={{ shrink: true }}
+  inputProps={{
+    min: "08:00",
+    max: "17:00",
+    step: "900" // 15-minute intervals
+  }}
+  sx={{
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '8px',
+      fontFamily: 'Inter, sans-serif'
+    }
+  }}
+/>
               </Box>
             </Box>
 
