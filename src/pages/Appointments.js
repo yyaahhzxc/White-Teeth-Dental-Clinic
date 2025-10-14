@@ -44,12 +44,13 @@ const normalizeDateFromStorage = (dateString) => {
 };
 
 function parseLocalDate(dateStr) {
+  // Always parse as local date to avoid timezone issues
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
 
 // MonthGrid component for month view
-function MonthGrid({ appointments, currentDate, statusColors }) {
+function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick }) {
   // Get first day of month
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -68,9 +69,13 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
     d.setDate(d.getDate() + 1);
   }
   
-  // Helper to get events for a date
   const getEventsForDate = (date) => {
-    const targetDateStr = date.toISOString().split('T')[0];
+    // Format date as YYYY-MM-DD in local timezone
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`;
+    
     return appointments.filter(apt => {
       const aptDateStr = apt.appointmentDate.split('T')[0];
       return aptDateStr === targetDateStr;
@@ -107,7 +112,9 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
                 {date.getDate()}
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
-                <Box key={eventIdx} sx={{
+                <Box key={eventIdx}
+                onClick={() => onAppointmentClick && onAppointmentClick(event)}
+                sx={{
                   backgroundColor: statusColors[event.status] || statusColors.scheduled,
                   color: 'white',
                   p: 0.5,
@@ -116,7 +123,8 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
                   fontSize: '11px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  cursor: onAppointmentClick ? 'pointer' : 'default'
                 }}>
                   {event.patientName}
                 </Box>
@@ -237,9 +245,10 @@ function Appointments() {
     setLoading(true);
     try {
       const weekDates = getWeekDates(currentDate);
-      const startDate = weekDates[0].toISOString().split('T')[0];
-      const endDate = weekDates[6].toISOString().split('T')[0];
-
+      // Format dates consistently as YYYY-MM-DD
+      const startDate = `${weekDates[0].getFullYear()}-${String(weekDates[0].getMonth() + 1).padStart(2, '0')}-${String(weekDates[0].getDate()).padStart(2, '0')}`;
+      const endDate = `${weekDates[6].getFullYear()}-${String(weekDates[6].getMonth() + 1).padStart(2, '0')}-${String(weekDates[6].getDate()).padStart(2, '0')}`;
+  
       console.log('Fetching appointments for week:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       
@@ -248,9 +257,11 @@ function Appointments() {
         console.log('Raw appointment data:', data);
         
         const transformedAppointments = data.map(apt => {
-          const apptDate = parseLocalDate(apt.appointmentDate);
+          // Parse the appointment date correctly
+          const aptDateStr = apt.appointmentDate.split('T')[0];
+          const apptDate = parseLocalDate(aptDateStr);
           const dayIndex = apptDate.getDay();
-
+  
           // Calculate actual duration based on start and end times
           let calculatedDuration = 1; // Default to 1 hour
           
@@ -274,7 +285,7 @@ function Appointments() {
             day: dayIndex,
             status: apt.status ? apt.status.toLowerCase() : 'scheduled',
             duration: calculatedDuration,
-            appointmentDate: apt.appointmentDate,
+            appointmentDate: aptDateStr, // Keep as YYYY-MM-DD string
             timeStart: apt.timeStart,
             timeEnd: apt.timeEnd,
             comments: apt.comments,
@@ -299,6 +310,7 @@ function Appointments() {
       setLoading(false);
     }
   };
+  
 
   // Function to fetch appointments for month
   const fetchAppointmentsForMonth = async () => {
@@ -306,9 +318,11 @@ function Appointments() {
     try {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
-      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
-
+      // Format dates consistently as YYYY-MM-DD
+      const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  
       console.log('Fetching appointments for month:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       
@@ -320,7 +334,7 @@ function Appointments() {
           procedure: apt.serviceName || 'No Service',
           time: apt.timeStart,
           status: apt.status ? apt.status.toLowerCase() : 'scheduled',
-          appointmentDate: apt.appointmentDate,
+          appointmentDate: apt.appointmentDate.split('T')[0], // Keep as YYYY-MM-DD string
           timeStart: apt.timeStart,
           timeEnd: apt.timeEnd,
           comments: apt.comments,
@@ -515,24 +529,26 @@ function Appointments() {
     
     // Get the actual date for this day column
     const currentDisplayDate = weekDates[dayIndex];
-    const targetDateStr = currentDisplayDate.toISOString().split('T')[0];
+  const year = currentDisplayDate.getFullYear();
+  const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
+  const day = String(currentDisplayDate.getDate()).padStart(2, '0');
+  const targetDateStr = `${year}-${month}-${day}`;
+  
+  const slotAppointments = appointments.filter(apt => {
+    // Compare date strings directly
+    const aptDateStr = apt.appointmentDate.split('T')[0];
+    if (aptDateStr !== targetDateStr) return false;
     
-    const slotAppointments = appointments.filter(apt => {
-      // Compare actual dates instead of day of week
-      const aptDateStr = apt.appointmentDate.split('T')[0];
-      if (aptDateStr !== targetDateStr) return false;
-      
-      const [aptHour, aptMinute] = apt.time.split(':').map(Number);
-      const aptStartMinutes = aptHour * 60 + aptMinute;
-      const slotStartMinutes = hour24 * 60;
-      const slotEndMinutes = slotStartMinutes + 60;
-      
-      return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
-    });
+    const [aptHour, aptMinute] = apt.time.split(':').map(Number);
+    const aptStartMinutes = aptHour * 60 + aptMinute;
+    const slotStartMinutes = hour24 * 60;
+    const slotEndMinutes = slotStartMinutes + 60;
     
-    return slotAppointments;
-  };
-
+    return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
+  });
+  
+  return slotAppointments;
+};
   const calculateCurrentTimePosition = () => {
     const now = currentTime;
     const startHour = 7;
@@ -666,11 +682,12 @@ function Appointments() {
 
           {/* Render Calendar View */}
           {calendarView === 'Month' ? (
-            <MonthGrid 
-              appointments={appointments}
-              currentDate={currentDate}
-              statusColors={statusColors}
-            />
+  <MonthGrid 
+    appointments={appointments}
+    currentDate={currentDate}
+    statusColors={statusColors}
+    onAppointmentClick={handleAppointmentClick}
+  />
           ) : (
             <>
               {/* Day Headers */}
