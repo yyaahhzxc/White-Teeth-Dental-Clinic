@@ -31,7 +31,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
   // Service states
   const [services, setServices] = useState([]);
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedServices, setSelectedServices] = useState([]); // Changed to array
   const [serviceLoading, setServiceLoading] = useState(false);
   const [serviceInputValue, setServiceInputValue] = useState('');
 
@@ -64,6 +64,23 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
   };
 
+  const isValidBusinessTime = (timeString) => {
+    if (!timeString) return false;
+    const [hours] = timeString.split(':').map(Number);
+    return hours >= 8 && hours < 17; // 8am to 5pm (17 is 5pm in 24hr format)
+  };
+  
+  // Helper function to validate appointment end time doesn't exceed business hours
+  const validateAppointmentTime = (startTime, duration) => {
+    if (!startTime || !duration) return true;
+    
+    const endTime = addMinutesToTime(startTime, duration);
+    const [endHours] = endTime.split(':').map(Number);
+    
+    return endHours <= 17; // End time should not exceed 5pm
+  };
+
+
   // Fetch patients
   useEffect(() => {
     if (open) {
@@ -72,31 +89,52 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     }
   }, [open]);
 
-  // When service or timeStart changes, adjust timeEnd and appointmentDate
+  // Fix 1: Remove the duplicate validation check in the useEffect (around line 90)
   useEffect(() => {
     if (
-      selectedService &&
-      typeof selectedService.duration === 'number' &&
+      selectedServices.length > 0 &&
       timeStart &&
       appointmentDate
     ) {
-      // duration is in minutes
-      const newTimeEnd = addMinutesToTime(timeStart, selectedService.duration);
-      setTimeEnd(newTimeEnd);
-            
-      // If the end time is past midnight, increment the date
-      const [startHour, startMin] = timeStart.split(':').map(Number);
-      const [endHour, endMin] = newTimeEnd.split(':').map(Number);
-      if (endHour < startHour || (endHour === startHour && endMin < startMin)) {
-        // Add one day to appointmentDate using local timezone
-        const dateObj = new Date(appointmentDate + 'T00:00:00');
-        dateObj.setDate(dateObj.getDate() + 1);
-        setAppointmentDate(dateObj.toISOString().split('T')[0]);
+      // Validate start time is within business hours
+      if (!isValidBusinessTime(timeStart)) {
+        setSnackbar({
+          open: true,
+          message: 'Start time must be between 8:00 AM and 5:00 PM',
+          severity: 'error'
+        });
+        setTimeStart('');
+        return;
+      }
+  
+      // Calculate total duration from all selected services
+      const totalDuration = selectedServices.reduce((total, service) => {
+        return total + (typeof service.duration === 'number' ? service.duration : 0);
+      }, 0);
+  
+      // Auto-calculate end time, but allow manual override
+      const calculatedEndTime = addMinutesToTime(timeStart, totalDuration);
+      
+      // Only set end time if it's empty or if we want to auto-update
+      if (!timeEnd || timeEnd === '') {
+        setTimeEnd(calculatedEndTime);
+      }
+  
+      // Validate that appointment doesn't go beyond business hours
+      const endTimeToCheck = timeEnd || calculatedEndTime;
+      const [endHours] = endTimeToCheck.split(':').map(Number);
+      
+      if (endHours > 17) {
+        setSnackbar({
+          open: true,
+          message: `Appointment would end after 5:00 PM. Please select an earlier start time or fewer services.`,
+          severity: 'warning'
+        });
       }
     }
     // eslint-disable-next-line
-  }, [selectedService, timeStart]);
-
+  }, [selectedServices, timeStart]);
+ 
   const fetchPatients = async () => {
     setLoading(true);
     try {
@@ -114,22 +152,23 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     }
   };
 
-  const fetchServices = async () => {
-    setServiceLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/service-table`);
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data);
-      } else {
-        console.error('Failed to fetch services');
-      }
-    } catch (error) {
-      console.error('Error fetching services:', error);
-    } finally {
-      setServiceLoading(false);
+ // Fix 2: Update the fetchServices function to use correct endpoint (around line 150)
+const fetchServices = async () => {
+  setServiceLoading(true);
+  try {
+    const response = await fetch(`${API_BASE}/service-table`); // Changed from /service-table
+    if (response.ok) {
+      const data = await response.json();
+      setServices(data);
+    } else {
+      console.error('Failed to fetch services');
     }
-  };
+  } catch (error) {
+    console.error('Error fetching services:', error);
+  } finally {
+    setServiceLoading(false);
+  }
+};
 
   // Validation function
   const validateForm = () => {
@@ -141,10 +180,19 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       });
       return false;
     }
-    if (!selectedService) {
+    if (selectedServices.length === 0) {
       setSnackbar({
         open: true,
-        message: 'Please select a service',
+        message: 'Please select at least one service',
+        severity: 'error'
+      });
+      return false;
+    }
+    // Add this check to prevent empty service IDs
+    if (selectedServices.some(service => !service.id)) {
+      setSnackbar({
+        open: true,
+        message: 'Invalid service selected. Please reselect services.',
         severity: 'error'
       });
       return false;
@@ -165,10 +213,45 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       });
       return false;
     }
+    if (!isValidBusinessTime(timeStart)) {
+      setSnackbar({
+        open: true,
+        message: 'Start time must be between 8:00 AM and 5:00 PM',
+        severity: 'error'
+      });
+      return false;
+    }
     if (!timeEnd) {
       setSnackbar({
         open: true,
         message: 'Please select an end time',
+        severity: 'error'
+      });
+      return false;
+    }
+    
+    // Validate end time is after start time
+    if (timeStart && timeEnd) {
+      const [startHours, startMins] = timeStart.split(':').map(Number);
+      const [endHours, endMins] = timeEnd.split(':').map(Number);
+      const startTime = startHours * 60 + startMins;
+      const endTime = endHours * 60 + endMins;
+      
+      if (endTime <= startTime) {
+        setSnackbar({
+          open: true,
+          message: 'End time must be after start time',
+          severity: 'error'
+        });
+        return false;
+      }
+    }
+    
+    const [endHours] = timeEnd.split(':').map(Number);
+    if (endHours > 17) {
+      setSnackbar({
+        open: true,
+        message: 'End time cannot be after 5:00 PM',
         severity: 'error'
       });
       return false;
@@ -179,19 +262,30 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   // Replace your handleSubmit function
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
+  
     setSubmitting(true);
     try {
+      // Calculate total price and create service summary
+      const totalPrice = selectedServices.reduce((total, service) => total + service.price, 0);
+      const serviceNames = selectedServices.map(service => service.name).join(', ');
+      const serviceIds = selectedServices.map(service => service.id);
+  
       const appointmentData = {
         patientId: selectedPatient.id,
-        serviceId: selectedService.id,
-        appointmentDate: normalizeDateForStorage(appointmentDate), // Fix here
+        serviceId: serviceIds[0], // Send the first service ID as primary serviceId
+        serviceName: selectedServices[0].name, // Send the first service name
+         serviceIds: Array.isArray(serviceIds) ? serviceIds : [serviceIds],
+        serviceNames: serviceNames, // Send combined service names
+        totalPrice: totalPrice,
+        appointmentDate: normalizeDateForStorage(appointmentDate),
         timeStart,
         timeEnd,
         comments: comments || '',
         status: 'Scheduled'
       };
-
+  
+      console.log('Sending appointment data:', appointmentData); // Debug log
+  
       const response = await fetch(`${API_BASE}/appointments`, {
         method: 'POST',
         headers: {
@@ -199,13 +293,12 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         },
         body: JSON.stringify(appointmentData),
       });
-
+  
       const result = await response.json();
             
       if (response.ok) {
-
-          // ADD THIS: Dispatch event to trigger refresh in Appointments.js
-      window.dispatchEvent(new CustomEvent('appointmentAdded'));
+        // Dispatch event to trigger refresh in Appointments.js
+        window.dispatchEvent(new CustomEvent('appointmentAdded'));
         setSnackbar({ 
           open: true, 
           message: 'Appointment created successfully!', 
@@ -214,7 +307,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                 
         // Clear form
         setSelectedPatient(null);
-        setSelectedService(null);
+        setSelectedServices([]);
         setAppointmentDate('');
         setTimeStart('');
         setTimeEnd('');
@@ -229,6 +322,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         }, 1500);
                 
       } else {
+        console.error('Server response:', result); // Debug log
         setSnackbar({ 
           open: true, 
           message: result.error || 'Failed to create appointment', 
@@ -246,10 +340,10 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       setSubmitting(false);
     }
   };
-
+  
   // Check if form has data to show discard confirmation
   const hasFormData = () => {
-    return selectedPatient || selectedService || appointmentDate || timeStart || timeEnd || comments;
+    return selectedPatient || selectedServices.length > 0 || appointmentDate || timeStart || timeEnd || comments;
   };
 
   const handleClose = () => {
@@ -260,19 +354,20 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
     }
   };
 
-  const handleDiscardConfirm = () => {
-    // Clear all form data
-    setSelectedPatient(null);
-    setSelectedService(null);
-    setAppointmentDate('');
-    setTimeStart('');
-    setTimeEnd('');
-    setComments('');
-    setInputValue('');
-    setServiceInputValue('');
-    setShowDiscardConfirm(false);
-    onClose();
-  };
+  // Update the handleDiscardConfirm function (around line 290)
+const handleDiscardConfirm = () => {
+  // Clear all form data
+  setSelectedPatient(null);
+  setSelectedServices([]); // Clear services array
+  setAppointmentDate('');
+  setTimeStart('');
+  setTimeEnd('');
+  setComments('');
+  setInputValue('');
+  setServiceInputValue('');
+  setShowDiscardConfirm(false);
+  onClose();
+};
 
   const handleDiscardCancel = () => {
     setShowDiscardConfirm(false);
@@ -386,91 +481,183 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
             {/* Service Selection */}
             <Box>
-              <Typography variant="body2" sx={{ 
-                mb: 1, 
-                fontWeight: '600', 
-                color: '#5f6368',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px'
-              }}>
-                Service *
-              </Typography>
-              <Autocomplete
-                value={selectedService}
-                onChange={(event, newValue) => {
-                  // Prevent selecting inactive service via keyboard
-                  if (newValue && typeof newValue.status === 'string' && newValue.status.toLowerCase() !== 'active') {
-                    return;
-                  }
-                  setSelectedService(newValue);
-                }}
-                inputValue={serviceInputValue}
-                onInputChange={(event, newInputValue) => {
-                  setServiceInputValue(newInputValue);
-                }}
-                options={services}
-                getOptionLabel={(option) => option ? option.name : ''}
-                loading={serviceLoading}
-                isOptionDisabled={(option) =>
-                  option && typeof option.status === 'string' && option.status.toLowerCase() !== 'active'
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="Search for a service..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {serviceLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '8px',
-                        fontFamily: 'Inter, sans-serif'
-                      }
-                    }}
-                  />
-                )}
-                renderOption={(props, option) => {
-                  const isInactive = option && typeof option.status === 'string' && option.status.toLowerCase() !== 'active';
-                  return (
-                    <Box
-                      {...props}
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '14px',
-                        color: isInactive ? '#aaa' : 'inherit',
-                        backgroundColor: isInactive ? '#f5f5f5' : 'inherit',
-                        cursor: isInactive ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      <Box>
-                        <Typography sx={{ fontWeight: '500' }}>
-                          {option.name}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
-                          ₱{option.price} • {option.duration} minutes
-                          {isInactive && (
-                            <span style={{ marginLeft: 8, fontSize: 12, color: '#c00' }}>
-                              (Inactive)
-                            </span>
-                          )}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  );
-                }}
-                noOptionsText="No services found"
-                size="medium"
-              />
-            </Box>
-
-            {/* Date and Time Row */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
+  <Typography variant="body2" sx={{ 
+    mb: 1, 
+    fontWeight: '600', 
+    color: '#5f6368',
+    fontFamily: 'Inter, sans-serif',
+    fontSize: '14px'
+  }}>
+    Services * {selectedServices.length > 0 && `(${selectedServices.length} selected)`}
+  </Typography>
+  <Autocomplete
+    multiple
+    value={selectedServices}
+    onChange={(event, newValue) => {
+      // Check if any selected service is inactive
+      const inactiveService = newValue.find(service => 
+        service.status && service.status.toLowerCase() !== 'active'
+      );
+      
+      if (inactiveService) {
+        setSnackbar({
+          open: true,
+          message: 'Some services are inactive and cannot be selected',
+          severity: 'error'
+        });
+        // Filter out inactive services
+        const activeServices = newValue.filter(service => 
+          !service.status || service.status.toLowerCase() === 'active'
+        );
+        setSelectedServices(activeServices);
+        return;
+      }
+      
+      setSelectedServices(newValue);
+    }}
+    inputValue={serviceInputValue}
+    onInputChange={(event, newInputValue) => {
+      setServiceInputValue(newInputValue);
+    }}
+    options={services.filter(service => 
+      !service.status || service.status.toLowerCase() === 'active'
+    )}
+    getOptionLabel={(option) => option ? option.name : ''}
+    loading={serviceLoading}
+    filterOptions={(options, { inputValue }) => {
+      const filtered = options.filter(option => {
+        const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
+        const isActive = !option.status || option.status.toLowerCase() === 'active';
+        const notAlreadySelected = !selectedServices.find(selected => selected.id === option.id);
+        return matchesInput && isActive && notAlreadySelected;
+      });
+      return filtered;
+    }}
+    renderTags={(tagValue, getTagProps) =>
+      tagValue.map((option, index) => (
+        <Box
+          key={option.id}
+          {...getTagProps({ index })}
+          sx={{
+            backgroundColor: '#e3f2fd',
+            color: '#1565c0',
+            border: '1px solid #bbdefb',
+            borderRadius: '16px',
+            padding: '4px 8px',
+            margin: '2px',
+            fontSize: '12px',
+            fontFamily: 'Inter, sans-serif',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5
+          }}
+        >
+          {option.name}
+          <IconButton
+            size="small"
+            onClick={() => {
+              const newServices = selectedServices.filter(service => service.id !== option.id);
+              setSelectedServices(newServices);
+            }}
+            sx={{
+              padding: '2px',
+              color: '#1565c0',
+              '&:hover': {
+                backgroundColor: '#bbdefb'
+              }
+            }}
+          >
+            <CloseIcon sx={{ fontSize: '14px' }} />
+          </IconButton>
+        </Box>
+      ))
+    }
+    renderInput={(params) => (
+      <TextField
+        {...params}
+        placeholder={selectedServices.length === 0 ? "Search for services..." : "Add more services..."}
+        InputProps={{
+          ...params.InputProps,
+          endAdornment: (
+            <>
+              {serviceLoading ? <CircularProgress color="inherit" size={20} /> : null}
+              {params.InputProps.endAdornment}
+            </>
+          ),
+        }}
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            borderRadius: '8px',
+            fontFamily: 'Inter, sans-serif',
+            minHeight: '56px'
+          }
+        }}
+      />
+    )}
+    renderOption={(props, option) => (
+      <Box
+        {...props}
+        sx={{
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '14px',
+        }}
+      >
+        <Box sx={{ width: '100%' }}>
+          <Typography sx={{ fontWeight: '500' }}>
+            {option.name}
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+            ₱{option.price} • {option.duration} minutes
+          </Typography>
+        </Box>
+      </Box>
+    )}
+    noOptionsText="No active services found"
+    size="medium"
+  />
+  
+  {/* Show selected services summary */}
+  {selectedServices.length > 0 && (
+    <Box sx={{ mt: 2, p: 2, backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+      <Typography variant="body2" sx={{ 
+        fontWeight: '600', 
+        color: '#5f6368',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '13px',
+        mb: 1
+      }}>
+        Selected Services Summary:
+      </Typography>
+      {selectedServices.map((service, index) => (
+        <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
+            {service.name}
+          </Typography>
+          <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif', color: '#5f6368' }}>
+            ₱{service.price} • {service.duration}min
+          </Typography>
+        </Box>
+      ))}
+      <Box sx={{ 
+        borderTop: '1px solid #e0e0e0', 
+        pt: 1, 
+        mt: 1, 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        fontWeight: '600'
+      }}>
+        <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+          Total:
+        </Typography>
+        <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+          ₱{selectedServices.reduce((total, service) => total + service.price, 0)} • {selectedServices.reduce((total, service) => total + service.duration, 0)}min
+        </Typography>
+      </Box>
+    </Box>
+  )}
+</Box>
+{/* ADD THIS ENTIRE SECTION HERE - Date and Time Selection */}
+<Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
               {/* Date */}
               <Box>
                 <Typography variant="body2" sx={{ 
@@ -488,6 +675,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                   onChange={(e) => setAppointmentDate(e.target.value)}
                   fullWidth
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{
+                    min: new Date().toISOString().split('T')[0] // Prevent past dates
+                  }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: '8px',
@@ -511,9 +701,25 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                 <TextField
                   type="time"
                   value={timeStart}
-                  onChange={(e) => setTimeStart(e.target.value)}
+                  onChange={(e) => {
+                    const newTime = e.target.value;
+                    if (!newTime || isValidBusinessTime(newTime)) {
+                      setTimeStart(newTime);
+                    } else {
+                      setSnackbar({
+                        open: true,
+                        message: 'Please select a time between 8:00 AM and 5:00 PM',
+                        severity: 'error'
+                      });
+                    }
+                  }}
                   fullWidth
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{
+                    min: "08:00",
+                    max: "17:00",
+                    step: "900" // 15-minute intervals
+                  }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: '8px',
@@ -524,31 +730,61 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
               </Box>
 
               {/* End Time */}
-              <Box>
-                <Typography variant="body2" sx={{ 
-                  mb: 1, 
-                  fontWeight: '600', 
-                  color: '#5f6368',
-                  fontFamily: 'Inter, sans-serif',
-                  fontSize: '14px'
-                }}>
-                  End Time *
-                </Typography>
-                <TextField
-                  type="time"
-                  value={timeEnd}
-                  onChange={(e) => setTimeEnd(e.target.value)}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                      fontFamily: 'Inter, sans-serif'
-                    }
-                  }}
-                />
-              </Box>
+<Box>
+  <Typography variant="body2" sx={{ 
+    mb: 1, 
+    fontWeight: '600', 
+    color: '#5f6368',
+    fontFamily: 'Inter, sans-serif',
+    fontSize: '14px'
+  }}>
+    End Time *
+  </Typography>
+  <TextField
+    type="time"
+    value={timeEnd}
+    onChange={(e) => {
+      const newTime = e.target.value;
+      const [hours] = newTime.split(':').map(Number);
+      if (hours <= 17) {
+        setTimeEnd(newTime);
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'End time cannot be after 5:00 PM',
+          severity: 'error'
+        });
+      }
+    }}
+    fullWidth
+    InputLabelProps={{ shrink: true }}
+    inputProps={{
+      min: "08:00",
+      max: "17:00",
+      step: "900"
+    }}
+    sx={{
+      '& .MuiOutlinedInput-root': {
+        borderRadius: '8px',
+        fontFamily: 'Inter, sans-serif'
+      }
+    }}
+    // Remove the disabled prop to make it clickable
+  />
+  {selectedServices.length > 0 && (
+    <Typography variant="caption" sx={{ 
+      color: '#5f6368', 
+      fontSize: '12px',
+      fontStyle: 'italic',
+      mt: 0.5,
+      display: 'block'
+    }}>
+      Auto-calculated: {timeEnd || 'Select start time first'}
+    </Typography>
+  )}
+</Box>
             </Box>
+
 
             {/* Comments */}
             <Box>

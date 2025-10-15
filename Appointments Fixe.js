@@ -15,9 +15,7 @@ import {
   Chip,
   Snackbar,
   Alert,
-  TextField,
-  Autocomplete,
-  CircularProgress
+  TextField
 } from '@mui/material';
 import { 
   ChevronLeft, 
@@ -30,12 +28,11 @@ import {
   Person,
   MedicalServices,
   Edit as EditIcon,
-  Save as SaveIcon,
-  Close as CloseIcon
+  Save as SaveIcon
 } from '@mui/icons-material';
-import Header from '../components/header';
-import QuickActionButton from '../components/QuickActionButton';
-import { API_BASE } from '../apiConfig';
+import Header from './header';
+import QuickActionButton from './QuickActionButton';
+import { API_BASE } from './apiConfig';
 
 
 // Add this utility function at the top of Appointments.js after your imports
@@ -47,7 +44,6 @@ const normalizeDateFromStorage = (dateString) => {
 };
 
 function parseLocalDate(dateStr) {
-  // Always parse as local date to avoid timezone issues
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
@@ -72,43 +68,23 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
     d.setDate(d.getDate() + 1);
   }
   
+  // Helper to get events for a date - FIXED to use parseLocalDate
   const getEventsForDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const targetDateStr = `${year}-${month}-${day}`;
-    
+    const targetDateStr = date.toISOString().split('T')[0];
     return appointments.filter(apt => {
-      const aptDateStr = apt.appointmentDate.split('T')[0];
+      // Use parseLocalDate to avoid timezone issues
+      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
+      const aptDateStr = aptDate.toISOString().split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
 
+
   return (
-    <Box sx={{ width: "100%", p: 2 }}>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          gap: 0,
-          background: "white",
-          borderRadius: "12px",
-          overflow: "hidden",
-        }}
-      >
-        {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
-          <Box
-            key={day}
-            sx={{
-              p: 1.5,
-              textAlign: "center",
-              fontWeight: 700,
-              color: "#70757a",
-              fontSize: "15px",
-              borderBottom: "1px solid #e0e0e0",
-              background: "#fff",
-            }}
-          >
+    <Box sx={{ width: '100%', p: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0, background: 'white', borderRadius: '12px', overflow: 'hidden' }}>
+        {['SUN','MON','TUE','WED','THU','FRI','SAT'].map((day) => (
+          <Box key={day} sx={{ p: 1.5, textAlign: 'center', fontWeight: 700, color: '#70757a', fontSize: '15px', borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
             {day}
           </Box>
         ))}
@@ -135,7 +111,7 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
                 <Box key={eventIdx}
-                onClick={() => onAppointmentClick && onAppointmentClick(event)}
+                onClick={() => onAppointmentClick(event)}
                 sx={{
                   backgroundColor: statusColors[event.status] || statusColors.scheduled,
                   color: 'white',
@@ -145,8 +121,7 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
                   fontSize: '11px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  cursor: onAppointmentClick ? 'pointer' : 'default'
+                  whiteSpace: 'nowrap'
                 }}>
                   {event.patientName}
                 </Box>
@@ -181,8 +156,6 @@ function Appointments() {
   // Edit mode states
   const [editMode, setEditMode] = useState(false);
   const [editedAppointment, setEditedAppointment] = useState(null);
-  const [editedServices, setEditedServices] = useState([]); // Add this for multiple services
-  const [serviceInputValue, setServiceInputValue] = useState(''); // Add this for autocomplete
 
   // Services state
   const [services, setServices] = useState([]);
@@ -206,6 +179,31 @@ function Appointments() {
   
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
+
+  useEffect(() => {
+    const handleAppointmentAdded = () => {
+      refreshAppointments();
+    };
+  
+    // Listen for custom events
+    window.addEventListener('appointmentAdded', handleAppointmentAdded);
+    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
+  
+    return () => {
+      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
+      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
+    };
+  }, [calendarView]);
+  
+  // Add the refreshAppointments function (around line 200)
+  const refreshAppointments = () => {
+    if (calendarView === 'Week') {
+      fetchAppointmentsForWeek();
+    } else if (calendarView === 'Month') {
+      fetchAppointmentsForMonth();
+    }
+  };
+
 
   // Helper function to convert 24h to 12h format
   const convertTo12Hour = (time24) => {
@@ -247,63 +245,28 @@ function Appointments() {
     fetchServices();
   }, [currentDate, calendarView]);
 
-  // Function to fetch services
-  const fetchServices = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/service-table`);
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data);
-      } else {
-        console.error('Failed to fetch services');
-        setServices([]);
-      }
-    } catch (error) {
-      console.error('Error fetching services:', error);
+  try {
+    const response = await fetch(`${API_BASE}/service-table`); // Changed from /service-table
+    if (response.ok) {
+      const data = await response.json();
+      setServices(data);
+    } else {
+      console.error('Failed to fetch services');
       setServices([]);
     }
-  };
-
-  useEffect(() => {
-    const handleAppointmentAdded = () => {
-      refreshAppointments();
-    };
-  
-    // Listen for custom events
-    window.addEventListener('appointmentAdded', handleAppointmentAdded);
-    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
-  
-    return () => {
-      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
-      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
-    };
-  }, [calendarView]);
-  
-  // Add the refreshAppointments function (around line 200)
-  const refreshAppointments = () => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else if (calendarView === 'Month') {
-      fetchAppointmentsForMonth();
-    }
-  };
-  
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    setServices([]);
+  }
+};
 
   // Function to fetch appointments for week
   const fetchAppointmentsForWeek = async () => {
     setLoading(true);
     try {
       const weekDates = getWeekDates(currentDate);
-      // Format dates consistently as YYYY-MM-DD in local timezone
-      const startYear = weekDates[0].getFullYear();
-      const startMonth = String(weekDates[0].getMonth() + 1).padStart(2, '0');
-      const startDay = String(weekDates[0].getDate()).padStart(2, '0');
-      const startDate = `${startYear}-${startMonth}-${startDay}`;
-      
-      const endYear = weekDates[6].getFullYear();
-      const endMonth = String(weekDates[6].getMonth() + 1).padStart(2, '0');
-      const endDay = String(weekDates[6].getDate()).padStart(2, '0');
-      const endDate = `${endYear}-${endMonth}-${endDay}`;
+      const startDate = weekDates[0].toISOString().split('T')[0];
+      const endDate = weekDates[6].toISOString().split('T')[0];
   
       console.log('Fetching appointments for week:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
@@ -313,8 +276,7 @@ function Appointments() {
         console.log('Raw appointment data:', data);
         
         const transformedAppointments = data.map(apt => {
-          const aptDateStr = apt.appointmentDate.split('T')[0];
-          const apptDate = parseLocalDate(aptDateStr);
+          const apptDate = parseLocalDate(apt.appointmentDate.split('T')[0]); // Fixed: use split first
           const dayIndex = apptDate.getDay();
   
           // Calculate actual duration based on start and end times
@@ -335,12 +297,12 @@ function Appointments() {
           const transformed = {
             id: apt.id,
             patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-            procedure: apt.serviceNames || apt.serviceName || 'No Service',
+            procedure: apt.serviceName || 'No Service',
             time: apt.timeStart,
             day: dayIndex,
             status: apt.status ? apt.status.toLowerCase() : 'scheduled',
             duration: calculatedDuration,
-            appointmentDate: apt.appointmentDate,
+            appointmentDate: apt.appointmentDate, // Keep original format
             timeStart: apt.timeStart,
             timeEnd: apt.timeEnd,
             comments: apt.comments,
@@ -366,187 +328,53 @@ function Appointments() {
     }
   };
 
- // Update the fetchAppointmentsForMonth function similarly (around line 290)
- const fetchAppointmentsForMonth = async () => {
-  setLoading(true);
-  try {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    // Format dates consistently as YYYY-MM-DD in local timezone
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  // Function to fetch appointments for month
+  const fetchAppointmentsForMonth = async () => {
+    setLoading(true);
+    try {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-    console.log('Fetching appointments for month:', { startDate, endDate });
-    const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      const transformedAppointments = data.map(apt => ({
-        id: apt.id,
-        patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-        procedure: apt.serviceNames || apt.serviceName || 'No Service',
-        time: apt.timeStart,
-        status: apt.status ? apt.status.toLowerCase() : 'scheduled',
-        appointmentDate: apt.appointmentDate,
-        timeStart: apt.timeStart,
-        timeEnd: apt.timeEnd,
-        comments: apt.comments,
-        patientId: apt.patientId,
-        serviceId: apt.serviceId
-      }));
+      console.log('Fetching appointments for month:', { startDate, endDate });
+      const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       
-      setAppointments(transformedAppointments);
-    } else {
-      console.error('Failed to fetch appointments:', response.status, response.statusText);
+      if (response.ok) {
+        const data = await response.json();
+        const transformedAppointments = data.map(apt => ({
+          id: apt.id,
+          patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+          procedure: apt.serviceName || 'No Service',
+          time: apt.timeStart,
+          status: apt.status ? apt.status.toLowerCase() : 'scheduled',
+          appointmentDate: apt.appointmentDate,
+          timeStart: apt.timeStart,
+          timeEnd: apt.timeEnd,
+          comments: apt.comments,
+          patientId: apt.patientId,
+          serviceId: apt.serviceId
+        }));
+        
+        setAppointments(transformedAppointments);
+      } else {
+        console.error('Failed to fetch appointments:', response.status, response.statusText);
+        setAppointments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
       setAppointments([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-    setAppointments([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
-// Add missing useEffect for modal open to fetch services (around line 195)
-useEffect(() => {
-  if (modalOpen) {
-    fetchServices(); // Ensure services are loaded when modal opens
-  }
-}, [modalOpen]);
+  };
 
   // Handle edit mode toggle
   const handleEditClick = () => {
     setEditMode(true);
     setEditedAppointment({ ...selectedAppointment });
-    
-    console.log('=== EDIT CLICK DEBUG ===');
-    console.log('Selected appointment full object:', selectedAppointment);
-    console.log('Available services:', services);
-    
-    // Parse multiple services from the appointment data
-    let foundServices = [];
-    
-    // First, try to get the appointment details with multiple services from the backend
-    fetchAppointmentDetails(selectedAppointment.id).then(appointmentDetails => {
-      if (appointmentDetails) {
-        console.log('Fetched appointment details:', appointmentDetails);
-        
-        // Check if we have multiple services in the fetched details
-        if (appointmentDetails.serviceNames && appointmentDetails.serviceNames.includes(',')) {
-          console.log('✅ Multiple services detected in fetched details');
-          
-          const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
-          let serviceIds = [];
-          
-          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
-            serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
-          }
-          
-          console.log('Parsed service names:', serviceNames);
-          console.log('Parsed service IDs:', serviceIds);
-          
-          foundServices = serviceNames.map((name, index) => {
-            let service = null;
-            
-            // Try to find by ID if available
-            if (serviceIds[index]) {
-              service = services.find(s => s.id === serviceIds[index]);
-            }
-            
-            // If not found by ID, try by name
-            if (!service) {
-              service = services.find(s => s.name === name);
-            }
-            
-            // If still not found, create placeholder
-            if (!service) {
-              service = {
-                id: serviceIds[index] || `placeholder_${name}`,
-                name: name,
-                price: 0,
-                duration: 60,
-                status: 'Active'
-              };
-            }
-            
-            return service;
-          });
-        } else {
-          // Single service fallback
-          console.log('❌ Single service detected');
-          
-          if (selectedAppointment.serviceId) {
-            const currentService = services.find(s => s.id === selectedAppointment.serviceId);
-            if (currentService) {
-              foundServices = [currentService];
-            } else {
-              // Try by name
-              const serviceByName = services.find(s => s.name === selectedAppointment.procedure);
-              if (serviceByName) {
-                foundServices = [serviceByName];
-              } else {
-                // Create placeholder
-                foundServices = [{
-                  id: selectedAppointment.serviceId,
-                  name: selectedAppointment.procedure || 'Unknown Service',
-                  price: 0,
-                  duration: 60,
-                  status: 'Active'
-                }];
-              }
-            }
-          }
-        }
-        
-        console.log('Final foundServices:', foundServices);
-        setEditedServices(foundServices);
-        setServiceInputValue('');
-      }
-    }).catch(error => {
-      console.error('Error fetching appointment details:', error);
-      
-      // Fallback to original logic if fetch fails
-      if (selectedAppointment.serviceId) {
-        const currentService = services.find(s => s.id === selectedAppointment.serviceId);
-        if (currentService) {
-          foundServices = [currentService];
-        } else {
-          foundServices = [{
-            id: selectedAppointment.serviceId,
-            name: selectedAppointment.procedure || 'Unknown Service',
-            price: 0,
-            duration: 60,
-            status: 'Active'
-          }];
-        }
-      }
-      
-      setEditedServices(foundServices);
-      setServiceInputValue('');
-    });
   };
-  
-  // Add this function to fetch appointment details with multiple services
-  const fetchAppointmentDetails = async (appointmentId) => {
-    try {
-      console.log('Fetching details for appointment ID:', appointmentId);
-      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched appointment details:', data);
-        return data;
-      } else {
-        console.error('Failed to fetch appointment details:', response.status);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error fetching appointment details:', error);
-      return null;
-    }
-  };
+
   // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
@@ -558,21 +386,14 @@ useEffect(() => {
       const requestData = {
         appointmentDate: editedAppointment.appointmentDate,
         timeStart: editedAppointment.timeStart,
-        timeEnd: editedAppointment.timeEnd, // Use the manually edited end time, not calculated
+        timeEnd: editedAppointment.timeEnd,
         comments: editedAppointment.comments,
         status: editedAppointment.status,
-        serviceId: editedServices.length > 0 ? editedServices[0].id : selectedAppointment.serviceId, // Primary service ID
-        serviceName: editedServices.length > 0 ? editedServices[0].name : selectedAppointment.procedure, // Primary service name
-        serviceIds: editedServices.map(service => service.id), // All service IDs for future use
-        serviceNames: editedServices.map(service => service.name).join(', '), // All service names
-        totalPrice: editedServices.reduce((total, service) => total + (service.price || 0), 0)
+        serviceId: editedAppointment.serviceId
       };
       
-      console.log('=== SAVE DEBUG ===');
-      console.log('Edited services:', editedServices);
-      console.log('Request data being sent:', requestData);
-      console.log('Primary serviceId being sent:', requestData.serviceId);
-      console.log('Primary serviceName being sent:', requestData.serviceName);
+      console.log('Saving appointment with data:', requestData);
+      console.log('Appointment ID:', editedAppointment.id);
       
       const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
         method: 'PUT',
@@ -581,43 +402,35 @@ useEffect(() => {
         },
         body: JSON.stringify(requestData),
       });
-  
+
+      console.log('Response status:', response.status);
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
       if (response.ok) {
-        const responseData = await response.json();
-        console.log('Update response:', responseData);
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          console.log('Response is not JSON:', responseText);
+        }
         
-        // Update the selected appointment immediately with new data
-        const updatedAppointment = {
-          ...selectedAppointment,
-          ...editedAppointment,
-          serviceId: requestData.serviceId,
-          procedure: requestData.serviceName, // Update the procedure name
-          serviceName: requestData.serviceName // Make sure serviceName is updated too
-        };
-        
-        setSelectedAppointment(updatedAppointment);
         setUpdateSuccess(true);
         setEditMode(false);
         setEditedAppointment(null);
-        setEditedServices([]);
-        setServiceInputValue('');
-        
-        // Dispatch event to trigger refresh
-        window.dispatchEvent(new CustomEvent('appointmentUpdated'));
         
         // Refresh appointments data
-        setTimeout(async () => {
-          if (calendarView === 'Week') {
-            await fetchAppointmentsForWeek();
-          } else {
-            await fetchAppointmentsForMonth();
-          }
-        }, 500);
-        
+        if (calendarView === 'Week') {
+          await fetchAppointmentsForWeek();
+        } else {
+          await fetchAppointmentsForMonth();
+        }
+        setModalOpen(false);
+        setSelectedAppointment(null);
       } else {
-        const errorText = await response.text();
-        console.error('Failed to update appointment:', response.status, errorText);
-        setUpdateError(`Failed to update: ${response.status} - ${errorText}`);
+        console.error('Failed to update appointment:', response.status, response.statusText);
+        console.error('Error response:', responseText);
+        setUpdateError(`Failed to update: ${response.status} ${response.statusText}\n${responseText}`);
       }
     } catch (error) {
       console.error('Error updating appointment:', error);
@@ -636,24 +449,10 @@ useEffect(() => {
   };
 
   // Handle appointment click
-  const handleAppointmentClick = async (appointment) => {
+  const handleAppointmentClick = (appointment) => {
     setSelectedAppointment(appointment);
     setModalOpen(true);
-    
-    // Ensure services are loaded before opening the modal
-    if (services.length === 0) {
-      console.log('Services not loaded, fetching from service-table...');
-      await fetchServices();
-    }
   };
-
-  useEffect(() => {
-  if (modalOpen && services.length === 0) {
-    console.log('Modal opened but no services loaded, fetching...');
-    fetchServices();
-  }
-}, [modalOpen]);
-
 
   // Close modal
   const handleCloseModal = () => {
@@ -661,8 +460,6 @@ useEffect(() => {
     setSelectedAppointment(null);
     setEditMode(false);
     setEditedAppointment(null);
-    setEditedServices([]);
-    setServiceInputValue('');
   };
 
   const statusColors = {
@@ -732,7 +529,7 @@ useEffect(() => {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  
+  // FIXED: Get appointments for a specific day slot using actual date comparison
   const getAppointmentsForSlot = (dayIndex, timeSlot) => {
     const [timeStr, period] = timeSlot.split(' ');
     const hour = parseInt(timeStr, 10);
@@ -744,19 +541,16 @@ useEffect(() => {
       hour24 = hour === 12 ? 12 : hour + 12;
     }
     
-
+    // Get the actual date for this day column
     const currentDisplayDate = weekDates[dayIndex];
-    const year = currentDisplayDate.getFullYear();
-    const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDisplayDate.getDate()).padStart(2, '0');
-    const targetDateStr = `${year}-${month}-${day}`;
+    const targetDateStr = currentDisplayDate.toISOString().split('T')[0];
     
     const slotAppointments = appointments.filter(apt => {
- 
+      // Compare actual dates instead of day of week
       const aptDateStr = apt.appointmentDate.split('T')[0];
       if (aptDateStr !== targetDateStr) return false;
       
-      const [aptHour, aptMinute] = apt.timeStart.split(':').map(Number);
+      const [aptHour, aptMinute] = apt.timeStart.split(':').map(Number); // Fixed: use timeStart
       const aptStartMinutes = aptHour * 60 + aptMinute;
       const slotStartMinutes = hour24 * 60;
       const slotEndMinutes = slotStartMinutes + 60;
@@ -900,12 +694,12 @@ useEffect(() => {
 
           {/* Render Calendar View */}
           {calendarView === 'Month' ? (
-  <MonthGrid 
-    appointments={appointments}
-    currentDate={currentDate}
-    statusColors={statusColors}
-    onAppointmentClick={handleAppointmentClick}
-  />
+            <MonthGrid 
+              appointments={appointments}
+              currentDate={currentDate}
+              statusColors={statusColors}
+              onAppointmentClick={handleAppointmentClick}
+            />
           ) : (
             <>
               {/* Day Headers */}
@@ -1255,186 +1049,54 @@ useEffect(() => {
               <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
                 {/* Service */}
                 <Box>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-      <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
-      <Typography variant="body2" sx={{ 
-        color: '#5f6368', 
-        fontFamily: 'Inter, sans-serif', 
-        fontSize: '13px',
-        fontWeight: '600'
-      }}>
-        Services {editMode && editedServices.length > 0 && `(${editedServices.length} selected)`}
-      </Typography>
-    </Box>
-    {editMode ? (
-      <Box>
-        <Autocomplete
-          multiple
-          value={editedServices}
-          onChange={(event, newValue) => {
-            // Check if any selected service is inactive
-            const inactiveService = newValue.find(service => 
-              service.status && service.status.toLowerCase() !== 'active'
-            );
-            
-            if (inactiveService) {
-              setUpdateError('Some services are inactive and cannot be selected');
-              // Filter out inactive services
-              const activeServices = newValue.filter(service => 
-                !service.status || service.status.toLowerCase() === 'active'
-              );
-              setEditedServices(activeServices);
-              return;
-            }
-            
-            setEditedServices(newValue);
-          }}
-          inputValue={serviceInputValue}
-          onInputChange={(event, newInputValue) => {
-            setServiceInputValue(newInputValue);
-          }}
-          options={services.filter(service => 
-            (!service.status || service.status.toLowerCase() === 'active')
-          )}
-          getOptionLabel={(option) => option ? option.name : ''}
-          filterOptions={(options, { inputValue }) => {
-            const filtered = options.filter(option => {
-              const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
-              const isActive = !option.status || option.status.toLowerCase() === 'active';
-              const notAlreadySelected = !editedServices.find(selected => selected.id === option.id);
-              return matchesInput && isActive && notAlreadySelected;
-            });
-            return filtered;
-          }}
-          renderTags={(tagValue, getTagProps) =>
-            tagValue.map((option, index) => (
-              <Box
-                key={option.id}
-                {...getTagProps({ index })}
-                sx={{
-                  backgroundColor: '#e3f2fd',
-                  color: '#1565c0',
-                  border: '1px solid #bbdefb',
-                  borderRadius: '16px',
-                  padding: '4px 8px',
-                  margin: '2px',
-                  fontSize: '12px',
-                  fontFamily: 'Inter, sans-serif',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5
-                }}
-              >
-                {option.name}
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    const newServices = editedServices.filter(service => service.id !== option.id);
-                    setEditedServices(newServices);
-                  }}
-                  sx={{
-                    padding: '2px',
-                    color: '#1565c0',
-                    '&:hover': {
-                      backgroundColor: '#bbdefb'
-                    }
-                  }}
-                >
-                  <CloseIcon sx={{ fontSize: '14px' }} />
-                </IconButton>
-              </Box>
-            ))
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              placeholder={editedServices.length === 0 ? "Search for services..." : "Add more services..."}
-              size="small"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '8px',
-                  fontFamily: 'Inter, sans-serif',
-                  minHeight: '56px'
-                }
-              }}
-            />
-          )}
-          renderOption={(props, option) => (
-            <Box
-              {...props}
-              sx={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px',
-              }}
-            >
-              <Box sx={{ width: '100%' }}>
-                <Typography sx={{ fontWeight: '500' }}>
-                  {option.name}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
-                  ₱{option.price} • {option.duration} minutes
-                </Typography>
-              </Box>
-            </Box>
-          )}
-          noOptionsText="No active services found"
-          size="small"
-        />
-        
-        {/* Show selected services summary in edit mode */}
-        {editedServices.length > 0 && (
-          <Box sx={{ mt: 2, p: 2, backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-            <Typography variant="body2" sx={{ 
-              fontWeight: '600', 
-              color: '#5f6368',
-              fontFamily: 'Inter, sans-serif',
-              fontSize: '13px',
-              mb: 1
-            }}>
-              Selected Services Summary:
-            </Typography>
-            {editedServices.map((service, index) => (
-              <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
-                  {service.name}
-                </Typography>
-                <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif', color: '#5f6368' }}>
-                  ₱{service.price} • {service.duration}min
-                </Typography>
-              </Box>
-            ))}
-            <Box sx={{ 
-              borderTop: '1px solid #e0e0e0', 
-              pt: 1, 
-              mt: 1, 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              fontWeight: '600'
-            }}>
-              <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
-                Total:
-              </Typography>
-              <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
-                ₱{editedServices.reduce((total, service) => total + service.price, 0)} • {editedServices.reduce((total, service) => total + service.duration, 0)}min
-              </Typography>
-            </Box>
-          </Box>
-        )}
-      </Box>
-    ) : (
-      <Typography variant="body1" sx={{ 
-        fontFamily: 'Inter, sans-serif', 
-        fontWeight: '500',
-        fontSize: '15px',
-        color: '#202124',
-        p: 1.5,
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px'
-      }}>
-        {selectedAppointment.procedure}
-      </Typography>
-    )}
-  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
+                    <Typography variant="body2" sx={{ 
+                      color: '#5f6368', 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '13px',
+                      fontWeight: '600'
+                    }}>
+                      Service
+                    </Typography>
+                  </Box>
+                  {editMode ? (
+                    <FormControl size="small" fullWidth>
+                      <Select
+                        value={editedAppointment?.serviceId || ''}
+                        onChange={(e) => {
+                          const selectedService = services.find(s => s.id === e.target.value);
+                          handleEditChange('serviceId', e.target.value);
+                          if (selectedService) {
+                            handleEditChange('procedure', selectedService.name);
+                          }
+                        }}
+                        sx={{ 
+                          borderRadius: '8px',
+                          fontFamily: 'Inter, sans-serif'
+                        }}
+                      >
+                        {services.map((service) => (
+                          <MenuItem key={service.id} value={service.id}>
+                            {service.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <Typography variant="body1" sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '500',
+                      fontSize: '15px',
+                      color: '#202124',
+                      p: 1.5,
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '8px'
+                    }}>
+                      {selectedAppointment.procedure}
+                    </Typography>
+                  )}
+                </Box>
 
                 {/* Status */}
                 <Box>
@@ -1574,4 +1236,4 @@ useEffect(() => {
   );
 }
 
-export default Appointments
+export default Appointments;
