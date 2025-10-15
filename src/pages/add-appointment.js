@@ -452,77 +452,79 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                 Service *
               </Typography>
               <Autocomplete
-                value={selectedService}
-                onChange={(event, newValue) => {
-                  // Prevent selecting inactive service via keyboard
-                  if (newValue && typeof newValue.status === 'string' && newValue.status.toLowerCase() !== 'active') {
-                    return;
-                  }
-                  setSelectedService(newValue);
-                }}
-                inputValue={serviceInputValue}
-                onInputChange={(event, newInputValue) => {
-                  setServiceInputValue(newInputValue);
-                }}
-                options={services}
-                getOptionLabel={(option) => option ? option.name : ''}
-                loading={serviceLoading}
-                isOptionDisabled={(option) =>
-                  option && typeof option.status === 'string' && option.status.toLowerCase() !== 'active'
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="Search for a service..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {serviceLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '8px',
-                        fontFamily: 'Inter, sans-serif'
-                      }
-                    }}
-                  />
-                )}
-                renderOption={(props, option) => {
-                  const isInactive = option && typeof option.status === 'string' && option.status.toLowerCase() !== 'active';
-                  return (
-                    <Box
-                      {...props}
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '14px',
-                        color: isInactive ? '#aaa' : 'inherit',
-                        backgroundColor: isInactive ? '#f5f5f5' : 'inherit',
-                        cursor: isInactive ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      <Box>
-                        <Typography sx={{ fontWeight: '500' }}>
-                          {option.name}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
-                          ₱{option.price} • {option.duration} minutes
-                          {isInactive && (
-                            <span style={{ marginLeft: 8, fontSize: 12, color: '#c00' }}>
-                              (Inactive)
-                            </span>
-                          )}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  );
-                }}
-                noOptionsText="No services found"
-                size="medium"
-              />
+  value={selectedService}
+  onChange={(event, newValue) => {
+    // Prevent selecting inactive service completely
+    if (newValue && newValue.status && newValue.status.toLowerCase() !== 'active') {
+      setSnackbar({
+        open: true,
+        message: 'This service is inactive and cannot be selected',
+        severity: 'error'
+      });
+      return; // Don't set the value
+    }
+    setSelectedService(newValue);
+  }}
+  inputValue={serviceInputValue}
+  onInputChange={(event, newInputValue) => {
+    setServiceInputValue(newInputValue);
+  }}
+  options={services.filter(service => 
+    !service.status || service.status.toLowerCase() === 'active'
+  )} // Filter out inactive services from options entirely
+  getOptionLabel={(option) => option ? option.name : ''}
+  loading={serviceLoading}
+  filterOptions={(options, { inputValue }) => {
+    // Custom filter to only show active services
+    const filtered = options.filter(option => {
+      const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
+      const isActive = !option.status || option.status.toLowerCase() === 'active';
+      return matchesInput && isActive;
+    });
+    return filtered;
+  }}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      placeholder="Search for a service..."
+      InputProps={{
+        ...params.InputProps,
+        endAdornment: (
+          <>
+            {serviceLoading ? <CircularProgress color="inherit" size={20} /> : null}
+            {params.InputProps.endAdornment}
+          </>
+        ),
+      }}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          borderRadius: '8px',
+          fontFamily: 'Inter, sans-serif'
+        }
+      }}
+    />
+  )}
+  renderOption={(props, option) => (
+    <Box
+      {...props}
+      sx={{
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '14px',
+      }}
+    >
+      <Box>
+        <Typography sx={{ fontWeight: '500' }}>
+          {option.name}
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+          ₱{option.price} • {option.duration} minutes
+        </Typography>
+      </Box>
+    </Box>
+  )}
+  noOptionsText="No active services found"
+  size="medium"
+/>
             </Box>
 
             {/* Date and Time Row */}

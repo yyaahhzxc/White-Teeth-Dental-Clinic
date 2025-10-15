@@ -70,7 +70,6 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
   }
   
   const getEventsForDate = (date) => {
-    
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -81,13 +80,32 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
       return aptDateStr === targetDateStr;
     });
   };
-  
 
   return (
-    <Box sx={{ width: '100%', p: 2 }}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0, background: 'white', borderRadius: '12px', overflow: 'hidden' }}>
-        {['SUN','MON','TUE','WED','THU','FRI','SAT'].map((day) => (
-          <Box key={day} sx={{ p: 1.5, textAlign: 'center', fontWeight: 700, color: '#70757a', fontSize: '15px', borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
+    <Box sx={{ width: "100%", p: 2 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: 0,
+          background: "white",
+          borderRadius: "12px",
+          overflow: "hidden",
+        }}
+      >
+        {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
+          <Box
+            key={day}
+            sx={{
+              p: 1.5,
+              textAlign: "center",
+              fontWeight: 700,
+              color: "#70757a",
+              fontSize: "15px",
+              borderBottom: "1px solid #e0e0e0",
+              background: "#fff",
+            }}
+          >
             {day}
           </Box>
         ))}
@@ -1263,4 +1281,4 @@ useEffect(() => {
   );
 }
 
-export default Appointments;
+export default Appointments
