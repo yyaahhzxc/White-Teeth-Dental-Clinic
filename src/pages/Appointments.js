@@ -36,9 +36,7 @@ import {
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import { API_BASE } from '../apiConfig';
-import Header from '../components/header';
-import QuickActionButton from '../components/QuickActionButton';
-import { API_BASE } from '../apiConfig';
+
 
 
 // Add this utility function at the top of Appointments.js after your imports
