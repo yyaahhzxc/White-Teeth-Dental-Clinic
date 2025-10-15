@@ -30,9 +30,9 @@ import {
   Edit as EditIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import Header from '../components/header';
-import QuickActionButton from '../components/QuickActionButton';
-import { API_BASE } from '../apiConfig';
+import Header from './header';
+import QuickActionButton from './QuickActionButton';
+import { API_BASE } from './apiConfig';
 
 
 // Add this utility function at the top of Appointments.js after your imports
@@ -44,7 +44,6 @@ const normalizeDateFromStorage = (dateString) => {
 };
 
 function parseLocalDate(dateStr) {
-  // Always parse as local date to avoid timezone issues
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
@@ -69,19 +68,17 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
     d.setDate(d.getDate() + 1);
   }
   
+  // Helper to get events for a date - FIXED to use parseLocalDate
   const getEventsForDate = (date) => {
-    
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const targetDateStr = `${year}-${month}-${day}`;
-    
+    const targetDateStr = date.toISOString().split('T')[0];
     return appointments.filter(apt => {
-      const aptDateStr = apt.appointmentDate.split('T')[0];
+      // Use parseLocalDate to avoid timezone issues
+      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
+      const aptDateStr = aptDate.toISOString().split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
-  
+
 
   return (
     <Box sx={{ width: '100%', p: 2 }}>
@@ -114,7 +111,7 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
                 <Box key={eventIdx}
-                onClick={() => onAppointmentClick && onAppointmentClick(event)}
+                onClick={() => onAppointmentClick(event)}
                 sx={{
                   backgroundColor: statusColors[event.status] || statusColors.scheduled,
                   color: 'white',
@@ -124,8 +121,7 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
                   fontSize: '11px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  cursor: onAppointmentClick ? 'pointer' : 'default'
+                  whiteSpace: 'nowrap'
                 }}>
                   {event.patientName}
                 </Box>
@@ -184,6 +180,31 @@ function Appointments() {
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
 
+  useEffect(() => {
+    const handleAppointmentAdded = () => {
+      refreshAppointments();
+    };
+  
+    // Listen for custom events
+    window.addEventListener('appointmentAdded', handleAppointmentAdded);
+    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
+  
+    return () => {
+      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
+      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
+    };
+  }, [calendarView]);
+  
+  // Add the refreshAppointments function (around line 200)
+  const refreshAppointments = () => {
+    if (calendarView === 'Week') {
+      fetchAppointmentsForWeek();
+    } else if (calendarView === 'Month') {
+      fetchAppointmentsForMonth();
+    }
+  };
+
+
   // Helper function to convert 24h to 12h format
   const convertTo12Hour = (time24) => {
     if (!time24) return '';
@@ -224,63 +245,28 @@ function Appointments() {
     fetchServices();
   }, [currentDate, calendarView]);
 
-  // Function to fetch services
-  const fetchServices = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/service-table`);
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data);
-      } else {
-        console.error('Failed to fetch services');
-        setServices([]);
-      }
-    } catch (error) {
-      console.error('Error fetching services:', error);
+  try {
+    const response = await fetch(`${API_BASE}/service-table`); // Changed from /service-table
+    if (response.ok) {
+      const data = await response.json();
+      setServices(data);
+    } else {
+      console.error('Failed to fetch services');
       setServices([]);
     }
-  };
-
-  useEffect(() => {
-    const handleAppointmentAdded = () => {
-      refreshAppointments();
-    };
-  
-    // Listen for custom events
-    window.addEventListener('appointmentAdded', handleAppointmentAdded);
-    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
-  
-    return () => {
-      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
-      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
-    };
-  }, [calendarView]);
-  
-  // Add the refreshAppointments function (around line 200)
-  const refreshAppointments = () => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else if (calendarView === 'Month') {
-      fetchAppointmentsForMonth();
-    }
-  };
-  
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    setServices([]);
+  }
+};
 
   // Function to fetch appointments for week
   const fetchAppointmentsForWeek = async () => {
     setLoading(true);
     try {
       const weekDates = getWeekDates(currentDate);
-      // Format dates consistently as YYYY-MM-DD in local timezone
-      const startYear = weekDates[0].getFullYear();
-      const startMonth = String(weekDates[0].getMonth() + 1).padStart(2, '0');
-      const startDay = String(weekDates[0].getDate()).padStart(2, '0');
-      const startDate = `${startYear}-${startMonth}-${startDay}`;
-      
-      const endYear = weekDates[6].getFullYear();
-      const endMonth = String(weekDates[6].getMonth() + 1).padStart(2, '0');
-      const endDay = String(weekDates[6].getDate()).padStart(2, '0');
-      const endDate = `${endYear}-${endMonth}-${endDay}`;
+      const startDate = weekDates[0].toISOString().split('T')[0];
+      const endDate = weekDates[6].toISOString().split('T')[0];
   
       console.log('Fetching appointments for week:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
@@ -290,8 +276,7 @@ function Appointments() {
         console.log('Raw appointment data:', data);
         
         const transformedAppointments = data.map(apt => {
-          const aptDateStr = apt.appointmentDate.split('T')[0];
-          const apptDate = parseLocalDate(aptDateStr);
+          const apptDate = parseLocalDate(apt.appointmentDate.split('T')[0]); // Fixed: use split first
           const dayIndex = apptDate.getDay();
   
           // Calculate actual duration based on start and end times
@@ -317,7 +302,7 @@ function Appointments() {
             day: dayIndex,
             status: apt.status ? apt.status.toLowerCase() : 'scheduled',
             duration: calculatedDuration,
-            appointmentDate: apt.appointmentDate,
+            appointmentDate: apt.appointmentDate, // Keep original format
             timeStart: apt.timeStart,
             timeEnd: apt.timeEnd,
             comments: apt.comments,
@@ -343,55 +328,46 @@ function Appointments() {
     }
   };
 
- // Update the fetchAppointmentsForMonth function similarly (around line 290)
- const fetchAppointmentsForMonth = async () => {
-  setLoading(true);
-  try {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    // Format dates consistently as YYYY-MM-DD in local timezone
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  // Function to fetch appointments for month
+  const fetchAppointmentsForMonth = async () => {
+    setLoading(true);
+    try {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-    console.log('Fetching appointments for month:', { startDate, endDate });
-    const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      const transformedAppointments = data.map(apt => ({
-        id: apt.id,
-        patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-        procedure: apt.serviceName || 'No Service',
-        time: apt.timeStart,
-        status: apt.status ? apt.status.toLowerCase() : 'scheduled',
-        appointmentDate: apt.appointmentDate,
-        timeStart: apt.timeStart,
-        timeEnd: apt.timeEnd,
-        comments: apt.comments,
-        patientId: apt.patientId,
-        serviceId: apt.serviceId
-      }));
+      console.log('Fetching appointments for month:', { startDate, endDate });
+      const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       
-      setAppointments(transformedAppointments);
-    } else {
-      console.error('Failed to fetch appointments:', response.status, response.statusText);
+      if (response.ok) {
+        const data = await response.json();
+        const transformedAppointments = data.map(apt => ({
+          id: apt.id,
+          patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+          procedure: apt.serviceName || 'No Service',
+          time: apt.timeStart,
+          status: apt.status ? apt.status.toLowerCase() : 'scheduled',
+          appointmentDate: apt.appointmentDate,
+          timeStart: apt.timeStart,
+          timeEnd: apt.timeEnd,
+          comments: apt.comments,
+          patientId: apt.patientId,
+          serviceId: apt.serviceId
+        }));
+        
+        setAppointments(transformedAppointments);
+      } else {
+        console.error('Failed to fetch appointments:', response.status, response.statusText);
+        setAppointments([]);
+      }
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
       setAppointments([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-    setAppointments([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
-// Add missing useEffect for modal open to fetch services (around line 195)
-useEffect(() => {
-  if (modalOpen) {
-    fetchServices(); // Ensure services are loaded when modal opens
-  }
-}, [modalOpen]);
+  };
 
   // Handle edit mode toggle
   const handleEditClick = () => {
@@ -553,7 +529,7 @@ useEffect(() => {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
-  
+  // FIXED: Get appointments for a specific day slot using actual date comparison
   const getAppointmentsForSlot = (dayIndex, timeSlot) => {
     const [timeStr, period] = timeSlot.split(' ');
     const hour = parseInt(timeStr, 10);
@@ -565,19 +541,16 @@ useEffect(() => {
       hour24 = hour === 12 ? 12 : hour + 12;
     }
     
-
+    // Get the actual date for this day column
     const currentDisplayDate = weekDates[dayIndex];
-    const year = currentDisplayDate.getFullYear();
-    const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDisplayDate.getDate()).padStart(2, '0');
-    const targetDateStr = `${year}-${month}-${day}`;
+    const targetDateStr = currentDisplayDate.toISOString().split('T')[0];
     
     const slotAppointments = appointments.filter(apt => {
- 
+      // Compare actual dates instead of day of week
       const aptDateStr = apt.appointmentDate.split('T')[0];
       if (aptDateStr !== targetDateStr) return false;
       
-      const [aptHour, aptMinute] = apt.timeStart.split(':').map(Number);
+      const [aptHour, aptMinute] = apt.timeStart.split(':').map(Number); // Fixed: use timeStart
       const aptStartMinutes = aptHour * 60 + aptMinute;
       const slotStartMinutes = hour24 * 60;
       const slotEndMinutes = slotStartMinutes + 60;
@@ -721,12 +694,12 @@ useEffect(() => {
 
           {/* Render Calendar View */}
           {calendarView === 'Month' ? (
-  <MonthGrid 
-    appointments={appointments}
-    currentDate={currentDate}
-    statusColors={statusColors}
-    onAppointmentClick={handleAppointmentClick}
-  />
+            <MonthGrid 
+              appointments={appointments}
+              currentDate={currentDate}
+              statusColors={statusColors}
+              onAppointmentClick={handleAppointmentClick}
+            />
           ) : (
             <>
               {/* Day Headers */}
