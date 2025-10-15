@@ -36,6 +36,9 @@ import {
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import { API_BASE } from '../apiConfig';
+import Header from '../components/header';
+import QuickActionButton from '../components/QuickActionButton';
+import { API_BASE } from '../apiConfig';
 
 
 // Add this utility function at the top of Appointments.js after your imports
@@ -409,144 +412,48 @@ function Appointments() {
   }
 };
 
-// Add missing useEffect for modal open to fetch services (around line 195)
-useEffect(() => {
-  if (modalOpen) {
-    fetchServices(); // Ensure services are loaded when modal opens
-  }
-}, [modalOpen]);
+  // Listen for appointment updates from other components
+  useEffect(() => {
+    const handleAppointmentAdded = () => {
+      refreshAppointments();
+    };
+
+    // Listen for custom events
+    window.addEventListener('appointmentAdded', handleAppointmentAdded);
+    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
+
+    return () => {
+      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
+      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
+    };
+  }, [calendarView]);
+
+  // Effect to update current time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Effect to fetch data when date or view changes
+  useEffect(() => {
+    if (calendarView === 'Week') {
+      fetchAppointmentsForWeek();
+    } else {
+      fetchAppointmentsForMonth();
+    }
+    fetchServices();
+  }, [currentDate, calendarView]);
+
+  // ...existing code...
 
   // Handle edit mode toggle
   const handleEditClick = () => {
     setEditMode(true);
     setEditedAppointment({ ...selectedAppointment });
-    
-    console.log('=== EDIT CLICK DEBUG ===');
-    console.log('Selected appointment full object:', selectedAppointment);
-    console.log('Available services:', services);
-    
-    // Parse multiple services from the appointment data
-    let foundServices = [];
-    
-    // First, try to get the appointment details with multiple services from the backend
-    fetchAppointmentDetails(selectedAppointment.id).then(appointmentDetails => {
-      if (appointmentDetails) {
-        console.log('Fetched appointment details:', appointmentDetails);
-        
-        // Check if we have multiple services in the fetched details
-        if (appointmentDetails.serviceNames && appointmentDetails.serviceNames.includes(',')) {
-          console.log('✅ Multiple services detected in fetched details');
-          
-          const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
-          let serviceIds = [];
-          
-          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
-            serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
-          }
-          
-          console.log('Parsed service names:', serviceNames);
-          console.log('Parsed service IDs:', serviceIds);
-          
-          foundServices = serviceNames.map((name, index) => {
-            let service = null;
-            
-            // Try to find by ID if available
-            if (serviceIds[index]) {
-              service = services.find(s => s.id === serviceIds[index]);
-            }
-            
-            // If not found by ID, try by name
-            if (!service) {
-              service = services.find(s => s.name === name);
-            }
-            
-            // If still not found, create placeholder
-            if (!service) {
-              service = {
-                id: serviceIds[index] || `placeholder_${name}`,
-                name: name,
-                price: 0,
-                duration: 60,
-                status: 'Active'
-              };
-            }
-            
-            return service;
-          });
-        } else {
-          // Single service fallback
-          console.log('❌ Single service detected');
-          
-          if (selectedAppointment.serviceId) {
-            const currentService = services.find(s => s.id === selectedAppointment.serviceId);
-            if (currentService) {
-              foundServices = [currentService];
-            } else {
-              // Try by name
-              const serviceByName = services.find(s => s.name === selectedAppointment.procedure);
-              if (serviceByName) {
-                foundServices = [serviceByName];
-              } else {
-                // Create placeholder
-                foundServices = [{
-                  id: selectedAppointment.serviceId,
-                  name: selectedAppointment.procedure || 'Unknown Service',
-                  price: 0,
-                  duration: 60,
-                  status: 'Active'
-                }];
-              }
-            }
-          }
-        }
-        
-        console.log('Final foundServices:', foundServices);
-        setEditedServices(foundServices);
-        setServiceInputValue('');
-      }
-    }).catch(error => {
-      console.error('Error fetching appointment details:', error);
-      
-      // Fallback to original logic if fetch fails
-      if (selectedAppointment.serviceId) {
-        const currentService = services.find(s => s.id === selectedAppointment.serviceId);
-        if (currentService) {
-          foundServices = [currentService];
-        } else {
-          foundServices = [{
-            id: selectedAppointment.serviceId,
-            name: selectedAppointment.procedure || 'Unknown Service',
-            price: 0,
-            duration: 60,
-            status: 'Active'
-          }];
-        }
-      }
-      
-      setEditedServices(foundServices);
-      setServiceInputValue('');
-    });
   };
-  
-  // Add this function to fetch appointment details with multiple services
-  const fetchAppointmentDetails = async (appointmentId) => {
-    try {
-      console.log('Fetching details for appointment ID:', appointmentId);
-      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched appointment details:', data);
-        return data;
-      } else {
-        console.error('Failed to fetch appointment details:', response.status);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error fetching appointment details:', error);
-      return null;
-    }
-  };
+
   // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
