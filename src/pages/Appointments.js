@@ -15,7 +15,9 @@ import {
   Chip,
   Snackbar,
   Alert,
-  TextField
+  TextField,
+  Autocomplete,
+  CircularProgress
 } from '@mui/material';
 import { 
   ChevronLeft, 
@@ -28,7 +30,8 @@ import {
   Person,
   MedicalServices,
   Edit as EditIcon,
-  Save as SaveIcon
+  Save as SaveIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
@@ -178,6 +181,8 @@ function Appointments() {
   // Edit mode states
   const [editMode, setEditMode] = useState(false);
   const [editedAppointment, setEditedAppointment] = useState(null);
+  const [editedServices, setEditedServices] = useState([]); // Add this for multiple services
+  const [serviceInputValue, setServiceInputValue] = useState(''); // Add this for autocomplete
 
   // Services state
   const [services, setServices] = useState([]);
@@ -330,7 +335,7 @@ function Appointments() {
           const transformed = {
             id: apt.id,
             patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-            procedure: apt.serviceName || 'No Service',
+            procedure: apt.serviceNames || apt.serviceName || 'No Service',
             time: apt.timeStart,
             day: dayIndex,
             status: apt.status ? apt.status.toLowerCase() : 'scheduled',
@@ -380,7 +385,7 @@ function Appointments() {
       const transformedAppointments = data.map(apt => ({
         id: apt.id,
         patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-        procedure: apt.serviceName || 'No Service',
+        procedure: apt.serviceNames || apt.serviceName || 'No Service',
         time: apt.timeStart,
         status: apt.status ? apt.status.toLowerCase() : 'scheduled',
         appointmentDate: apt.appointmentDate,
@@ -415,8 +420,133 @@ useEffect(() => {
   const handleEditClick = () => {
     setEditMode(true);
     setEditedAppointment({ ...selectedAppointment });
+    
+    console.log('=== EDIT CLICK DEBUG ===');
+    console.log('Selected appointment full object:', selectedAppointment);
+    console.log('Available services:', services);
+    
+    // Parse multiple services from the appointment data
+    let foundServices = [];
+    
+    // First, try to get the appointment details with multiple services from the backend
+    fetchAppointmentDetails(selectedAppointment.id).then(appointmentDetails => {
+      if (appointmentDetails) {
+        console.log('Fetched appointment details:', appointmentDetails);
+        
+        // Check if we have multiple services in the fetched details
+        if (appointmentDetails.serviceNames && appointmentDetails.serviceNames.includes(',')) {
+          console.log('✅ Multiple services detected in fetched details');
+          
+          const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
+          let serviceIds = [];
+          
+          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
+            serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
+          }
+          
+          console.log('Parsed service names:', serviceNames);
+          console.log('Parsed service IDs:', serviceIds);
+          
+          foundServices = serviceNames.map((name, index) => {
+            let service = null;
+            
+            // Try to find by ID if available
+            if (serviceIds[index]) {
+              service = services.find(s => s.id === serviceIds[index]);
+            }
+            
+            // If not found by ID, try by name
+            if (!service) {
+              service = services.find(s => s.name === name);
+            }
+            
+            // If still not found, create placeholder
+            if (!service) {
+              service = {
+                id: serviceIds[index] || `placeholder_${name}`,
+                name: name,
+                price: 0,
+                duration: 60,
+                status: 'Active'
+              };
+            }
+            
+            return service;
+          });
+        } else {
+          // Single service fallback
+          console.log('❌ Single service detected');
+          
+          if (selectedAppointment.serviceId) {
+            const currentService = services.find(s => s.id === selectedAppointment.serviceId);
+            if (currentService) {
+              foundServices = [currentService];
+            } else {
+              // Try by name
+              const serviceByName = services.find(s => s.name === selectedAppointment.procedure);
+              if (serviceByName) {
+                foundServices = [serviceByName];
+              } else {
+                // Create placeholder
+                foundServices = [{
+                  id: selectedAppointment.serviceId,
+                  name: selectedAppointment.procedure || 'Unknown Service',
+                  price: 0,
+                  duration: 60,
+                  status: 'Active'
+                }];
+              }
+            }
+          }
+        }
+        
+        console.log('Final foundServices:', foundServices);
+        setEditedServices(foundServices);
+        setServiceInputValue('');
+      }
+    }).catch(error => {
+      console.error('Error fetching appointment details:', error);
+      
+      // Fallback to original logic if fetch fails
+      if (selectedAppointment.serviceId) {
+        const currentService = services.find(s => s.id === selectedAppointment.serviceId);
+        if (currentService) {
+          foundServices = [currentService];
+        } else {
+          foundServices = [{
+            id: selectedAppointment.serviceId,
+            name: selectedAppointment.procedure || 'Unknown Service',
+            price: 0,
+            duration: 60,
+            status: 'Active'
+          }];
+        }
+      }
+      
+      setEditedServices(foundServices);
+      setServiceInputValue('');
+    });
   };
-
+  
+  // Add this function to fetch appointment details with multiple services
+  const fetchAppointmentDetails = async (appointmentId) => {
+    try {
+      console.log('Fetching details for appointment ID:', appointmentId);
+      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Fetched appointment details:', data);
+        return data;
+      } else {
+        console.error('Failed to fetch appointment details:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching appointment details:', error);
+      return null;
+    }
+  };
   // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
@@ -428,14 +558,21 @@ useEffect(() => {
       const requestData = {
         appointmentDate: editedAppointment.appointmentDate,
         timeStart: editedAppointment.timeStart,
-        timeEnd: editedAppointment.timeEnd,
+        timeEnd: editedAppointment.timeEnd, // Use the manually edited end time, not calculated
         comments: editedAppointment.comments,
         status: editedAppointment.status,
-        serviceId: editedAppointment.serviceId
+        serviceId: editedServices.length > 0 ? editedServices[0].id : selectedAppointment.serviceId, // Primary service ID
+        serviceName: editedServices.length > 0 ? editedServices[0].name : selectedAppointment.procedure, // Primary service name
+        serviceIds: editedServices.map(service => service.id), // All service IDs for future use
+        serviceNames: editedServices.map(service => service.name).join(', '), // All service names
+        totalPrice: editedServices.reduce((total, service) => total + (service.price || 0), 0)
       };
       
-      console.log('Saving appointment with data:', requestData);
-      console.log('Appointment ID:', editedAppointment.id);
+      console.log('=== SAVE DEBUG ===');
+      console.log('Edited services:', editedServices);
+      console.log('Request data being sent:', requestData);
+      console.log('Primary serviceId being sent:', requestData.serviceId);
+      console.log('Primary serviceName being sent:', requestData.serviceName);
       
       const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
         method: 'PUT',
@@ -444,35 +581,43 @@ useEffect(() => {
         },
         body: JSON.stringify(requestData),
       });
-
-      console.log('Response status:', response.status);
-      const responseText = await response.text();
-      console.log('Response text:', responseText);
-
+  
       if (response.ok) {
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (e) {
-          console.log('Response is not JSON:', responseText);
-        }
+        const responseData = await response.json();
+        console.log('Update response:', responseData);
         
+        // Update the selected appointment immediately with new data
+        const updatedAppointment = {
+          ...selectedAppointment,
+          ...editedAppointment,
+          serviceId: requestData.serviceId,
+          procedure: requestData.serviceName, // Update the procedure name
+          serviceName: requestData.serviceName // Make sure serviceName is updated too
+        };
+        
+        setSelectedAppointment(updatedAppointment);
         setUpdateSuccess(true);
         setEditMode(false);
         setEditedAppointment(null);
+        setEditedServices([]);
+        setServiceInputValue('');
+        
+        // Dispatch event to trigger refresh
+        window.dispatchEvent(new CustomEvent('appointmentUpdated'));
         
         // Refresh appointments data
-        if (calendarView === 'Week') {
-          await fetchAppointmentsForWeek();
-        } else {
-          await fetchAppointmentsForMonth();
-        }
-        setModalOpen(false);
-        setSelectedAppointment(null);
+        setTimeout(async () => {
+          if (calendarView === 'Week') {
+            await fetchAppointmentsForWeek();
+          } else {
+            await fetchAppointmentsForMonth();
+          }
+        }, 500);
+        
       } else {
-        console.error('Failed to update appointment:', response.status, response.statusText);
-        console.error('Error response:', responseText);
-        setUpdateError(`Failed to update: ${response.status} ${response.statusText}\n${responseText}`);
+        const errorText = await response.text();
+        console.error('Failed to update appointment:', response.status, errorText);
+        setUpdateError(`Failed to update: ${response.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Error updating appointment:', error);
@@ -491,10 +636,24 @@ useEffect(() => {
   };
 
   // Handle appointment click
-  const handleAppointmentClick = (appointment) => {
+  const handleAppointmentClick = async (appointment) => {
     setSelectedAppointment(appointment);
     setModalOpen(true);
+    
+    // Ensure services are loaded before opening the modal
+    if (services.length === 0) {
+      console.log('Services not loaded, fetching from service-table...');
+      await fetchServices();
+    }
   };
+
+  useEffect(() => {
+  if (modalOpen && services.length === 0) {
+    console.log('Modal opened but no services loaded, fetching...');
+    fetchServices();
+  }
+}, [modalOpen]);
+
 
   // Close modal
   const handleCloseModal = () => {
@@ -502,6 +661,8 @@ useEffect(() => {
     setSelectedAppointment(null);
     setEditMode(false);
     setEditedAppointment(null);
+    setEditedServices([]);
+    setServiceInputValue('');
   };
 
   const statusColors = {
@@ -1094,54 +1255,186 @@ useEffect(() => {
               <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
                 {/* Service */}
                 <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
-                    <Typography variant="body2" sx={{ 
-                      color: '#5f6368', 
-                      fontFamily: 'Inter, sans-serif', 
-                      fontSize: '13px',
-                      fontWeight: '600'
-                    }}>
-                      Service
-                    </Typography>
-                  </Box>
-                  {editMode ? (
-                    <FormControl size="small" fullWidth>
-                      <Select
-                        value={editedAppointment?.serviceId || ''}
-                        onChange={(e) => {
-                          const selectedService = services.find(s => s.id === e.target.value);
-                          handleEditChange('serviceId', e.target.value);
-                          if (selectedService) {
-                            handleEditChange('procedure', selectedService.name);
-                          }
-                        }}
-                        sx={{ 
-                          borderRadius: '8px',
-                          fontFamily: 'Inter, sans-serif'
-                        }}
-                      >
-                        {services.map((service) => (
-                          <MenuItem key={service.id} value={service.id}>
-                            {service.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  ) : (
-                    <Typography variant="body1" sx={{ 
-                      fontFamily: 'Inter, sans-serif', 
-                      fontWeight: '500',
-                      fontSize: '15px',
-                      color: '#202124',
-                      p: 1.5,
-                      backgroundColor: '#f8f9fa',
-                      borderRadius: '8px'
-                    }}>
-                      {selectedAppointment.procedure}
-                    </Typography>
-                  )}
-                </Box>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+      <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
+      <Typography variant="body2" sx={{ 
+        color: '#5f6368', 
+        fontFamily: 'Inter, sans-serif', 
+        fontSize: '13px',
+        fontWeight: '600'
+      }}>
+        Services {editMode && editedServices.length > 0 && `(${editedServices.length} selected)`}
+      </Typography>
+    </Box>
+    {editMode ? (
+      <Box>
+        <Autocomplete
+          multiple
+          value={editedServices}
+          onChange={(event, newValue) => {
+            // Check if any selected service is inactive
+            const inactiveService = newValue.find(service => 
+              service.status && service.status.toLowerCase() !== 'active'
+            );
+            
+            if (inactiveService) {
+              setUpdateError('Some services are inactive and cannot be selected');
+              // Filter out inactive services
+              const activeServices = newValue.filter(service => 
+                !service.status || service.status.toLowerCase() === 'active'
+              );
+              setEditedServices(activeServices);
+              return;
+            }
+            
+            setEditedServices(newValue);
+          }}
+          inputValue={serviceInputValue}
+          onInputChange={(event, newInputValue) => {
+            setServiceInputValue(newInputValue);
+          }}
+          options={services.filter(service => 
+            (!service.status || service.status.toLowerCase() === 'active')
+          )}
+          getOptionLabel={(option) => option ? option.name : ''}
+          filterOptions={(options, { inputValue }) => {
+            const filtered = options.filter(option => {
+              const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
+              const isActive = !option.status || option.status.toLowerCase() === 'active';
+              const notAlreadySelected = !editedServices.find(selected => selected.id === option.id);
+              return matchesInput && isActive && notAlreadySelected;
+            });
+            return filtered;
+          }}
+          renderTags={(tagValue, getTagProps) =>
+            tagValue.map((option, index) => (
+              <Box
+                key={option.id}
+                {...getTagProps({ index })}
+                sx={{
+                  backgroundColor: '#e3f2fd',
+                  color: '#1565c0',
+                  border: '1px solid #bbdefb',
+                  borderRadius: '16px',
+                  padding: '4px 8px',
+                  margin: '2px',
+                  fontSize: '12px',
+                  fontFamily: 'Inter, sans-serif',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5
+                }}
+              >
+                {option.name}
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    const newServices = editedServices.filter(service => service.id !== option.id);
+                    setEditedServices(newServices);
+                  }}
+                  sx={{
+                    padding: '2px',
+                    color: '#1565c0',
+                    '&:hover': {
+                      backgroundColor: '#bbdefb'
+                    }
+                  }}
+                >
+                  <CloseIcon sx={{ fontSize: '14px' }} />
+                </IconButton>
+              </Box>
+            ))
+          }
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder={editedServices.length === 0 ? "Search for services..." : "Add more services..."}
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '8px',
+                  fontFamily: 'Inter, sans-serif',
+                  minHeight: '56px'
+                }
+              }}
+            />
+          )}
+          renderOption={(props, option) => (
+            <Box
+              {...props}
+              sx={{
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '14px',
+              }}
+            >
+              <Box sx={{ width: '100%' }}>
+                <Typography sx={{ fontWeight: '500' }}>
+                  {option.name}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+                  ₱{option.price} • {option.duration} minutes
+                </Typography>
+              </Box>
+            </Box>
+          )}
+          noOptionsText="No active services found"
+          size="small"
+        />
+        
+        {/* Show selected services summary in edit mode */}
+        {editedServices.length > 0 && (
+          <Box sx={{ mt: 2, p: 2, backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+            <Typography variant="body2" sx={{ 
+              fontWeight: '600', 
+              color: '#5f6368',
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '13px',
+              mb: 1
+            }}>
+              Selected Services Summary:
+            </Typography>
+            {editedServices.map((service, index) => (
+              <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
+                  {service.name}
+                </Typography>
+                <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif', color: '#5f6368' }}>
+                  ₱{service.price} • {service.duration}min
+                </Typography>
+              </Box>
+            ))}
+            <Box sx={{ 
+              borderTop: '1px solid #e0e0e0', 
+              pt: 1, 
+              mt: 1, 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              fontWeight: '600'
+            }}>
+              <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                Total:
+              </Typography>
+              <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                ₱{editedServices.reduce((total, service) => total + service.price, 0)} • {editedServices.reduce((total, service) => total + service.duration, 0)}min
+              </Typography>
+            </Box>
+          </Box>
+        )}
+      </Box>
+    ) : (
+      <Typography variant="body1" sx={{ 
+        fontFamily: 'Inter, sans-serif', 
+        fontWeight: '500',
+        fontSize: '15px',
+        color: '#202124',
+        p: 1.5,
+        backgroundColor: '#f8f9fa',
+        borderRadius: '8px'
+      }}>
+        {selectedAppointment.procedure}
+      </Typography>
+    )}
+  </Box>
 
                 {/* Status */}
                 <Box>
