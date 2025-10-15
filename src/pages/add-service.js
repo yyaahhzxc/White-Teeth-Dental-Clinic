@@ -127,7 +127,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
           width: '100%',
           maxWidth: 500,
           minHeight: 400,
-          borderRadius: 3,
+          borderRadius: 3,  
           backgroundColor: '#2148C0',
         }
       }}

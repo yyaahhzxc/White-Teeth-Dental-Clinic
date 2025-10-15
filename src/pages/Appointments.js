@@ -34,7 +34,6 @@ import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import { API_BASE } from '../apiConfig';
 
-
 // Add this utility function at the top of Appointments.js after your imports
 const normalizeDateFromStorage = (dateString) => {
   if (!dateString) return new Date();
@@ -49,7 +48,7 @@ function parseLocalDate(dateStr) {
 }
 
 // MonthGrid component for month view
-function MonthGrid({ appointments, currentDate, statusColors }) {
+function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick }) {
   // Get first day of month
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -68,14 +67,22 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
     d.setDate(d.getDate() + 1);
   }
   
-  // Helper to get events for a date
+  // Helper to get events for a date - FIXED to use parseLocalDate
   const getEventsForDate = (date) => {
-    const targetDateStr = date.toISOString().split('T')[0];
+    // Create date string in local timezone to match appointment data format
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`;
+    
     return appointments.filter(apt => {
-      const aptDateStr = apt.appointmentDate.split('T')[0];
+      // Use parseLocalDate to avoid timezone issues
+      const aptDate = parseLocalDate(apt.appointmentDate.split('T')[0]);
+      const aptDateStr = aptDate.toISOString().split('T')[0];
       return aptDateStr === targetDateStr;
     });
   };
+
 
   return (
     <Box sx={{ width: '100%', p: 2 }}>
@@ -107,7 +114,9 @@ function MonthGrid({ appointments, currentDate, statusColors }) {
                 {date.getDate()}
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
-                <Box key={eventIdx} sx={{
+                <Box key={eventIdx}
+                onClick={() => onAppointmentClick(event)}
+                sx={{
                   backgroundColor: statusColors[event.status] || statusColors.scheduled,
                   color: 'white',
                   p: 0.5,
@@ -199,31 +208,22 @@ function Appointments() {
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
   };
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
-  
-  useEffect(() => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else {
-      fetchAppointmentsForMonth();
-    }
-    fetchServices();
-  }, [currentDate, calendarView]);
-
   // Function to fetch services
   const fetchServices = async () => {
     try {
-      const response = await fetch(`${API_BASE}/services`);
+      console.log('Fetching services from:', `${API_BASE}/service-table`);
+      const response = await fetch(`${API_BASE}/service-table`);
+      console.log('Services response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Services data received:', data);
+        console.log('Number of services:', data.length);
         setServices(data);
       } else {
-        console.error('Failed to fetch services');
+        console.error('Failed to fetch services - Status:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         setServices([]);
       }
     } catch (error) {
@@ -340,6 +340,40 @@ function Appointments() {
       setLoading(false);
     }
   };
+
+  // Listen for appointment updates from other components
+  useEffect(() => {
+    const handleAppointmentAdded = () => {
+      refreshAppointments();
+    };
+
+    // Listen for custom events
+    window.addEventListener('appointmentAdded', handleAppointmentAdded);
+    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
+
+    return () => {
+      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
+      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
+    };
+  }, [calendarView]);
+
+  // Effect to update current time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Effect to fetch data when date or view changes
+  useEffect(() => {
+    if (calendarView === 'Week') {
+      fetchAppointmentsForWeek();
+    } else {
+      fetchAppointmentsForMonth();
+    }
+    fetchServices();
+  }, [currentDate, calendarView]);
 
   // Handle edit mode toggle
   const handleEditClick = () => {
@@ -670,6 +704,7 @@ function Appointments() {
               appointments={appointments}
               currentDate={currentDate}
               statusColors={statusColors}
+              onAppointmentClick={handleAppointmentClick}
             />
           ) : (
             <>
