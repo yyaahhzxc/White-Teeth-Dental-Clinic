@@ -314,58 +314,121 @@ export default function HomePage() {
                 </Container>
 
                 {/* Absolute image group anchored to the hero and aligned to the screen right */}
-                <Box
-                    ref={rightBoxRef}
-                    sx={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: { xs: 260, md: 420 },
-                        height: { xs: 160, md: 220 },
-                        pointerEvents: 'none',
-                        overflow: 'visible',
-                        zIndex: 0,
-                    }}
-                >
-                    {/* rectangle image (zIndex 0) */}
-                    <Box
-                        component="img"
-                        src="/Homepage-Home-Rectangle.png"
-                        alt="rectangle"
-                        sx={{
-                            position: 'absolute',
-                            left: rectStyle.left,
-                            top: rectStyle.top,
-                            width: `calc(100% - ${rectStyle.left}px)`,
-                            height: rectStyle.height,
-                            objectFit: 'cover',
-                            zIndex: 0,
-                        }}
-                    />
+<Box
+  ref={rightBoxRef}
+  sx={{
+    position: 'fixed', // 👈 changed from absolute
+    right: 0,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: { xs: 260, md: 420 },
+    height: { xs: 160, md: 220 },
+    pointerEvents: 'auto',
+    overflow: 'visible',
+    zIndex: 10,
 
-                    {/* circle (wrapper) with logo centered (zIndex 1/2) */}
-                    <Box
-                        ref={circleRef}
-                        sx={{
-                            position: 'absolute',
-                            left: { xs: 10, md: 40 },
-                            top: { xs: 0, md: 10 },
-                            width: { xs: 140, md: 220 },
-                            height: { xs: 140, md: 220 },
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundImage: 'url(/Homepage-Home-Circle.png)',
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                            zIndex: 2,
-                        }}
-                    >
-                        <Box component="img" src="/Homepage-Home-Logo.png" alt="logo" sx={{ width: '80%', height: '80%', zIndex: 3, pointerEvents: 'auto' }} />
-                    </Box>
-                </Box>
+    '&:hover .rectangle': {
+      width: { xs: 360, md: 600 },
+      transition: 'width 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
+    },
+    '&:hover .circle': {
+      transform: 'translate(-180px, -50%)',
+      transition: 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)',
+    },
+    '&:hover .text': {
+      opacity: 1,
+      transform: 'translate(-50%, -50%)',
+      transition: `
+        opacity 0.6s ease,
+        transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)
+      `,
+    },
+  }}
+>
+  {/* Rectangle background */}
+  <Box
+    className="rectangle"
+    component="img"
+    src="/Homepage-Home-Rectangle.png"
+    alt="rectangle"
+    sx={{
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      borderTopLeftRadius: { xs: '80px', md: '120px' },
+      borderBottomLeftRadius: { xs: '80px', md: '120px' },
+      transition: 'width 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
+      zIndex: 0,
+    }}
+  />
+
+  {/* Circle wrapper */}
+  <Box
+    className="circle"
+    sx={{
+      position: 'absolute',
+      left: 0,
+      top: '50%',
+      transform: 'translateY(-50%)',
+      width: { xs: 140, md: 220 },
+      height: { xs: 140, md: 220 },
+      borderRadius: '50%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundImage: 'url(/Homepage-Home-Circle.png)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      transition: 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)',
+      zIndex: 2,
+    }}
+  >
+    <Box
+      component="img"
+      src="/Homepage-Home-Logo.png"
+      alt="logo"
+      sx={{
+        width: '80%',
+        height: '80%',
+        zIndex: 3,
+        pointerEvents: 'none',
+      }}
+    />
+  </Box>
+
+  {/* Text */}
+  <Box
+    className="text"
+    sx={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(calc(-50% + 60px), -50%)',
+      opacity: 0,
+      color: 'white',
+      fontWeight: 600,
+      fontSize: { xs: '1rem', md: '1.4rem' },
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      whiteSpace: 'nowrap',
+      pointerEvents: 'none',
+      zIndex: 3,
+      transition: `
+        opacity 0.6s ease,
+        transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)
+      `,
+    }}
+  >
+    Start Session
+  </Box>
+</Box>
+
+
+
+
             </Box>
 
             {/*Dentist*/}
