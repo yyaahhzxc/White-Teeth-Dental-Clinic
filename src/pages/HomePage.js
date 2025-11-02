@@ -96,6 +96,10 @@ export default function HomePage() {
     const hoverTimerRef = useRef(null);
     const [isTucked, setIsTucked] = useState(false);
     const [scrollbarWidth, setScrollbarWidth] = useState(0);
+    const [isReady, setIsReady] = useState(false); // enable animations after first paint
+    // Enable rectangle animation only after its initial layout is measured to avoid first-load width tween
+    const [rectAnimReady, setRectAnimReady] = useState(false);
+    const rectInitRef = useRef(false);
 
     // compute rectangle position so left edge aligns to circle center and right edge touches hero right edge
     useEffect(() => {
@@ -287,6 +291,22 @@ export default function HomePage() {
         };
     }, []);
 
+    // Enable transitions after first paint so initial layout doesn't animate
+    useEffect(() => {
+        const id = requestAnimationFrame(() => setIsReady(true));
+        return () => cancelAnimationFrame(id);
+    }, []);
+
+    // Turn on rectangle width transition only after we have initial non-zero size
+    useEffect(() => {
+        if (!rectInitRef.current && rectStyle.width > 0 && rectStyle.height > 0) {
+            rectInitRef.current = true;
+            // wait one frame to ensure the initial width has been painted without transition
+            const id = requestAnimationFrame(() => setRectAnimReady(true));
+            return () => cancelAnimationFrame(id);
+        }
+    }, [rectStyle.width, rectStyle.height]);
+
 
 
 
@@ -428,8 +448,8 @@ export default function HomePage() {
                     }}
                     sx={{
                         position: 'fixed',
-                        // Nudge lower when in hero (untucked) to align visually with the title
-                        top: isTucked ? { xs: '18vh', md: '22vh' } : { xs: '24vh', md: '28vh' },
+                        // Use the same vertical position in hero and tucked states
+                        top: { xs: '35vh', md: '37vh' },
                         right: scrollbarWidth ? `${scrollbarWidth}px` : 0,
                         // Keep full width like in hero to mimic the same expansion behavior;
                         // we reveal a peek by translating the inner wrapper while tucked.
@@ -460,7 +480,7 @@ export default function HomePage() {
                             transform: (isTucked && !isHovered)
                                 ? { xs: 'translateX(180px)', md: 'translateX(320px)' } // 260-80, 420-100
                                 : 'translateX(0)',
-                            transition: 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
+                            transition: isReady ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
                         }}
                     >
                         {/* rectangle image (zIndex 0) with text */}
@@ -481,7 +501,7 @@ export default function HomePage() {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 overflow: 'hidden',
-                                transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                transition: rectAnimReady ? 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
                             }}
                         >
                             <Box
@@ -505,7 +525,7 @@ export default function HomePage() {
                                     fontSize: { xs: 24, md: 36 },
                                     fontWeight: 700,
                                     opacity: isHovered ? 1 : 0,
-                                    transition: 'opacity 0.3s ease-in-out 0.2s',
+                                    transition: isReady ? 'opacity 0.3s ease-in-out 0.2s' : 'none',
                                     whiteSpace: 'nowrap',
                                 }}
                             >
@@ -534,7 +554,7 @@ export default function HomePage() {
                                 // Slide circle left on hover (same as hero) to reveal full text; overflow of outer container
                                 // ensures it won't hit the scrollbar while tucked
                                 transform: isHovered ? { xs: 'translateX(-120px)', md: 'translateX(-240px)' } : 'none',
-                                transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                transition: isReady ? 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
                             }}
                         >
                             <Box component="img" src="/Homepage-Home-Logo.png" alt="logo" sx={{ width: '80%', height: '80%', zIndex: 4, pointerEvents: 'none' }} />
