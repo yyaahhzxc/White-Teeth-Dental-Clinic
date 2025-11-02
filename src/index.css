@@ -21,6 +21,11 @@ html, body {
   height: 100%;
 }
 
+/* Reserve space for the vertical scrollbar so fixed elements aligned to right
+   do not overlap it. Supported in modern browsers (Chromium/Firefox). */
+/* Removed scrollbar-gutter reservation to avoid extra blank space on the right.
+   We align sticky elements to content edge (right: 0) instead. */
+
 #root {
   height: 100%; /* Ensure the root element takes the full height */
 }

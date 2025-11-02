@@ -87,9 +87,15 @@ export default function HomePage() {
     };
 
     const [rectStyle, setRectStyle] = useState({ left: 0, top: 0, width: 0, height: 0 });
-        const [isFixed, setIsFixed] = useState(false);
-        const [fixedTop, setFixedTop] = useState(null);
-        const [fixedTranslate, setFixedTranslate] = useState(0);
+    const [isFixed, setIsFixed] = useState(false);
+    const [fixedTop, setFixedTop] = useState(null);
+    const [fixedTranslate, setFixedTranslate] = useState(0);
+    const [isHovered, setIsHovered] = useState(false);
+    // Keep overflow visible briefly after hover ends so the circle/logo don't get clipped mid-animation
+    const [hoverExitGrace, setHoverExitGrace] = useState(false);
+    const hoverTimerRef = useRef(null);
+    const [isTucked, setIsTucked] = useState(false);
+    const [scrollbarWidth, setScrollbarWidth] = useState(0);
 
     // compute rectangle position so left edge aligns to circle center and right edge touches hero right edge
     useEffect(() => {
@@ -192,6 +198,93 @@ export default function HomePage() {
         });
 
         return () => observer.disconnect();
+    }, []);
+
+    // Measure scrollbar width so we can offset the sticky pill from the content edge
+    useEffect(() => {
+        const computeScrollbar = () => {
+            // Robust measurement: use a temporary scroll container
+            const outer = document.createElement('div');
+            outer.style.visibility = 'hidden';
+            outer.style.msOverflowStyle = 'scrollbar'; // for IE 10+
+            outer.style.overflow = 'scroll';
+            outer.style.position = 'absolute';
+            outer.style.top = '-9999px';
+            outer.style.width = '100px';
+            outer.style.height = '100px';
+            document.body.appendChild(outer);
+
+            const inner = document.createElement('div');
+            inner.style.width = '100%';
+            inner.style.height = '100%';
+            outer.appendChild(inner);
+
+            const width = outer.offsetWidth - inner.clientWidth;
+
+            document.body.removeChild(outer);
+
+            // Fallback to 16px typical width if detection yields 0 on overlay scrollbars
+            setScrollbarWidth(width > 0 ? width : 16);
+        };
+
+        computeScrollbar();
+        window.addEventListener('resize', computeScrollbar);
+        return () => window.removeEventListener('resize', computeScrollbar);
+    }, []);
+
+    // Tuck-in behavior driven by Home section visibility
+    // When the Home hero leaves the viewport (considering header height), tuck to the right.
+    useEffect(() => {
+        const sectionEl = homeRef.current;
+        if (!sectionEl) return;
+
+        const headerHeight = headerRef.current?.getBoundingClientRect().height || 80;
+
+        let observer;
+        try {
+            observer = new IntersectionObserver(
+                (entries) => {
+                    const entry = entries[0];
+                    // If the Home section is not visible, tuck; otherwise, untuck
+                    setIsTucked(!entry.isIntersecting);
+                },
+                {
+                    root: null,
+                    // Start tucking shortly after the hero scrolls under the header
+                    rootMargin: `-${headerHeight + 8}px 0px 0px 0px`,
+                    threshold: 0.01,
+                }
+            );
+            observer.observe(sectionEl);
+        } catch (e) {
+            // Fallback: simple scroll check if IntersectionObserver isn't available
+            const onScrollFallback = () => {
+                const bounds = sectionEl.getBoundingClientRect();
+                setIsTucked(bounds.bottom < (headerHeight + 8));
+            };
+            window.addEventListener('scroll', onScrollFallback, { passive: true });
+            onScrollFallback();
+            return () => window.removeEventListener('scroll', onScrollFallback);
+        }
+
+        // Initial state in case observer callback is delayed
+        // If bottom of hero is already above header line, we should be tucked
+        const initBounds = sectionEl.getBoundingClientRect();
+        setIsTucked(initBounds.bottom < (headerHeight + 8));
+
+        return () => {
+            if (observer) observer.disconnect();
+        };
+    }, []);
+
+    // Cleanup hover timer on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverTimerRef.current) {
+                clearTimeout(hoverTimerRef.current);
+                hoverTimerRef.current = null;
+            }
+        };
     }, []);
 
 
@@ -316,59 +409,139 @@ export default function HomePage() {
                 {/* Absolute image group anchored to the hero and aligned to the screen right */}
                 <Box
                     ref={rightBoxRef}
+                    onMouseEnter={() => {
+                        setIsHovered(true);
+                        if (hoverTimerRef.current) {
+                            clearTimeout(hoverTimerRef.current);
+                            hoverTimerRef.current = null;
+                        }
+                        setHoverExitGrace(false);
+                    }}
+                    onMouseLeave={() => {
+                        setIsHovered(false);
+                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                        setHoverExitGrace(true);
+                        hoverTimerRef.current = setTimeout(() => {
+                            setHoverExitGrace(false);
+                            hoverTimerRef.current = null;
+                        }, 460); // match transform duration
+                    }}
                     sx={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
+                        position: 'fixed',
+                        // Nudge lower when in hero (untucked) to align visually with the title
+                        top: isTucked ? { xs: '18vh', md: '22vh' } : { xs: '24vh', md: '28vh' },
+                        right: scrollbarWidth ? `${scrollbarWidth}px` : 0,
+                        // Keep full width like in hero to mimic the same expansion behavior;
+                        // we reveal a peek by translating the inner wrapper while tucked.
                         width: { xs: 260, md: 420 },
                         height: { xs: 160, md: 220 },
-                        pointerEvents: 'none',
+                        pointerEvents: 'auto',
+                        // Keep overflow visible, but clamp the right edge with clipPath so content never crosses into the scrollbar area.
                         overflow: 'visible',
-                        zIndex: 0,
+                        // Allow a small bleed on top/bottom to avoid subpixel cropping of the circle while still
+                        // clamping the right edge against the scrollbar. Left is negative to reveal the tucked peek.
+                        clipPath: isTucked
+                            ? { xs: 'inset(-6px 0 -6px -160px)', md: 'inset(-10px 0 -10px -300px)' }
+                            : 'none',
+                        zIndex: 1050,
+                        cursor: 'pointer',
                     }}
+                    onClick={() => navigate('/login')}
                 >
-                    {/* rectangle image (zIndex 0) */}
+                    {/* Content wrapper for positioning */}
                     <Box
-                        component="img"
-                        src="/Homepage-Home-Rectangle.png"
-                        alt="rectangle"
                         sx={{
                             position: 'absolute',
-                            left: rectStyle.left,
-                            top: rectStyle.top,
-                            width: `calc(100% - ${rectStyle.left}px)`,
-                            height: rectStyle.height,
-                            objectFit: 'cover',
-                            zIndex: 0,
-                        }}
-                    />
-
-                    {/* circle (wrapper) with logo centered (zIndex 1/2) */}
-                    <Box
-                        ref={circleRef}
-                        sx={{
-                            position: 'absolute',
-                            left: { xs: 10, md: 40 },
-                            top: { xs: 0, md: 10 },
-                            width: { xs: 140, md: 220 },
-                            height: { xs: 140, md: 220 },
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundImage: 'url(/Homepage-Home-Circle.png)',
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                            zIndex: 2,
+                            top: 0,
+                            left: 0, // Keep content anchored to the left
+                            height: '100%',
+                            width: { xs: 260, md: 420 }, // Fixed full width for content
+                            // While tucked (and not hovered), shift content right so only a peek remains visible.
+                            transform: (isTucked && !isHovered)
+                                ? { xs: 'translateX(180px)', md: 'translateX(320px)' } // 260-80, 420-100
+                                : 'translateX(0)',
+                            transition: 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
                         }}
                     >
-                        <Box component="img" src="/Homepage-Home-Logo.png" alt="logo" sx={{ width: '80%', height: '80%', zIndex: 3, pointerEvents: 'auto' }} />
+                        {/* rectangle image (zIndex 0) with text */}
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                right: 0,
+                                top: rectStyle.top,
+                                // Hover behavior
+                                // - Untucked: extend a bit further left (+120/+240) to mirror hero effect
+                                // - Tucked: also extend further left on hover so full text is visible inside the container
+                                width: isHovered
+                                    ? { xs: `calc(100% - ${rectStyle.left}px + 120px + 2px)`, md: `calc(100% - ${rectStyle.left}px + 240px + 2px)` }
+                                    : `calc(100% - ${rectStyle.left}px + 2px)`,
+                                height: rectStyle.height,
+                                zIndex: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                            }}
+                        >
+                            <Box
+                                component="img"
+                                src="/Homepage-Home-Rectangle.png"
+                                alt="rectangle"
+                                sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    zIndex: 0,
+                                }}
+                            />
+                            <Typography
+                                sx={{
+                                    position: 'relative',
+                                    zIndex: 1,
+                                    color: 'white',
+                                    fontSize: { xs: 24, md: 36 },
+                                    fontWeight: 700,
+                                    opacity: isHovered ? 1 : 0,
+                                    transition: 'opacity 0.3s ease-in-out 0.2s',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Start Session
+                            </Typography>
+                        </Box>
+
+                        {/* circle (wrapper) with logo centered (zIndex 1/2) */}
+                        <Box
+                            ref={circleRef}
+                            sx={{
+                                position: 'absolute',
+                                left: { xs: 10, md: 40 },
+                                top: { xs: 0, md: 10 },
+                                width: { xs: 140, md: 220 },
+                                height: { xs: 140, md: 220 },
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundImage: 'url(/Homepage-Home-Circle.png)',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                zIndex: 3,
+                                pointerEvents: 'none',
+                                // Slide circle left on hover (same as hero) to reveal full text; overflow of outer container
+                                // ensures it won't hit the scrollbar while tucked
+                                transform: isHovered ? { xs: 'translateX(-120px)', md: 'translateX(-240px)' } : 'none',
+                                transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                            }}
+                        >
+                            <Box component="img" src="/Homepage-Home-Logo.png" alt="logo" sx={{ width: '80%', height: '80%', zIndex: 4, pointerEvents: 'none' }} />
+                        </Box>
                     </Box>
                 </Box>
-            </Box>
-
-            {/*Dentist*/}
+            </Box>            {/*Dentist*/}
             <Box
                 ref={dentistRef}
                 sx={{
