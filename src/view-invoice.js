@@ -132,7 +132,7 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
                 Invoice of (PHP)
               </Typography>
               <Typography fontWeight={600}>
-                1,500.00 PHP
+                {(invoice.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PHP
               </Typography>
             </Grid>
             <Grid item xs={6} mt={2} pr={"70%"} pt={"5%"} pb={"5%"}>
@@ -170,12 +170,14 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
               </TableHead>
               <TableBody>
                 {/* Services */}
-                <TableRow>
-                  <TableCell>Wisdom Tooth Extraction</TableCell>
-                  <TableCell align="center">1</TableCell>
-                  <TableCell align="center">1,000.00</TableCell>
-                  <TableCell align="center">1,000.00</TableCell>
-                </TableRow>
+                {invoice.services && invoice.services.map((service, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{service.name}</TableCell>
+                    <TableCell align="center">{service.quantity || 1}</TableCell>
+                    <TableCell align="center">{parseFloat(service.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell align="center">{(parseFloat(service.price) * (service.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  </TableRow>
+                ))}
                 
                 {/* Subtotal Row */}
                 <TableRow sx={{ pb: "20%" }}>
@@ -183,53 +185,61 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
                     Subtotal:
                   </TableCell>
                   <TableCell align="center" sx={{ pb: "10%", fontWeight: 600 }}>
-                    1,000.00
+                    {(invoice.servicesTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                 </TableRow>
 
-                {/* Additional Charges Section Header */}
-                <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
-                  <TableCell colSpan={4} sx={{ 
-                    fontWeight: 600, 
-                    backgroundColor: "#f9f9f9",
-                    borderTop: "1px solid #ddd"
-                  }}>
-                    Additional Charges
-                  </TableCell>
-                </TableRow>
+                {/* Additional Charges Section - Only show if there are charges */}
+                {invoice.additionalCharges && invoice.additionalCharges.length > 0 && (
+                  <>
+                    {/* Additional Charges Section Header */}
+                    <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
+                      <TableCell colSpan={4} sx={{ 
+                        fontWeight: 600, 
+                        backgroundColor: "#f9f9f9",
+                        borderTop: "1px solid #ddd"
+                      }}>
+                        Additional Charges
+                      </TableCell>
+                    </TableRow>
 
-                {/* Additional Charges */}
-                <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
-                  <TableCell>Anaesthetic Carpule</TableCell>
-                  <TableCell align="center">1</TableCell>
-                  <TableCell align="center">500.00</TableCell>
-                  <TableCell align="center">500.00</TableCell>
-                </TableRow>
-                <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
-                  <TableCell>Retainer Case</TableCell>
-                  <TableCell align="center">1</TableCell>
-                  <TableCell align="center">200.00</TableCell>
-                  <TableCell align="center">200.00</TableCell>
-                </TableRow>
+                    {/* Additional Charges */}
+                    {invoice.additionalCharges.map((charge, index) => (
+                      <TableRow key={index} sx={{ borderTop: "2px solid #dddddd11" }}>
+                        <TableCell>{charge.name}</TableCell>
+                        <TableCell align="center">{charge.quantity || 1}</TableCell>
+                        <TableCell align="center">{parseFloat(charge.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        <TableCell align="center">{(parseFloat(charge.price) * (charge.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                )}
 
-                {/* Discount Section Header */}
-                <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
-                  <TableCell colSpan={4} sx={{ 
-                    fontWeight: 600, 
-                    backgroundColor: "#f9f9f9",
-                    borderTop: "1px solid #ddd"
-                  }}>
-                    Discount
-                  </TableCell>
-                </TableRow>
+                {/* Discount Section - Only show if there are discounts */}
+                {invoice.discounts && invoice.discounts.length > 0 && (
+                  <>
+                    {/* Discount Section Header */}
+                    <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
+                      <TableCell colSpan={4} sx={{ 
+                        fontWeight: 600, 
+                        backgroundColor: "#f9f9f9",
+                        borderTop: "1px solid #ddd"
+                      }}>
+                        Discount
+                      </TableCell>
+                    </TableRow>
 
-                {/* Discount */}
-                <TableRow sx={{ borderTop: "2px solid #dddddd11" }}>
-                  <TableCell>Employee Family</TableCell>
-                  <TableCell align="center">1</TableCell>
-                  <TableCell align="center">-200.00</TableCell>
-                  <TableCell align="center">-200.00</TableCell>
-                </TableRow>
+                    {/* Discount */}
+                    {invoice.discounts.map((discount, index) => (
+                      <TableRow key={index} sx={{ borderTop: "2px solid #dddddd11" }}>
+                        <TableCell>{discount.name}</TableCell>
+                        <TableCell align="center">{discount.quantity || 1}</TableCell>
+                        <TableCell align="center">-{parseFloat(discount.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        <TableCell align="center">-{(parseFloat(discount.price) * (discount.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                )}
 
                 {/* Space between discount and total */}
                 <TableRow>
@@ -242,7 +252,7 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
                     Total:
                   </TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600, py: 0.5 }}>
-                    1,500.00
+                    {(invoice.total || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                 </TableRow>
 
@@ -252,7 +262,7 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
                     Paid:
                   </TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600, py: 0.5 }}>
-                    1,500.00
+                    {(invoice.amountPaid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                 </TableRow>
 
@@ -262,7 +272,7 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
                     BALANCE:
                   </TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600, py: 0.5 }}>
-                    0.00
+                    {(invoice.balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
                 </TableRow>
               </TableBody>

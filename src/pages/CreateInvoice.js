@@ -11,6 +11,7 @@ import {
   FormControl,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import ViewInvoice from '../view-invoice';
 
 function CreateInvoice({ 
   open = true, 
@@ -20,6 +21,7 @@ function CreateInvoice({
   // State for payment information
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState('');
+  const [showViewInvoice, setShowViewInvoice] = useState(false);
 
   // Calculate the total from billing data
   const calculations = useMemo(() => {
@@ -67,8 +69,35 @@ function CreateInvoice({
       remainingBalance: calculations.remainingBalance,
       billingData,
     });
-    // TODO: Implement create invoice functionality
+    // Open the ViewInvoice modal
+    setShowViewInvoice(true);
   };
+
+  // Format invoice data for ViewInvoice component
+  const invoiceData = useMemo(() => {
+    const today = new Date();
+    const formattedDate = today.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const invoiceNumber = `INV-${today.getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+    
+    return {
+      billedTo: 'Patient Name', // TODO: Get from billing data when available
+      invoiceNumber: invoiceNumber,
+      dentist: 'Dr. Dentist Name', // TODO: Get from billing data when available
+      date: formattedDate,
+      services: calculations.validServices,
+      additionalCharges: calculations.validCharges,
+      discounts: calculations.validDiscounts,
+      servicesTotal: calculations.servicesTotal,
+      chargesTotal: calculations.chargesTotal,
+      discountsTotal: calculations.discountsTotal,
+      subtotalAfterServices: calculations.subtotalAfterServices,
+      subtotalAfterCharges: calculations.subtotalAfterCharges,
+      total: calculations.total,
+      amountPaid: parseFloat(amountPaid) || 0,
+      balance: calculations.remainingBalance,
+      paymentMethod: paymentMethod,
+    };
+  }, [calculations, amountPaid, paymentMethod]);
 
   return (
     <Dialog 
@@ -367,6 +396,13 @@ function CreateInvoice({
           Create Invoice
         </Button>
       </Box>
+
+      {/* View Invoice Modal */}
+      <ViewInvoice
+        open={showViewInvoice}
+        onClose={() => setShowViewInvoice(false)}
+        invoice={invoiceData}
+      />
     </Dialog>
   );
 }
