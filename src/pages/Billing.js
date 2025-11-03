@@ -16,6 +16,7 @@ import FilterComponent, { FilterButton, FilterContent } from '../components/Filt
 import SortableHeader, { sortData } from '../components/SortableHeader';
 import DualSortableHeader, { sortDualData } from '../components/DualSortableHeader';
 import Pagination from '../components/Pagination';
+import BillingAppointmentSummary from './BillingAppointmentSummary';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 
@@ -44,6 +45,10 @@ function Billing() {
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedBilling, setSelectedBilling] = useState(null);
 
   const navigate = useNavigate();
 
@@ -105,10 +110,17 @@ function Billing() {
   // Handlers for view actions (placeholders)
   const handleViewInvoice = (billing) => {
     console.log('View invoice for:', billing);
+    // TODO: Implement view invoice functionality
   };
 
   const handleViewAppointment = (billing) => {
     console.log('View appointment for:', billing);
+    // TODO: Implement view appointment functionality
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedBilling(null);
   };
 
   return (
@@ -309,6 +321,10 @@ function Billing() {
                 visibleBillings.map((billing, index) => (
                   <Box 
                     key={billing.id}
+                    onClick={() => {
+                      setSelectedBilling(billing);
+                      setModalOpen(true);
+                    }}
                     sx={{ 
                       display: 'flex', 
                       px: 2,
@@ -488,7 +504,7 @@ function Billing() {
           </Box>
         }
         pagination={
-          <Box sx={{ px: 3, pb: 3 }}>
+          <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
             <Pagination
               page={page}
               totalPages={totalPages}
@@ -503,6 +519,15 @@ function Billing() {
         }
       />
       <QuickActionButton />
+
+      {/* Billing Appointment Summary Modal */}
+      {selectedBilling && (
+        <BillingAppointmentSummary
+          open={modalOpen}
+          onClose={handleCloseModal}
+          billingData={selectedBilling}
+        />
+      )}
     </Box>
   );
 }
