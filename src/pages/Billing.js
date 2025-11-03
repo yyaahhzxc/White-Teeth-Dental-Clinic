@@ -443,7 +443,7 @@ function Billing() {
                           }
                         }}
                       >
-                        View Invoice
+                        View Invoice(s)
                       </Button>
                     </Box>
 
