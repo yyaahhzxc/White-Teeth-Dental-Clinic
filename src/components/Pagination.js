@@ -4,7 +4,7 @@ import { Box, Button, Typography, FormControl, Select, MenuItem } from '@mui/mat
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 
-function Pagination({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPageChange }) {
+const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPageChange }) => {
   function getPageItems(current, total) {
     const pages = [];
     if (total <= 7) {
