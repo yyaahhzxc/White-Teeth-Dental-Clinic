@@ -42,6 +42,10 @@ function authenticateToken(req, res, next) {
   next();
 }
 
+
+
+//TABLE CREATION FUNCTIONS
+
 // Connect to database (use backend clinic.db to avoid duplicate DB files)
 const DB_PATH = path.join(__dirname, 'clinic.db');
 console.log('Using SQLite DB at', DB_PATH);
@@ -215,10 +219,13 @@ db.run(`
 });
 
 
+//TABLE CREATION FUNCTIONS
+
+
+
+
 
 //APPOINTMENTS AYAW SAG HILABTI//
-
-
 
 // Replace your GET appointments/date-range endpoint (around line 156) with this corrected version:
 app.get('/appointments/date-range', (req, res) => {
@@ -1042,6 +1049,25 @@ app.put('/appointments/:id', (req, res) => {
 
 //APPOINTMENTS AYAW SAG HILABTI//
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //VISIT LOGS ENDPOINTS//
 
 // Create a new visit log
@@ -1481,6 +1507,10 @@ app.delete('/user-photo/:username', (req, res) => {
   });
 });
 
+
+
+//PATIENT ENDPOINTS
+
 // Add patient endpoint (replace your existing one)
 app.post('/patients', (req, res) => {
   const {
@@ -1626,6 +1656,83 @@ app.get('/patients-with-tooth-charts', (req, res) => {
   });
 });
 
+// Update patient information
+app.put('/patients/:id', (req, res) => {
+  const patientId = req.params.id;
+  const {
+    firstName, lastName, middleName, suffix, maritalStatus,
+    contactNumber, occupation, address, dateOfBirth, sex,
+    contactPersonName, contactPersonRelationship, contactPersonNumber,
+    contactPersonAddress
+  } = req.body;
+
+  db.run(
+    `UPDATE patients SET 
+      firstName = ?, lastName = ?, middleName = ?, suffix = ?, maritalStatus = ?,
+      contactNumber = ?, occupation = ?, address = ?, dateOfBirth = ?, sex = ?,
+      contactPersonName = ?, contactPersonRelationship = ?, contactPersonNumber = ?, 
+      contactPersonAddress = ?
+     WHERE id = ?`,
+    [
+      firstName, lastName, middleName, suffix, maritalStatus,
+      contactNumber, occupation, address, dateOfBirth, sex,
+      contactPersonName, contactPersonRelationship, contactPersonNumber,
+      contactPersonAddress, patientId
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Patient not found' });
+      }
+      res.json({ message: 'Patient updated successfully', changes: this.changes });
+    }
+  );
+});
+
+// Update medical information
+app.put('/medical-information/:patientId', (req, res) => {
+  const patientId = req.params.patientId;
+  const {
+    allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+    medications, additionalNotes, bloodPressure, diabetic
+  } = req.body;
+
+  // First check if medical information exists for this patient
+  db.get('SELECT id FROM MedicalInformation WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing record
+      db.run(
+        `UPDATE MedicalInformation SET 
+          allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
+          medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
+         WHERE patientId = ?`,
+        [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information updated successfully', changes: this.changes });
+        }
+      );
+    } else {
+      // Create new record if none exists
+      db.run(
+        `INSERT INTO MedicalInformation (
+          patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information created successfully', id: this.lastID });
+        }
+      );
+    }
+  });
+});
+
+
+//PATIENT ENDPOINTS
 
 
 
@@ -1634,9 +1741,7 @@ app.get('/patients-with-tooth-charts', (req, res) => {
 
 
 
-
-
-
+//AMBOT UNSA NI
 
 // Simple in-memory session store (suitable for local/desktop app)
 const sessions = {}; // token -> { id, username, role }
@@ -1690,6 +1795,13 @@ function requireRole(required) {
     });
   };
 }
+
+
+
+
+
+
+//LOGIN ENDPOINTS
 
 // Login (returns token and user info including role)
 app.post('/login', (req, res) => {
@@ -1792,6 +1904,11 @@ app.post('/medical-information', (req, res) => {
   );
 });
 
+
+
+
+                                                      //SERVICE ENDPOINTS//
+
 // Add a service
 app.post('/service-table', (req, res) => {
   const { name, description, price, duration, type, status } = req.body;
@@ -1878,80 +1995,10 @@ app.delete('/service-table/:id', requireRole('admin'), (req, res) => {
   });
 });
 
-// Update patient information
-app.put('/patients/:id', (req, res) => {
-  const patientId = req.params.id;
-  const {
-    firstName, lastName, middleName, suffix, maritalStatus,
-    contactNumber, occupation, address, dateOfBirth, sex,
-    contactPersonName, contactPersonRelationship, contactPersonNumber,
-    contactPersonAddress
-  } = req.body;
+                    
+                                                      //SERVICE ENDPOINTS//
 
-  db.run(
-    `UPDATE patients SET 
-      firstName = ?, lastName = ?, middleName = ?, suffix = ?, maritalStatus = ?,
-      contactNumber = ?, occupation = ?, address = ?, dateOfBirth = ?, sex = ?,
-      contactPersonName = ?, contactPersonRelationship = ?, contactPersonNumber = ?, 
-      contactPersonAddress = ?
-     WHERE id = ?`,
-    [
-      firstName, lastName, middleName, suffix, maritalStatus,
-      contactNumber, occupation, address, dateOfBirth, sex,
-      contactPersonName, contactPersonRelationship, contactPersonNumber,
-      contactPersonAddress, patientId
-    ],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Patient not found' });
-      }
-      res.json({ message: 'Patient updated successfully', changes: this.changes });
-    }
-  );
-});
 
-// Update medical information
-app.put('/medical-information/:patientId', (req, res) => {
-  const patientId = req.params.patientId;
-  const {
-    allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-    medications, additionalNotes, bloodPressure, diabetic
-  } = req.body;
-
-  // First check if medical information exists for this patient
-  db.get('SELECT id FROM MedicalInformation WHERE patientId = ?', [patientId], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    if (row) {
-      // Update existing record
-      db.run(
-        `UPDATE MedicalInformation SET 
-          allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
-          medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
-         WHERE patientId = ?`,
-        [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
-        function (err) {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({ message: 'Medical information updated successfully', changes: this.changes });
-        }
-      );
-    } else {
-      // Create new record if none exists
-      db.run(
-        `INSERT INTO MedicalInformation (
-          patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-          medications, additionalNotes, bloodPressure, diabetic
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
-        function (err) {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({ message: 'Medical information created successfully', id: this.lastID });
-        }
-      );
-    }
-  });
-});
 
 // ===== USER MANAGEMENT ENDPOINTS =====
 
