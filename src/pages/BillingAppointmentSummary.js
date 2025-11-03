@@ -10,6 +10,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CreateInvoice from './CreateInvoice';
 
 function BillingAppointmentSummary({ 
   open = true, 
@@ -24,6 +25,9 @@ function BillingAppointmentSummary({
     dateCreated: 'October 30, 2025',
     ...billingData,
   };
+
+  // State for CreateInvoice modal
+  const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
 
   // Left side form state (modifiable)
   const [services, setServices] = useState([
@@ -168,8 +172,13 @@ function BillingAppointmentSummary({
   };
 
   const handlePayBill = () => {
-    // To be implemented later
-    console.log('Pay bill functionality to be added');
+    // Prepare billing data for the invoice
+    const invoiceBillingData = {
+      services,
+      additionalCharges,
+      discounts,
+    };
+    setCreateInvoiceOpen(true);
   };
 
   return (
@@ -794,6 +803,17 @@ function BillingAppointmentSummary({
           </Box>
         </Box>
       </Box>
+
+      {/* Create Invoice Modal */}
+      <CreateInvoice
+        open={createInvoiceOpen}
+        onClose={() => setCreateInvoiceOpen(false)}
+        billingData={{
+          services,
+          additionalCharges,
+          discounts,
+        }}
+      />
     </Dialog>
   );
 }
