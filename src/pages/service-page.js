@@ -13,6 +13,7 @@ import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import AddPatientRecord from './add-record';
 import AddService from './add-service';
+import AddPackage from './add-package';
 import ViewService from './view-service';
 import DataTable from '../components/DataTable';
 import SearchBar from '../components/SearchBar';
@@ -44,6 +45,7 @@ function ServiceList() {
 
   const navigate = useNavigate();
   const [showServiceModal, setShowServiceModal] = useState(false);
+  const [showPackageModal, setShowPackageModal] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
@@ -162,6 +164,16 @@ function ServiceList() {
     setShowServiceModal(false);
   };
 
+  const handleAddPackage = () => {
+    // Refresh services after adding package
+    fetch(`${API_BASE}/service-table`)
+      .then(res => res.json())
+      .then(data => {
+        setServices(data);
+      });
+    setShowPackageModal(false);
+  };
+
   const handleAddPatientRecord = () => setShowPatientModal(true);
   const handleAddAppointment = () => navigate('/add-appointment');
 
@@ -248,6 +260,30 @@ function ServiceList() {
                   }}
                 >
                   Add Service
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowPackageModal(true)}
+                  sx={{
+                    borderColor: '#2148c0',
+                    color: 'white',
+                    backgroundColor: '#2148c0',
+                    borderRadius: '8px',
+                    height: '38px',
+                    px: 3,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    fontFamily: 'Inter, sans-serif',
+                    boxShadow: 'none',
+                    ml: 1,
+                    '&:hover': {
+                      backgroundColor: '#1e3fa8',
+                      borderColor: '#1e3fa8'
+                    },
+                  }}
+                >
+                  Add Package
                 </Button>
               </Box>
             </Box>
@@ -536,6 +572,13 @@ function ServiceList() {
         open={showServiceModal}
         onClose={() => setShowServiceModal(false)}
         handleAddService={handleAddService}
+      />
+
+      {/* Package Modal */}
+      <AddPackage
+        open={showPackageModal}
+        onClose={() => setShowPackageModal(false)}
+        onAddPackage={handleAddPackage}
       />
 
       {/* Patient Modal */}

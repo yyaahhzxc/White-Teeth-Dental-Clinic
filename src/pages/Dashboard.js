@@ -104,19 +104,20 @@ function Dashboard() {
 
       {/* Summary Cards */}
       <Box display="flex" gap={2} p={3}>
-        <Paper sx={{ flex: 1, bgcolor: '#178E5C', color: 'white', p: 2, borderRadius: 2 }}>
-          <Typography variant="h4">3</Typography>
-          <Typography>Completed Appointments Today</Typography>
-        </Paper>
-        <Paper sx={{ flex: 1, bgcolor: '#FFAA1D', color: 'white', p: 2, borderRadius: 2 }}>
-          <Typography variant="h4">15</Typography>
-          <Typography>Upcoming Appointments</Typography>
-        </Paper>
-        <Paper sx={{ flex: 1, bgcolor: '#D9003C', color: 'white', p: 2, borderRadius: 2 }}>
-          <Typography variant="h4">4</Typography>
-          <Typography>Upcoming Appointments Today</Typography>
-        </Paper>
-      </Box>
+  <Paper sx={{ flex: 1, bgcolor: '#178E5C', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
+    <Typography variant="h4">3</Typography>
+    <Typography>Completed Appointments Today</Typography>
+  </Paper>
+  <Paper sx={{ flex: 1, bgcolor: '#FFAA1D', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
+    <Typography variant="h4">15</Typography>
+    <Typography>Upcoming Appointments</Typography>
+  </Paper>
+  <Paper sx={{ flex: 1, bgcolor: '#D9003C', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
+    <Typography variant="h4">4</Typography>
+    <Typography>Upcoming Appointments Today</Typography>
+  </Paper>
+</Box>
+
 
   <QuickActionButton onAddPatientRecord={handleAddPatientRecord} onAddAppointment={handleAddAppointment} />
 

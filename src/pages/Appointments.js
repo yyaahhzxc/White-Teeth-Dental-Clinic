@@ -410,48 +410,147 @@ function Appointments() {
   }
 };
 
-  // Listen for appointment updates from other components
-  useEffect(() => {
-    const handleAppointmentAdded = () => {
-      refreshAppointments();
-    };
+<<<<<<<<< Temporary merge branch 1
+=========
+// Add missing useEffect for modal open to fetch services (around line 195)
+useEffect(() => {
+  if (modalOpen) {
+    fetchServices(); // Ensure services are loaded when modal opens
+  }
+}, [modalOpen]);
 
-    // Listen for custom events
-    window.addEventListener('appointmentAdded', handleAppointmentAdded);
-    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
-
-    return () => {
-      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
-      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
-    };
-  }, [calendarView]);
-
-  // Effect to update current time
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
-  
-  // Effect to fetch data when date or view changes
-  useEffect(() => {
-    if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
-    } else {
-      fetchAppointmentsForMonth();
-    }
-    fetchServices();
-  }, [currentDate, calendarView]);
-
-  // ...existing code...
-
+>>>>>>>>> Temporary merge branch 2
   // Handle edit mode toggle
   const handleEditClick = () => {
     setEditMode(true);
     setEditedAppointment({ ...selectedAppointment });
+    
+    console.log('=== EDIT CLICK DEBUG ===');
+    console.log('Selected appointment full object:', selectedAppointment);
+    console.log('Available services:', services);
+    
+    // Parse multiple services from the appointment data
+    let foundServices = [];
+    
+    // First, try to get the appointment details with multiple services from the backend
+    fetchAppointmentDetails(selectedAppointment.id).then(appointmentDetails => {
+      if (appointmentDetails) {
+        console.log('Fetched appointment details:', appointmentDetails);
+        
+        // Check if we have multiple services in the fetched details
+        if (appointmentDetails.serviceNames && appointmentDetails.serviceNames.includes(',')) {
+          console.log('✅ Multiple services detected in fetched details');
+          
+          const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
+          let serviceIds = [];
+          
+          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
+            serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
+          }
+          
+          console.log('Parsed service names:', serviceNames);
+          console.log('Parsed service IDs:', serviceIds);
+          
+          foundServices = serviceNames.map((name, index) => {
+            let service = null;
+            
+            // Try to find by ID if available
+            if (serviceIds[index]) {
+              service = services.find(s => s.id === serviceIds[index]);
+            }
+            
+            // If not found by ID, try by name
+            if (!service) {
+              service = services.find(s => s.name === name);
+            }
+            
+            // If still not found, create placeholder
+            if (!service) {
+              service = {
+                id: serviceIds[index] || `placeholder_${name}`,
+                name: name,
+                price: 0,
+                duration: 60,
+                status: 'Active'
+              };
+            }
+            
+            return service;
+          });
+        } else {
+          // Single service fallback
+          console.log('❌ Single service detected');
+          
+          if (selectedAppointment.serviceId) {
+            const currentService = services.find(s => s.id === selectedAppointment.serviceId);
+            if (currentService) {
+              foundServices = [currentService];
+            } else {
+              // Try by name
+              const serviceByName = services.find(s => s.name === selectedAppointment.procedure);
+              if (serviceByName) {
+                foundServices = [serviceByName];
+              } else {
+                // Create placeholder
+                foundServices = [{
+                  id: selectedAppointment.serviceId,
+                  name: selectedAppointment.procedure || 'Unknown Service',
+                  price: 0,
+                  duration: 60,
+                  status: 'Active'
+                }];
+              }
+            }
+          }
+        }
+        
+        console.log('Final foundServices:', foundServices);
+        setEditedServices(foundServices);
+        setServiceInputValue('');
+      }
+    }).catch(error => {
+      console.error('Error fetching appointment details:', error);
+      
+      // Fallback to original logic if fetch fails
+      if (selectedAppointment.serviceId) {
+        const currentService = services.find(s => s.id === selectedAppointment.serviceId);
+        if (currentService) {
+          foundServices = [currentService];
+        } else {
+          foundServices = [{
+            id: selectedAppointment.serviceId,
+            name: selectedAppointment.procedure || 'Unknown Service',
+            price: 0,
+            duration: 60,
+            status: 'Active'
+          }];
+        }
+      }
+      
+      setEditedServices(foundServices);
+      setServiceInputValue('');
+    });
   };
-
+  
+  // Add this function to fetch appointment details with multiple services
+  const fetchAppointmentDetails = async (appointmentId) => {
+    try {
+      console.log('Fetching details for appointment ID:', appointmentId);
+      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Fetched appointment details:', data);
+        return data;
+      } else {
+        console.error('Failed to fetch appointment details:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching appointment details:', error);
+      return null;
+    }
+  };
   // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
@@ -542,7 +641,23 @@ function Appointments() {
 
   // Handle appointment click
   const handleAppointmentClick = async (appointment) => {
-    setSelectedAppointment(appointment);
+    // When opening the modal, if the appointment is currently ongoing, reflect that in the selectedAppointment's status
+    const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
+    let appointmentCopy = { ...appointment };
+    if (appointment.appointmentDate) {
+      const aptDateStr = appointment.appointmentDate.split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (aptDateStr === todayStr && appointment.timeStart && appointment.timeEnd) {
+        const [sH, sM] = appointment.timeStart.split(':').map(Number);
+        const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+        const startTotal = sH * 60 + (sM || 0);
+        const endTotal = eH * 60 + (eM || 0);
+        if (nowTotal >= startTotal && nowTotal < endTotal) {
+          appointmentCopy.status = 'ongoing';
+        }
+      }
+    }
+    setSelectedAppointment(appointmentCopy);
     setModalOpen(true);
     
     // Ensure services are loaded before opening the modal
@@ -894,23 +1009,89 @@ function Appointments() {
                           {timeSlots.map((timeSlot, timeIndex) => (
                             <Box key={timeSlot} sx={{ height: '80px', p: 0, position: 'relative', flexShrink: 0 }}>
                               <Box sx={{ position: 'absolute', top: 0, left: '-24px', right: '12px', height: '1px', bgcolor: '#e0e0e0', zIndex: 1 }} />
-                              {getAppointmentsForSlot(dayIndex, timeSlot).map((appointment) => (
+                            </Box>
+                          ))}
+
+                          {/* Render appointments for the whole day column with minute-precision positioning */}
+                          {(() => {
+                            const DAY_START_HOUR = 7; // matches the timeSlots start
+                            const SLOT_HEIGHT = 80; // px per hour slot
+                            const PIXELS_PER_MINUTE = SLOT_HEIGHT / 60; // px per minute
+                            const TOP_OFFSET = 20; // px top spacer present in column
+
+                            // get all appointments for this day
+                            const appointmentsForDay = appointments.filter(apt => {
+                              const aptDateStr = apt.appointmentDate.split('T')[0];
+                              const currentDisplayDate = weekDates[dayIndex];
+                              const year = currentDisplayDate.getFullYear();
+                              const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
+                              const day = String(currentDisplayDate.getDate()).padStart(2, '0');
+                              const targetDateStr = `${year}-${month}-${day}`;
+                              return aptDateStr === targetDateStr;
+                            });
+
+                            const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                            const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
+                            return appointmentsForDay.map((appointment) => {
+                              // compute start minutes from DAY_START_HOUR
+                              const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
+                              const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
+
+                              // compute duration in minutes
+                              let durationMinutes = 0;
+                              if (appointment.timeEnd) {
+                                const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
+                                const startTotal = startHour * 60 + (startMin || 0);
+                                const endTotal = endHour * 60 + (endMin || 0);
+                                durationMinutes = Math.max(1, endTotal - startTotal);
+                              } else if (appointment.duration) {
+                                // appointment.duration may be in hours (e.g., 1.5)
+                                durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
+                              } else {
+                                durationMinutes = 60; // fallback to 1 hour
+                              }
+
+                              const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
+                              const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE); // min height
+
+                              // Determine if appointment is ongoing (current time intersects start..end)
+                              // Only consider it ongoing if this column represents today
+                              let isOngoing = false;
+                              if (isTodayColumn) {
+                                if (appointment.timeStart && appointment.timeEnd) {
+                                  const [sH, sM] = appointment.timeStart.split(':').map(Number);
+                                  const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+                                  const startTotal = sH * 60 + (sM || 0);
+                                  const endTotal = eH * 60 + (eM || 0);
+                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                } else if (appointment.duration) {
+                                  // fallback: treat appointments with duration and no explicit end
+                                  const startTotal = (startHour * 60) + (startMin || 0);
+                                  const endTotal = startTotal + durationMinutes;
+                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                }
+                              }
+
+                              // Use 'ongoing' color when intersecting current time
+                              const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
+
+                              return (
                                 <Paper
                                   key={appointment.id}
                                   elevation={0}
                                   onClick={() => handleAppointmentClick(appointment)}
                                   sx={{
                                     p: '8px 12px',
-                                    backgroundColor: statusColors[appointment.status] || statusColors.scheduled,
+                                    backgroundColor: bgColor,
                                     color: 'white',
                                     borderRadius: '8px',
                                     cursor: 'pointer',
-                                    height: appointment.duration > 1 ? `calc(${appointment.duration * 80}px - 8px)` : 'calc(80px - 8px)',
+                                    height: `${Math.max(24, Math.round(heightPx))}px`,
                                     overflow: 'hidden',
                                     position: 'absolute',
-                                    left: '4px',
-                                    right: '4px',
-                                    top: '4px',
+                                    left: '6px',
+                                    right: '6px',
+                                    top: `${Math.round(topPx)}px`,
                                     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                                     zIndex: 20,
                                     transition: 'transform 0.2s, box-shadow 0.2s',
@@ -927,9 +1108,9 @@ function Appointments() {
                                     {appointment.procedure}
                                   </Typography>
                                 </Paper>
-                              ))}
-                            </Box>
-                          ))}
+                              );
+                            });
+                          })()}
                           
                           {/* FIXED: Current Time Indicator */}
                           {date.toDateString() === new Date().toDateString() && timeIndicatorPosition !== null && (
@@ -940,9 +1121,10 @@ function Appointments() {
                               right: 0,
                               height: '2px',
                               bgcolor: '#ea4335',
-                              zIndex: 10,
+                              zIndex: 9999,
                               display: 'flex',
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              pointerEvents: 'none'
                             }}>
                               <Box sx={{
                                 position: 'absolute',
