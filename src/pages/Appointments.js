@@ -38,7 +38,6 @@ import QuickActionButton from '../components/QuickActionButton';
 import { API_BASE } from '../apiConfig';
 
 
-
 // Add this utility function at the top of Appointments.js after your imports
 const normalizeDateFromStorage = (dateString) => {
   if (!dateString) return new Date();
@@ -410,8 +409,6 @@ function Appointments() {
   }
 };
 
-<<<<<<<<< Temporary merge branch 1
-=========
 // Add missing useEffect for modal open to fetch services (around line 195)
 useEffect(() => {
   if (modalOpen) {
@@ -419,7 +416,6 @@ useEffect(() => {
   }
 }, [modalOpen]);
 
->>>>>>>>> Temporary merge branch 2
   // Handle edit mode toggle
   const handleEditClick = () => {
     setEditMode(true);
