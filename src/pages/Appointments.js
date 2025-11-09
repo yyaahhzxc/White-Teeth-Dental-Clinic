@@ -637,7 +637,23 @@ useEffect(() => {
 
   // Handle appointment click
   const handleAppointmentClick = async (appointment) => {
-    setSelectedAppointment(appointment);
+    // When opening the modal, if the appointment is currently ongoing, reflect that in the selectedAppointment's status
+    const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
+    let appointmentCopy = { ...appointment };
+    if (appointment.appointmentDate) {
+      const aptDateStr = appointment.appointmentDate.split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (aptDateStr === todayStr && appointment.timeStart && appointment.timeEnd) {
+        const [sH, sM] = appointment.timeStart.split(':').map(Number);
+        const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+        const startTotal = sH * 60 + (sM || 0);
+        const endTotal = eH * 60 + (eM || 0);
+        if (nowTotal >= startTotal && nowTotal < endTotal) {
+          appointmentCopy.status = 'ongoing';
+        }
+      }
+    }
+    setSelectedAppointment(appointmentCopy);
     setModalOpen(true);
     
     // Ensure services are loaded before opening the modal
@@ -989,23 +1005,89 @@ useEffect(() => {
                           {timeSlots.map((timeSlot, timeIndex) => (
                             <Box key={timeSlot} sx={{ height: '80px', p: 0, position: 'relative', flexShrink: 0 }}>
                               <Box sx={{ position: 'absolute', top: 0, left: '-24px', right: '12px', height: '1px', bgcolor: '#e0e0e0', zIndex: 1 }} />
-                              {getAppointmentsForSlot(dayIndex, timeSlot).map((appointment) => (
+                            </Box>
+                          ))}
+
+                          {/* Render appointments for the whole day column with minute-precision positioning */}
+                          {(() => {
+                            const DAY_START_HOUR = 7; // matches the timeSlots start
+                            const SLOT_HEIGHT = 80; // px per hour slot
+                            const PIXELS_PER_MINUTE = SLOT_HEIGHT / 60; // px per minute
+                            const TOP_OFFSET = 20; // px top spacer present in column
+
+                            // get all appointments for this day
+                            const appointmentsForDay = appointments.filter(apt => {
+                              const aptDateStr = apt.appointmentDate.split('T')[0];
+                              const currentDisplayDate = weekDates[dayIndex];
+                              const year = currentDisplayDate.getFullYear();
+                              const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
+                              const day = String(currentDisplayDate.getDate()).padStart(2, '0');
+                              const targetDateStr = `${year}-${month}-${day}`;
+                              return aptDateStr === targetDateStr;
+                            });
+
+                            const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                            const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
+                            return appointmentsForDay.map((appointment) => {
+                              // compute start minutes from DAY_START_HOUR
+                              const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
+                              const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
+
+                              // compute duration in minutes
+                              let durationMinutes = 0;
+                              if (appointment.timeEnd) {
+                                const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
+                                const startTotal = startHour * 60 + (startMin || 0);
+                                const endTotal = endHour * 60 + (endMin || 0);
+                                durationMinutes = Math.max(1, endTotal - startTotal);
+                              } else if (appointment.duration) {
+                                // appointment.duration may be in hours (e.g., 1.5)
+                                durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
+                              } else {
+                                durationMinutes = 60; // fallback to 1 hour
+                              }
+
+                              const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
+                              const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE); // min height
+
+                              // Determine if appointment is ongoing (current time intersects start..end)
+                              // Only consider it ongoing if this column represents today
+                              let isOngoing = false;
+                              if (isTodayColumn) {
+                                if (appointment.timeStart && appointment.timeEnd) {
+                                  const [sH, sM] = appointment.timeStart.split(':').map(Number);
+                                  const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+                                  const startTotal = sH * 60 + (sM || 0);
+                                  const endTotal = eH * 60 + (eM || 0);
+                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                } else if (appointment.duration) {
+                                  // fallback: treat appointments with duration and no explicit end
+                                  const startTotal = (startHour * 60) + (startMin || 0);
+                                  const endTotal = startTotal + durationMinutes;
+                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                }
+                              }
+
+                              // Use 'ongoing' color when intersecting current time
+                              const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
+
+                              return (
                                 <Paper
                                   key={appointment.id}
                                   elevation={0}
                                   onClick={() => handleAppointmentClick(appointment)}
                                   sx={{
                                     p: '8px 12px',
-                                    backgroundColor: statusColors[appointment.status] || statusColors.scheduled,
+                                    backgroundColor: bgColor,
                                     color: 'white',
                                     borderRadius: '8px',
                                     cursor: 'pointer',
-                                    height: appointment.duration > 1 ? `calc(${appointment.duration * 80}px - 8px)` : 'calc(80px - 8px)',
+                                    height: `${Math.max(24, Math.round(heightPx))}px`,
                                     overflow: 'hidden',
                                     position: 'absolute',
-                                    left: '4px',
-                                    right: '4px',
-                                    top: '4px',
+                                    left: '6px',
+                                    right: '6px',
+                                    top: `${Math.round(topPx)}px`,
                                     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
                                     zIndex: 20,
                                     transition: 'transform 0.2s, box-shadow 0.2s',
@@ -1022,9 +1104,9 @@ useEffect(() => {
                                     {appointment.procedure}
                                   </Typography>
                                 </Paper>
-                              ))}
-                            </Box>
-                          ))}
+                              );
+                            });
+                          })()}
                           
                           {/* FIXED: Current Time Indicator */}
                           {date.toDateString() === new Date().toDateString() && timeIndicatorPosition !== null && (
@@ -1035,9 +1117,10 @@ useEffect(() => {
                               right: 0,
                               height: '2px',
                               bgcolor: '#ea4335',
-                              zIndex: 10,
+                              zIndex: 9999,
                               display: 'flex',
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              pointerEvents: 'none'
                             }}>
                               <Box sx={{
                                 position: 'absolute',
