@@ -1177,7 +1177,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                               right: 0,
                               height: '2px',
                               bgcolor: '#ea4335',
-                              zIndex: 9999,
+                              zIndex: 1001,
                               display: 'flex',
                               alignItems: 'center',
                               pointerEvents: 'none'
