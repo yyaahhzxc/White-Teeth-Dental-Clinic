@@ -478,7 +478,7 @@ export default function HomePage() {
                             width: { xs: 260, md: 420 }, // Fixed full width for content
                             // While tucked (and not hovered), shift content right so only a peek remains visible.
                             transform: (isTucked && !isHovered)
-                                ? { xs: 'translateX(180px)', md: 'translateX(320px)' } // 260-80, 420-100
+                                ? { xs: 'translateX(150px)', md: 'translateX(270px)' } // More peek visible (30px more on xs, 50px more on md)
                                 : 'translateX(0)',
                             transition: isReady ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
                         }}
