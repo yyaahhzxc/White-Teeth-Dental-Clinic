@@ -29,9 +29,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
-  // Service states
+  // Service states - Update to handle quantities
   const [services, setServices] = useState([]);
-  const [selectedServices, setSelectedServices] = useState([]); // Changed to array
+  const [selectedServices, setSelectedServices] = useState([]); // Each item will have { ...service, quantity: number }
   const [serviceLoading, setServiceLoading] = useState(false);
   const [serviceInputValue, setServiceInputValue] = useState('');
 
@@ -57,11 +57,17 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
   // Helper function to add minutes to time string
   const addMinutesToTime = (timeString, minutes) => {
+    if (!timeString || !minutes) return timeString;
+    
     const [hours, mins] = timeString.split(':').map(Number);
     const totalMinutes = hours * 60 + mins + minutes;
-    const newHours = Math.floor(totalMinutes / 60) % 24;
+    const newHours = Math.floor(totalMinutes / 60);
     const newMins = totalMinutes % 60;
-    return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
+    
+    // Handle overflow past 24 hours (though we validate against business hours)
+    const finalHours = newHours % 24;
+    
+    return `${String(finalHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
   };
 
   const isValidBusinessTime = (timeString) => {
@@ -91,11 +97,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
   // Fix 1: Remove the duplicate validation check in the useEffect (around line 90)
   useEffect(() => {
-    if (
-      selectedServices.length > 0 &&
-      timeStart &&
-      appointmentDate
-    ) {
+    if (selectedServices.length > 0 && timeStart && appointmentDate) {
       // Validate start time is within business hours
       if (!isValidBusinessTime(timeStart)) {
         setSnackbar({
@@ -106,34 +108,38 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         setTimeStart('');
         return;
       }
-  
-      // Calculate total duration from all selected services
+
+      // Calculate total duration from all selected services with quantities
       const totalDuration = selectedServices.reduce((total, service) => {
-        return total + (typeof service.duration === 'number' ? service.duration : 0);
+        const duration = parseInt(service.duration) || 0;
+        const quantity = service.quantity || 1;
+        return total + (duration * quantity);
       }, 0);
-  
-      // Auto-calculate end time, but allow manual override
+
+      console.log('Selected services with quantities:', selectedServices); // Debug log
+      console.log('Total duration calculated:', totalDuration); // Debug log
+
+      // Auto-calculate end time
       const calculatedEndTime = addMinutesToTime(timeStart, totalDuration);
       
-      // Only set end time if it's empty or if we want to auto-update
-      if (!timeEnd || timeEnd === '') {
-        setTimeEnd(calculatedEndTime);
-      }
-  
+      // Always update the end time when services or start time changes
+      setTimeEnd(calculatedEndTime);
+
       // Validate that appointment doesn't go beyond business hours
-      const endTimeToCheck = timeEnd || calculatedEndTime;
-      const [endHours] = endTimeToCheck.split(':').map(Number);
+      const [endHours, endMinutes] = calculatedEndTime.split(':').map(Number);
       
-      if (endHours > 17) {
+      if (endHours > 17 || (endHours === 17 && endMinutes > 0)) {
         setSnackbar({
           open: true,
-          message: `Appointment would end after 5:00 PM. Please select an earlier start time or fewer services.`,
+          message: `Appointment would end after 5:00 PM (calculated end: ${calculatedEndTime}). Please select an earlier start time or fewer services.`,
           severity: 'warning'
         });
       }
+    } else if (selectedServices.length === 0) {
+      // Clear end time if no services are selected
+      setTimeEnd('');
     }
-    // eslint-disable-next-line
-  }, [selectedServices, timeStart]);
+  }, [selectedServices, timeStart, appointmentDate]); // Added appointmentDate to dependencies
  
   const fetchPatients = async () => {
     setLoading(true);
@@ -188,8 +194,8 @@ const fetchServices = async () => {
       });
       return false;
     }
-    // Add this check to prevent empty service IDs
-    if (selectedServices.some(service => !service.id)) {
+    // Add this check to prevent empty service IDs or zero quantities
+    if (selectedServices.some(service => !service.id || service.quantity <= 0)) {
       setSnackbar({
         open: true,
         message: 'Invalid service selected. Please reselect services.',
@@ -265,28 +271,53 @@ const fetchServices = async () => {
   
     setSubmitting(true);
     try {
-      // Calculate total price and create service summary
-      const totalPrice = selectedServices.reduce((total, service) => total + service.price, 0);
-      const serviceNames = selectedServices.map(service => service.name).join(', ');
+      // Calculate total price with quantities
+      const totalPrice = selectedServices.reduce((total, service) => 
+        total + (parseFloat(service.price) * service.quantity), 0
+      );
+      
+      // Calculate total duration with quantities
+      const totalDuration = selectedServices.reduce((total, service) => 
+        total + (parseInt(service.duration) * service.quantity), 0
+      );
+      
+      // Create service summary with quantities
+      const serviceNames = selectedServices.map(service => 
+        `${service.name}${service.quantity > 1 ? ` (x${service.quantity})` : ''}`
+      ).join(', ');
+      
       const serviceIds = selectedServices.map(service => service.id);
+  
+      // Create serviceQuantities array for backend
+      const serviceQuantities = selectedServices.map(service => ({
+        serviceId: service.id,
+        quantity: service.quantity,
+        price: parseFloat(service.price),
+        duration: parseInt(service.duration)
+      }));
   
       const appointmentData = {
         patientId: selectedPatient.id,
         serviceId: serviceIds[0], // Send the first service ID as primary serviceId
         serviceName: selectedServices[0].name, // Send the first service name
-         serviceIds: Array.isArray(serviceIds) ? serviceIds : [serviceIds],
-        serviceNames: serviceNames, // Send combined service names
+        serviceIds: serviceIds,
+        serviceNames: serviceNames, // Send combined service names with quantities
+        serviceQuantities: serviceQuantities, // NEW: Send quantities data
         totalPrice: totalPrice,
+        totalDuration: totalDuration,
         appointmentDate: normalizeDateForStorage(appointmentDate),
-        timeStart,
-        timeEnd,
-        comments: comments || '',
+        timeStart: timeStart,
+        timeEnd: timeEnd,
+        comments: comments,
         status: 'Scheduled'
       };
   
-      console.log('Sending appointment data:', appointmentData); // Debug log
+      console.log('=== SUBMIT DEBUG ===');
+      console.log('Selected services with quantities:', selectedServices);
+      console.log('Service quantities being sent:', serviceQuantities);
+      console.log('Appointment data:', appointmentData);
   
-      const response = await fetch(`${API_BASE}/appointments`, {
+      const response = await fetch('http://localhost:3001/appointments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -294,47 +325,67 @@ const fetchServices = async () => {
         body: JSON.stringify(appointmentData),
       });
   
-      const result = await response.json();
-            
       if (response.ok) {
-        // Dispatch event to trigger refresh in Appointments.js
-        window.dispatchEvent(new CustomEvent('appointmentAdded'));
-        setSnackbar({ 
-          open: true, 
-          message: 'Appointment created successfully!', 
-          severity: 'success' 
+        const responseData = await response.json();
+        console.log('✅ Appointment created successfully:', responseData);
+        
+        setSnackbar({
+          open: true,
+          message: 'Appointment created successfully!',
+          severity: 'success'
         });
-                
+  
         // Clear form
         setSelectedPatient(null);
+        setInputValue('');
         setSelectedServices([]);
+        setServiceInputValue('');
         setAppointmentDate('');
         setTimeStart('');
         setTimeEnd('');
         setComments('');
-        setInputValue('');
-        setServiceInputValue('');
-                
-        // Close dialog after a short delay
+  
+        // Close dialog after short delay
+        // Close dialog after short delay
         setTimeout(() => {
           onClose();
-          setSnackbar({ open: false, message: '', severity: 'success' });
-        }, 1500);
-                
+          
+          // REMOVE the onAddPatient callback completely - this was opening add-record modal
+          // if (onAddPatient) {
+          //   onAddPatient(responseData.appointment);
+          // }
+          
+          // Instead, dispatch custom events for the calendar to refresh
+          console.log('🚀 Dispatching appointment events for calendar refresh');
+          
+          window.dispatchEvent(new CustomEvent('appointmentCreated', {
+            detail: responseData.appointment
+          }));
+          
+          window.dispatchEvent(new CustomEvent('appointmentAdded', {
+            detail: responseData.appointment
+          }));
+          
+          // Also dispatch a general refresh event
+          window.dispatchEvent(new CustomEvent('refreshAppointments'));
+          
+        }, 1000);
       } else {
-        console.error('Server response:', result); // Debug log
-        setSnackbar({ 
-          open: true, 
-          message: result.error || 'Failed to create appointment', 
-          severity: 'error' 
+        const errorData = await response.text();
+        console.error('❌ Failed to create appointment:', response.status, errorData);
+        
+        setSnackbar({
+          open: true,
+          message: `Failed to create appointment: ${errorData}`,
+          severity: 'error'
         });
       }
     } catch (error) {
-      console.error('Error creating appointment:', error);
-      setSnackbar({ 
-        open: true, 
-        message: 'Network error. Please try again.', 
-        severity: 'error' 
+      console.error('❌ Error submitting appointment:', error);
+      setSnackbar({
+        open: true,
+        message: `Error: ${error.message}`,
+        severity: 'error'
       });
     } finally {
       setSubmitting(false);
@@ -371,6 +422,22 @@ const handleDiscardConfirm = () => {
 
   const handleDiscardCancel = () => {
     setShowDiscardConfirm(false);
+  };
+
+  // Add helper functions for quantity management
+  const updateServiceQuantity = (serviceId, newQuantity) => {
+    if (newQuantity <= 0) {
+      // Remove service if quantity is 0 or less
+      setSelectedServices(prev => prev.filter(service => service.id !== serviceId));
+    } else {
+      setSelectedServices(prev => 
+        prev.map(service => 
+          service.id === serviceId 
+            ? { ...service, quantity: newQuantity }
+            : service
+        )
+      );
+    }
   };
 
   return (
@@ -491,29 +558,21 @@ const handleDiscardConfirm = () => {
     Services * {selectedServices.length > 0 && `(${selectedServices.length} selected)`}
   </Typography>
   <Autocomplete
-    multiple
-    value={selectedServices}
+    value={null} // Always null since we handle selection manually
     onChange={(event, newValue) => {
-      // Check if any selected service is inactive
-      const inactiveService = newValue.find(service => 
-        service.status && service.status.toLowerCase() !== 'active'
-      );
-      
-      if (inactiveService) {
-        setSnackbar({
-          open: true,
-          message: 'Some services are inactive and cannot be selected',
-          severity: 'error'
-        });
-        // Filter out inactive services
-        const activeServices = newValue.filter(service => 
-          !service.status || service.status.toLowerCase() === 'active'
-        );
-        setSelectedServices(activeServices);
-        return;
+      if (newValue) {
+        // Check if service is already selected
+        const existingService = selectedServices.find(service => service.id === newValue.id);
+        if (existingService) {
+          // Increase quantity if already selected
+          updateServiceQuantity(newValue.id, existingService.quantity + 1);
+        } else {
+          // Add new service with quantity 1
+          setSelectedServices(prev => [...prev, { ...newValue, quantity: 1 }]);
+        }
+        // Clear the input
+        setServiceInputValue('');
       }
-      
-      setSelectedServices(newValue);
     }}
     inputValue={serviceInputValue}
     onInputChange={(event, newInputValue) => {
@@ -528,50 +587,10 @@ const handleDiscardConfirm = () => {
       const filtered = options.filter(option => {
         const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
         const isActive = !option.status || option.status.toLowerCase() === 'active';
-        const notAlreadySelected = !selectedServices.find(selected => selected.id === option.id);
-        return matchesInput && isActive && notAlreadySelected;
+        return matchesInput && isActive;
       });
       return filtered;
     }}
-    renderTags={(tagValue, getTagProps) =>
-      tagValue.map((option, index) => (
-        <Box
-          key={option.id}
-          {...getTagProps({ index })}
-          sx={{
-            backgroundColor: '#e3f2fd',
-            color: '#1565c0',
-            border: '1px solid #bbdefb',
-            borderRadius: '16px',
-            padding: '4px 8px',
-            margin: '2px',
-            fontSize: '12px',
-            fontFamily: 'Inter, sans-serif',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5
-          }}
-        >
-          {option.name}
-          <IconButton
-            size="small"
-            onClick={() => {
-              const newServices = selectedServices.filter(service => service.id !== option.id);
-              setSelectedServices(newServices);
-            }}
-            sx={{
-              padding: '2px',
-              color: '#1565c0',
-              '&:hover': {
-                backgroundColor: '#bbdefb'
-              }
-            }}
-          >
-            <CloseIcon sx={{ fontSize: '14px' }} />
-          </IconButton>
-        </Box>
-      ))
-    }
     renderInput={(params) => (
       <TextField
         {...params}
@@ -609,6 +628,11 @@ const handleDiscardConfirm = () => {
           <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
             ₱{option.price} • {option.duration} minutes
           </Typography>
+          {selectedServices.find(service => service.id === option.id) && (
+            <Typography variant="body2" sx={{ color: '#1a73e8', fontSize: '12px', fontWeight: '600' }}>
+              Already selected (Qty: {selectedServices.find(service => service.id === option.id).quantity})
+            </Typography>
+          )}
         </Box>
       </Box>
     )}
@@ -616,42 +640,213 @@ const handleDiscardConfirm = () => {
     size="medium"
   />
   
-  {/* Show selected services summary */}
+  {/* Show selected services summary with quantity controls */}
   {selectedServices.length > 0 && (
-    <Box sx={{ mt: 2, p: 2, backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+    <Box sx={{ 
+      mt: 2, 
+      p: 2.5, 
+      backgroundColor: '#f8f9fa', 
+      borderRadius: '12px',
+      border: '1px solid #e8eaed'
+    }}>
       <Typography variant="body2" sx={{ 
         fontWeight: '600', 
-        color: '#5f6368',
+        color: '#1a73e8',
         fontFamily: 'Inter, sans-serif',
-        fontSize: '13px',
-        mb: 1
+        fontSize: '14px',
+        mb: 2,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1
       }}>
-        Selected Services Summary:
+        Selected Services ({selectedServices.length})
       </Typography>
+      
       {selectedServices.map((service, index) => (
-        <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
+        <Box 
+          key={service.id} 
+          sx={{ 
+            display: 'grid',
+            gridTemplateColumns: '1fr auto auto auto', // Four columns: name, quantity controls, price, duration
+            alignItems: 'center',
+            gap: 2,
+            mb: 1.5,
+            p: 1.5,
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            border: '1px solid #f1f3f4'
+          }}
+        >
+          <Typography sx={{ 
+            fontSize: '14px', 
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: '500',
+            color: '#202124'
+          }}>
             {service.name}
           </Typography>
-          <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif', color: '#5f6368' }}>
-            ₱{service.price} • {service.duration}min
-          </Typography>
+          
+          {/* Quantity Controls */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            padding: '4px'
+          }}>
+            <IconButton
+              size="small"
+              onClick={() => updateServiceQuantity(service.id, service.quantity - 1)}
+              sx={{
+                backgroundColor: '#fff',
+                border: '1px solid #e0e0e0',
+                width: '24px',
+                height: '24px',
+                '&:hover': {
+                  backgroundColor: '#f5f5f5'
+                }
+              }}
+            >
+              <Typography sx={{ fontSize: '14px', fontWeight: '600', color: '#5f6368' }}>-</Typography>
+            </IconButton>
+            
+            <Typography sx={{ 
+              fontSize: '14px', 
+              fontFamily: 'Inter, sans-serif', 
+              fontWeight: '600',
+              minWidth: '24px',
+              textAlign: 'center',
+              color: '#202124'
+            }}>
+              {service.quantity}
+            </Typography>
+            
+            <IconButton
+              size="small"
+              onClick={() => updateServiceQuantity(service.id, service.quantity + 1)}
+              sx={{
+                backgroundColor: '#fff',
+                border: '1px solid #e0e0e0',
+                width: '24px',
+                height: '24px',
+                '&:hover': {
+                  backgroundColor: '#f5f5f5'
+                }
+              }}
+            >
+              <Typography sx={{ fontSize: '14px', fontWeight: '600', color: '#5f6368' }}>+</Typography>
+            </IconButton>
+          </Box>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 0.5,
+            backgroundColor: '#e8f5e8',
+            px: 1,
+            py: 0.5,
+            borderRadius: '6px'
+          }}>
+            <Typography sx={{ 
+              fontSize: '12px', 
+              fontFamily: 'Inter, sans-serif', 
+              color: '#137333',
+              fontWeight: '600'
+            }}>
+              ₱{(parseFloat(service.price) * service.quantity).toLocaleString()}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 0.5,
+            backgroundColor: '#e3f2fd',
+            px: 1,
+            py: 0.5,
+            borderRadius: '6px'
+          }}>
+            <Typography sx={{ 
+              fontSize: '12px', 
+              fontFamily: 'Inter, sans-serif', 
+              color: '#1565c0',
+              fontWeight: '600'
+            }}>
+              {service.duration * service.quantity}min
+            </Typography>
+          </Box>
         </Box>
       ))}
+      
       <Box sx={{ 
-        borderTop: '1px solid #e0e0e0', 
-        pt: 1, 
-        mt: 1, 
-        display: 'flex', 
-        justifyContent: 'space-between',
-        fontWeight: '600'
+        borderTop: '2px solid #e8eaed', 
+        pt: 2, 
+        mt: 2, 
+        display: 'grid',
+        gridTemplateColumns: '1fr auto auto auto', // Same four-column layout for consistency
+        alignItems: 'center',
+        gap: 2,
+        backgroundColor: '#f1f3f4',
+        p: 2,
+        borderRadius: '8px'
       }}>
-        <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
-          Total:
+        <Typography sx={{ 
+          fontSize: '16px', 
+          fontFamily: 'Inter, sans-serif',
+          fontWeight: '700',
+          color: '#202124'
+        }}>
+          Total Summary
         </Typography>
-        <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
-          ₱{selectedServices.reduce((total, service) => total + service.price, 0)} • {selectedServices.reduce((total, service) => total + service.duration, 0)}min
+        
+        <Typography sx={{ 
+          fontSize: '14px', 
+          fontFamily: 'Inter, sans-serif',
+          fontWeight: '600',
+          color: '#5f6368',
+          textAlign: 'center'
+        }}>
+          {selectedServices.reduce((total, service) => total + service.quantity, 0)} items
         </Typography>
+        
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 0.5,
+          backgroundColor: '#137333',
+          px: 2,
+          py: 1,
+          borderRadius: '8px'
+        }}>
+          <Typography sx={{ 
+            fontSize: '14px', 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            fontWeight: '700'
+          }}>
+            ₱{selectedServices.reduce((total, service) => total + (parseFloat(service.price) * service.quantity || 0), 0).toLocaleString()}
+          </Typography>
+        </Box>
+        
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 0.5,
+          backgroundColor: '#1565c0',
+          px: 2,
+          py: 1,
+          borderRadius: '8px'
+        }}>
+          <Typography sx={{ 
+            fontSize: '14px', 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            fontWeight: '700'
+          }}>
+            {selectedServices.reduce((total, service) => total + (parseInt(service.duration) * service.quantity || 0), 0)}min
+          </Typography>
+        </Box>
       </Box>
     </Box>
   )}
@@ -766,12 +961,23 @@ const handleDiscardConfirm = () => {
     sx={{
       '& .MuiOutlinedInput-root': {
         borderRadius: '8px',
-        fontFamily: 'Inter, sans-serif'
+        fontFamily: 'Inter, sans-serif',
+        backgroundColor: selectedServices.length > 0 && timeStart ? '#f8f9fa' : 'white'
       }
     }}
-    // Remove the disabled prop to make it clickable
   />
-  {selectedServices.length > 0 && (
+  {selectedServices.length > 0 && timeStart && (
+    <Typography variant="caption" sx={{ 
+      color: '#1a73e8', 
+      fontSize: '12px',
+      fontStyle: 'italic',
+      mt: 0.5,
+      display: 'block'
+    }}>
+      Auto-calculated based on {selectedServices.reduce((total, service) => total + (parseInt(service.duration) * service.quantity || 0), 0)} minutes total duration
+    </Typography>
+  )}
+  {selectedServices.length === 0 && (
     <Typography variant="caption" sx={{ 
       color: '#5f6368', 
       fontSize: '12px',
@@ -779,7 +985,7 @@ const handleDiscardConfirm = () => {
       mt: 0.5,
       display: 'block'
     }}>
-      Auto-calculated: {timeEnd || 'Select start time first'}
+      Select services and start time for auto-calculation
     </Typography>
   )}
 </Box>
