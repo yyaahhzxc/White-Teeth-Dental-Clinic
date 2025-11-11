@@ -44,6 +44,7 @@ export default function HomePage() {
     const locationRef = useRef(null);
     const contactRef = useRef(null);
     const headerRef = useRef(null);
+    const tuckTriggerRef = useRef(null); // New ref for the scroll trigger point
     const manualScrollRef = useRef(false);
     const manualScrollTimerRef = useRef(null);
         const [activeSection, setActiveSection] = useState('home'); 
@@ -236,11 +237,10 @@ export default function HomePage() {
         return () => window.removeEventListener('resize', computeScrollbar);
     }, []);
 
-    // Tuck-in behavior driven by Home section visibility
-    // When the Home hero leaves the viewport (considering header height), tuck to the right.
+    // Tuck-in behavior driven by a specific trigger element in the hero section
     useEffect(() => {
-        const sectionEl = homeRef.current;
-        if (!sectionEl) return;
+        const triggerEl = tuckTriggerRef.current;
+        if (!triggerEl) return;
 
         const headerHeight = headerRef.current?.getBoundingClientRect().height || 80;
 
@@ -249,32 +249,30 @@ export default function HomePage() {
             observer = new IntersectionObserver(
                 (entries) => {
                     const entry = entries[0];
-                    // If the Home section is not visible, tuck; otherwise, untuck
+                    // When the trigger element scrolls past the header, tuck the component
                     setIsTucked(!entry.isIntersecting);
                 },
                 {
                     root: null,
-                    // Start tucking shortly after the hero scrolls under the header
-                    rootMargin: `-${headerHeight + 8}px 0px 0px 0px`,
-                    threshold: 0.01,
+                    rootMargin: `-${headerHeight}px 0px 0px 0px`,
+                    threshold: 0,
                 }
             );
-            observer.observe(sectionEl);
+            observer.observe(triggerEl);
         } catch (e) {
-            // Fallback: simple scroll check if IntersectionObserver isn't available
+            // Fallback for older browsers
             const onScrollFallback = () => {
-                const bounds = sectionEl.getBoundingClientRect();
-                setIsTucked(bounds.bottom < (headerHeight + 8));
+                const bounds = triggerEl.getBoundingClientRect();
+                setIsTucked(bounds.top < headerHeight);
             };
             window.addEventListener('scroll', onScrollFallback, { passive: true });
             onScrollFallback();
             return () => window.removeEventListener('scroll', onScrollFallback);
         }
 
-        // Initial state in case observer callback is delayed
-        // If bottom of hero is already above header line, we should be tucked
-        const initBounds = sectionEl.getBoundingClientRect();
-        setIsTucked(initBounds.bottom < (headerHeight + 8));
+        // Set initial state based on trigger position
+        const initBounds = triggerEl.getBoundingClientRect();
+        setIsTucked(initBounds.top < headerHeight);
 
         return () => {
             if (observer) observer.disconnect();
@@ -373,6 +371,7 @@ export default function HomePage() {
             
                
                 <Container maxWidth="l">
+                    <Box ref={tuckTriggerRef} sx={{ position: 'absolute', top: '30vh', pointerEvents: 'none' }} />
                     <Box ref={heroContentRef} sx={{ minHeight: { xs: 'auto', md: '68vh' }, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                         <Box sx={{ml:'2vw', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexDirection: { xs: 'column', md: 'row' }, width: '100vw' }}>
                         {/* Left column: title, subtitle, button */}
@@ -525,8 +524,9 @@ export default function HomePage() {
                                     fontSize: { xs: 24, md: 36 },
                                     fontWeight: 700,
                                     opacity: isHovered ? 1 : 0,
-                                    transition: isReady ? 'opacity 0.3s ease-in-out 0.2s' : 'none',
+                                    transition: isReady ? 'opacity 0.1s ease-in-out' : 'none',
                                     whiteSpace: 'nowrap',
+                                    paddingLeft: { xs: '50px', md: '100px' }, // Slightly less padding
                                 }}
                             >
                                 Start Session
