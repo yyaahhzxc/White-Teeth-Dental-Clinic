@@ -264,20 +264,24 @@ function Appointments() {
     }
   };
 
-  useEffect(() => {
-    const handleAppointmentAdded = () => {
-      refreshAppointments();
-    };
-  
-    // Listen for custom events
-    window.addEventListener('appointmentAdded', handleAppointmentAdded);
-    window.addEventListener('appointmentUpdated', handleAppointmentAdded);
-  
-    return () => {
-      window.removeEventListener('appointmentAdded', handleAppointmentAdded);
-      window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
-    };
-  }, [calendarView]);
+  // Update the useEffect around line 210
+useEffect(() => {
+  const handleAppointmentAdded = (event) => {
+    console.log('🔄 Appointment added/updated event received:', event.detail);
+    refreshAppointments();
+  };
+
+  // Listen for custom events
+  window.addEventListener('appointmentAdded', handleAppointmentAdded);
+  window.addEventListener('appointmentUpdated', handleAppointmentAdded);
+  window.addEventListener('appointmentCreated', handleAppointmentAdded); // Add this new event
+
+  return () => {
+    window.removeEventListener('appointmentAdded', handleAppointmentAdded);
+    window.removeEventListener('appointmentUpdated', handleAppointmentAdded);
+    window.removeEventListener('appointmentCreated', handleAppointmentAdded); // Clean up new event
+  };
+}, [calendarView]); // Make sure calendarView is in dependencies
   
   // Add the refreshAppointments function (around line 200)
   const refreshAppointments = () => {
@@ -440,12 +444,25 @@ useEffect(() => {
           const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
           let serviceIds = [];
           
-          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
+          // ADD QUANTITY PARSING HERE
+          let quantities = [];
+          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(':')) {
+            // New format: "id1:qty1,id2:qty2"
+            const serviceEntries = appointmentDetails.serviceIds.split(',');
+            serviceIds = serviceEntries.map(entry => {
+              const [id, qty] = entry.split(':');
+              quantities.push(parseInt(qty) || 1);
+              return parseInt(id.trim());
+            });
+          } else if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
+            // Old format: just IDs
             serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
+            quantities = new Array(serviceIds.length).fill(1); // Default to quantity 1
           }
           
           console.log('Parsed service names:', serviceNames);
           console.log('Parsed service IDs:', serviceIds);
+          console.log('Parsed quantities:', quantities); // NEW LOG
           
           foundServices = serviceNames.map((name, index) => {
             let service = null;
@@ -471,7 +488,11 @@ useEffect(() => {
               };
             }
             
-            return service;
+            // RETURN WITH QUANTITY STRUCTURE
+            return {
+              service: service,
+              quantity: quantities[index] || 1
+            };
           });
         } else {
           // Single service fallback
@@ -480,27 +501,30 @@ useEffect(() => {
           if (selectedAppointment.serviceId) {
             const currentService = services.find(s => s.id === selectedAppointment.serviceId);
             if (currentService) {
-              foundServices = [currentService];
+              foundServices = [{ service: currentService, quantity: 1 }]; // WRAP WITH QUANTITY
             } else {
               // Try by name
               const serviceByName = services.find(s => s.name === selectedAppointment.procedure);
               if (serviceByName) {
-                foundServices = [serviceByName];
+                foundServices = [{ service: serviceByName, quantity: 1 }]; // WRAP WITH QUANTITY
               } else {
                 // Create placeholder
                 foundServices = [{
-                  id: selectedAppointment.serviceId,
-                  name: selectedAppointment.procedure || 'Unknown Service',
-                  price: 0,
-                  duration: 60,
-                  status: 'Active'
+                  service: {
+                    id: selectedAppointment.serviceId,
+                    name: selectedAppointment.procedure || 'Unknown Service',
+                    price: 0,
+                    duration: 60,
+                    status: 'Active'
+                  },
+                  quantity: 1 // ADD QUANTITY
                 }];
               }
             }
           }
         }
         
-        console.log('Final foundServices:', foundServices);
+        console.log('Final foundServices with quantities:', foundServices); // UPDATED LOG
         setEditedServices(foundServices);
         setServiceInputValue('');
       }
@@ -511,14 +535,17 @@ useEffect(() => {
       if (selectedAppointment.serviceId) {
         const currentService = services.find(s => s.id === selectedAppointment.serviceId);
         if (currentService) {
-          foundServices = [currentService];
+          foundServices = [{ service: currentService, quantity: 1 }]; // WRAP WITH QUANTITY
         } else {
           foundServices = [{
-            id: selectedAppointment.serviceId,
-            name: selectedAppointment.procedure || 'Unknown Service',
-            price: 0,
-            duration: 60,
-            status: 'Active'
+            service: {
+              id: selectedAppointment.serviceId,
+              name: selectedAppointment.procedure || 'Unknown Service',
+              price: 0,
+              duration: 60,
+              status: 'Active'
+            },
+            quantity: 1 // ADD QUANTITY
           }];
         }
       }
@@ -527,7 +554,23 @@ useEffect(() => {
       setServiceInputValue('');
     });
   };
-  
+
+  // Add this helper function (same as before)
+const updateServiceQuantity = (serviceId, newQuantity) => {
+  if (newQuantity <= 0) {
+    // Remove service if quantity is 0 or less
+    setEditedServices(prev => prev.filter(item => item.service.id !== serviceId));
+  } else {
+    setEditedServices(prev => 
+      prev.map(item => 
+        item.service.id === serviceId 
+          ? { ...item, quantity: newQuantity }
+          : item
+      )
+    );
+  }
+};
+
   // Add this function to fetch appointment details with multiple services
   const fetchAppointmentDetails = async (appointmentId) => {
     try {
@@ -547,6 +590,8 @@ useEffect(() => {
       return null;
     }
   };
+
+
   // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
@@ -555,24 +600,40 @@ useEffect(() => {
     setUpdateError(null);
     
     try {
+      // Calculate totals with quantities
+      const totalPrice = editedServices.reduce((total, item) => 
+        total + (parseFloat(item.service.price) * item.quantity), 0
+      );
+      
+      const totalDuration = editedServices.reduce((total, item) => 
+        total + (parseInt(item.service.duration) * item.quantity), 0
+      );
+      
+      // Create service summary with quantities
+      const serviceNames = editedServices.map(item => 
+        `${item.service.name}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
+      ).join(', ');
+      
       const requestData = {
         appointmentDate: editedAppointment.appointmentDate,
         timeStart: editedAppointment.timeStart,
-        timeEnd: editedAppointment.timeEnd, // Use the manually edited end time, not calculated
+        timeEnd: editedAppointment.timeEnd,
         comments: editedAppointment.comments,
         status: editedAppointment.status,
-        serviceId: editedServices.length > 0 ? editedServices[0].id : selectedAppointment.serviceId, // Primary service ID
-        serviceName: editedServices.length > 0 ? editedServices[0].name : selectedAppointment.procedure, // Primary service name
-        serviceIds: editedServices.map(service => service.id), // All service IDs for future use
-        serviceNames: editedServices.map(service => service.name).join(', '), // All service names
-        totalPrice: editedServices.reduce((total, service) => total + (service.price || 0), 0)
+        serviceId: editedServices.length > 0 ? editedServices[0].service.id : selectedAppointment.serviceId,
+        serviceName: editedServices.length > 0 ? editedServices[0].service.name : selectedAppointment.procedure,
+        serviceIds: editedServices.map(item => ({
+          id: item.service.id,
+          quantity: item.quantity
+        })),
+        serviceNames: serviceNames,
+        totalPrice: totalPrice,
+        totalDuration: totalDuration
       };
       
       console.log('=== SAVE DEBUG ===');
-      console.log('Edited services:', editedServices);
+      console.log('Edited services with quantities:', editedServices);
       console.log('Request data being sent:', requestData);
-      console.log('Primary serviceId being sent:', requestData.serviceId);
-      console.log('Primary serviceName being sent:', requestData.serviceName);
       
       const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
         method: 'PUT',
@@ -591,8 +652,8 @@ useEffect(() => {
           ...selectedAppointment,
           ...editedAppointment,
           serviceId: requestData.serviceId,
-          procedure: requestData.serviceName, // Update the procedure name
-          serviceName: requestData.serviceName // Make sure serviceName is updated too
+          procedure: requestData.serviceName,
+          serviceName: requestData.serviceName
         };
         
         setSelectedAppointment(updatedAppointment);
@@ -602,10 +663,9 @@ useEffect(() => {
         setEditedServices([]);
         setServiceInputValue('');
         
-        // Dispatch event to trigger refresh
+        // Refresh appointments
         window.dispatchEvent(new CustomEvent('appointmentUpdated'));
         
-        // Refresh appointments data
         setTimeout(async () => {
           if (calendarView === 'Week') {
             await fetchAppointmentsForWeek();
@@ -1338,186 +1398,319 @@ useEffect(() => {
               <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
                 {/* Service */}
                 <Box>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-      <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
-      <Typography variant="body2" sx={{ 
-        color: '#5f6368', 
-        fontFamily: 'Inter, sans-serif', 
-        fontSize: '13px',
-        fontWeight: '600'
-      }}>
-        Services {editMode && editedServices.length > 0 && `(${editedServices.length} selected)`}
-      </Typography>
-    </Box>
-    {editMode ? (
-      <Box>
-        <Autocomplete
-          multiple
-          value={editedServices}
-          onChange={(event, newValue) => {
-            // Check if any selected service is inactive
-            const inactiveService = newValue.find(service => 
-              service.status && service.status.toLowerCase() !== 'active'
-            );
-            
-            if (inactiveService) {
-              setUpdateError('Some services are inactive and cannot be selected');
-              // Filter out inactive services
-              const activeServices = newValue.filter(service => 
-                !service.status || service.status.toLowerCase() === 'active'
-              );
-              setEditedServices(activeServices);
-              return;
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+    <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
+    <Typography variant="body2" sx={{ 
+      color: '#5f6368', 
+      fontFamily: 'Inter, sans-serif', 
+      fontSize: '13px',
+      fontWeight: '600'
+    }}>
+      Services {editMode && editedServices.length > 0 && `(${editedServices.length} selected)`}
+    </Typography>
+  </Box>
+  {editMode ? (
+    <Box>
+      <Autocomplete
+        value={null} // Always null since we handle selection manually
+        onChange={(event, newValue) => {
+          if (newValue) {
+            // Check if service is already selected
+            const existingServiceIndex = editedServices.findIndex(item => item.service.id === newValue.id);
+            if (existingServiceIndex !== -1) {
+              // Increase quantity if already selected
+              updateServiceQuantity(newValue.id, editedServices[existingServiceIndex].quantity + 1);
+            } else {
+              // Add new service with quantity 1
+              setEditedServices(prev => [...prev, { service: newValue, quantity: 1 }]);
             }
-            
-            setEditedServices(newValue);
-          }}
-          inputValue={serviceInputValue}
-          onInputChange={(event, newInputValue) => {
-            setServiceInputValue(newInputValue);
-          }}
-          options={services.filter(service => 
-            (!service.status || service.status.toLowerCase() === 'active')
-          )}
-          getOptionLabel={(option) => option ? option.name : ''}
-          filterOptions={(options, { inputValue }) => {
-            const filtered = options.filter(option => {
-              const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
-              const isActive = !option.status || option.status.toLowerCase() === 'active';
-              const notAlreadySelected = !editedServices.find(selected => selected.id === option.id);
-              return matchesInput && isActive && notAlreadySelected;
-            });
-            return filtered;
-          }}
-          renderTags={(tagValue, getTagProps) =>
-            tagValue.map((option, index) => (
-              <Box
-                key={option.id}
-                {...getTagProps({ index })}
-                sx={{
-                  backgroundColor: '#e3f2fd',
-                  color: '#1565c0',
-                  border: '1px solid #bbdefb',
-                  borderRadius: '16px',
-                  padding: '4px 8px',
-                  margin: '2px',
-                  fontSize: '12px',
-                  fontFamily: 'Inter, sans-serif',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5
-                }}
-              >
-                {option.name}
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    const newServices = editedServices.filter(service => service.id !== option.id);
-                    setEditedServices(newServices);
-                  }}
-                  sx={{
-                    padding: '2px',
-                    color: '#1565c0',
-                    '&:hover': {
-                      backgroundColor: '#bbdefb'
-                    }
-                  }}
-                >
-                  <CloseIcon sx={{ fontSize: '14px' }} />
-                </IconButton>
-              </Box>
-            ))
+            // Clear the input
+            setServiceInputValue('');
           }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              placeholder={editedServices.length === 0 ? "Search for services..." : "Add more services..."}
-              size="small"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '8px',
-                  fontFamily: 'Inter, sans-serif',
-                  minHeight: '56px'
-                }
-              }}
-            />
-          )}
-          renderOption={(props, option) => (
-            <Box
-              {...props}
-              sx={{
+        }}
+        inputValue={serviceInputValue}
+        onInputChange={(event, newInputValue) => {
+          setServiceInputValue(newInputValue);
+        }}
+        options={services.filter(service => 
+          !service.status || service.status.toLowerCase() === 'active'
+        )}
+        getOptionLabel={(option) => option ? option.name : ''}
+        loading={services.length === 0}
+        filterOptions={(options, { inputValue }) => {
+          const filtered = options.filter(option => {
+            const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
+            const isActive = !option.status || option.status.toLowerCase() === 'active';
+            return matchesInput && isActive;
+          });
+          return filtered;
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            placeholder={editedServices.length === 0 ? "Search for services..." : "Add more services..."}
+            size="small"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '8px',
                 fontFamily: 'Inter, sans-serif',
-                fontSize: '14px',
-              }}
-            >
-              <Box sx={{ width: '100%' }}>
-                <Typography sx={{ fontWeight: '500' }}>
-                  {option.name}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
-                  ₱{option.price} • {option.duration} minutes
-                </Typography>
-              </Box>
-            </Box>
-          )}
-          noOptionsText="No active services found"
-          size="small"
-        />
-        
-        {/* Show selected services summary in edit mode */}
-        {editedServices.length > 0 && (
-          <Box sx={{ mt: 2, p: 2, backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-            <Typography variant="body2" sx={{ 
-              fontWeight: '600', 
-              color: '#5f6368',
+                minHeight: '56px'
+              }
+            }}
+          />
+        )}
+        renderOption={(props, option) => (
+          <Box
+            {...props}
+            sx={{
               fontFamily: 'Inter, sans-serif',
-              fontSize: '13px',
-              mb: 1
-            }}>
-              Selected Services Summary:
-            </Typography>
-            {editedServices.map((service, index) => (
-              <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
-                  {service.name}
-                </Typography>
-                <Typography sx={{ fontSize: '13px', fontFamily: 'Inter, sans-serif', color: '#5f6368' }}>
-                  ₱{service.price} • {service.duration}min
-                </Typography>
-              </Box>
-            ))}
-            <Box sx={{ 
-              borderTop: '1px solid #e0e0e0', 
-              pt: 1, 
-              mt: 1, 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              fontWeight: '600'
-            }}>
-              <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
-                Total:
+              fontSize: '14px',
+            }}
+          >
+            <Box sx={{ width: '100%' }}>
+              <Typography sx={{ fontWeight: '500' }}>
+                {option.name}
               </Typography>
-              <Typography sx={{ fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
-                ₱{editedServices.reduce((total, service) => total + service.price, 0)} • {editedServices.reduce((total, service) => total + service.duration, 0)}min
+              <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
+                ₱{option.price} • {option.duration} minutes
               </Typography>
+              {editedServices.find(item => item.service.id === option.id) && (
+                <Typography variant="body2" sx={{ color: '#1a73e8', fontSize: '12px', fontWeight: '600' }}>
+                  Already selected (Qty: {editedServices.find(item => item.service.id === option.id).quantity})
+                </Typography>
+              )}
             </Box>
           </Box>
         )}
-      </Box>
-    ) : (
-      <Typography variant="body1" sx={{ 
-        fontFamily: 'Inter, sans-serif', 
-        fontWeight: '500',
-        fontSize: '15px',
-        color: '#202124',
-        p: 1.5,
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px'
-      }}>
-        {selectedAppointment.procedure}
-      </Typography>
-    )}
-  </Box>
+        noOptionsText="No active services found"
+        size="small"
+      />
+      
+      {/* Show selected services with quantity controls */}
+      {editedServices.length > 0 && (
+        <Box sx={{ 
+          mt: 2, 
+          p: 2.5, 
+          backgroundColor: '#f8f9fa', 
+          borderRadius: '12px',
+          border: '1px solid #e8eaed'
+        }}>
+          <Typography variant="body2" sx={{ 
+            fontWeight: '600', 
+            color: '#1a73e8',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '14px',
+            mb: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            Selected Services ({editedServices.length})
+          </Typography>
+          
+          {editedServices.map((item, index) => (
+            <Box 
+              key={item.service.id} 
+              sx={{ 
+                display: 'grid',
+                gridTemplateColumns: '1fr auto auto auto',
+                alignItems: 'center',
+                gap: 2,
+                mb: 1.5,
+                p: 1.5,
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: '1px solid #f1f3f4'
+              }}
+            >
+              <Typography sx={{ 
+                fontSize: '14px', 
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: '500',
+                color: '#202124'
+              }}>
+                {item.service.name}
+              </Typography>
+              
+              {/* Quantity Controls */}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                padding: '4px'
+              }}>
+                <IconButton
+                  size="small"
+                  onClick={() => updateServiceQuantity(item.service.id, item.quantity - 1)}
+                  sx={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e0e0e0',
+                    width: '24px',
+                    height: '24px',
+                    '&:hover': {
+                      backgroundColor: '#f5f5f5'
+                    }
+                  }}
+                >
+                  <Typography sx={{ fontSize: '14px', fontWeight: '600', color: '#5f6368' }}>-</Typography>
+                </IconButton>
+                
+                <Typography sx={{ 
+                  fontSize: '14px', 
+                  fontFamily: 'Inter, sans-serif', 
+                  fontWeight: '600',
+                  minWidth: '24px',
+                  textAlign: 'center',
+                  color: '#202124'
+                }}>
+                  {item.quantity}
+                </Typography>
+                
+                <IconButton
+                  size="small"
+                  onClick={() => updateServiceQuantity(item.service.id, item.quantity + 1)}
+                  sx={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e0e0e0',
+                    width: '24px',
+                    height: '24px',
+                    '&:hover': {
+                      backgroundColor: '#f5f5f5'
+                    }
+                  }}
+                >
+                  <Typography sx={{ fontSize: '14px', fontWeight: '600', color: '#5f6368' }}>+</Typography>
+                </IconButton>
+              </Box>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 0.5,
+                backgroundColor: '#e8f5e8',
+                px: 1,
+                py: 0.5,
+                borderRadius: '6px'
+              }}>
+                <Typography sx={{ 
+                  fontSize: '12px', 
+                  fontFamily: 'Inter, sans-serif', 
+                  color: '#137333',
+                  fontWeight: '600'
+                }}>
+                  ₱{(parseFloat(item.service.price) * item.quantity).toLocaleString()}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 0.5,
+                backgroundColor: '#e3f2fd',
+                px: 1,
+                py: 0.5,
+                borderRadius: '6px'
+              }}>
+                <Typography sx={{ 
+                  fontSize: '12px', 
+                  fontFamily: 'Inter, sans-serif', 
+                  color: '#1565c0',
+                  fontWeight: '600'
+                }}>
+                  {item.service.duration * item.quantity}min
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+          
+          <Box sx={{ 
+            borderTop: '2px solid #e8eaed', 
+            pt: 2, 
+            mt: 2, 
+            display: 'grid',
+            gridTemplateColumns: '1fr auto auto auto',
+            alignItems: 'center',
+            gap: 2,
+            backgroundColor: '#f1f3f4',
+            p: 2,
+            borderRadius: '8px'
+          }}>
+            <Typography sx={{ 
+              fontSize: '16px', 
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: '700',
+              color: '#202124'
+            }}>
+              Total Summary
+            </Typography>
+            
+            <Typography sx={{ 
+              fontSize: '14px', 
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: '600',
+              color: '#5f6368',
+              textAlign: 'center'
+            }}>
+              {editedServices.reduce((total, item) => total + item.quantity, 0)} items
+            </Typography>
+            
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 0.5,
+              backgroundColor: '#137333',
+              px: 2,
+              py: 1,
+              borderRadius: '8px'
+            }}>
+              <Typography sx={{ 
+                fontSize: '14px', 
+                fontFamily: 'Inter, sans-serif',
+                color: 'white',
+                fontWeight: '700'
+              }}>
+                ₱{editedServices.reduce((total, item) => total + (parseFloat(item.service.price) * item.quantity || 0), 0).toLocaleString()}
+              </Typography>
+            </Box>
+            
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 0.5,
+              backgroundColor: '#1565c0',
+              px: 2,
+              py: 1,
+              borderRadius: '8px'
+            }}>
+              <Typography sx={{ 
+                fontSize: '14px', 
+                fontFamily: 'Inter, sans-serif',
+                color: 'white',
+                fontWeight: '700'
+              }}>
+                {editedServices.reduce((total, item) => total + (parseInt(item.service.duration) * item.quantity || 0), 0)}min
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  ) : (
+    <Typography variant="body1" sx={{ 
+      fontFamily: 'Inter, sans-serif', 
+      fontWeight: '500',
+      fontSize: '15px',
+      color: '#202124',
+      p: 1.5,
+      backgroundColor: '#f8f9fa',
+      borderRadius: '8px'
+    }}>
+      {selectedAppointment.procedure}
+    </Typography>
+  )}
+</Box>
 
                 {/* Status */}
                 <Box>

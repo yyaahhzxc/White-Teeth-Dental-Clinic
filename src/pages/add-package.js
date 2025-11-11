@@ -65,14 +65,24 @@ const statusOptions = [
     }, [open]);
 
     const fetchServices = async () => {
+      setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/service-table`);
-        if (res.ok) {
-          const data = await res.json();
-          setAvailableServices(data || []);
+        // Use the services-and-packages endpoint to get regular services only
+        const response = await fetch(`${API_BASE}/services-and-packages`);
+        if (response.ok) {
+          const data = await response.json();
+          // Only use regular services for package creation, not other packages
+          setAvailableServices(data.services || []);
+          console.log('Available services for package:', data.services?.length || 0);
+        } else {
+          console.error('Failed to fetch services');
+          setAvailableServices([]);
         }
-      } catch (err) {
-        console.error('Failed to fetch services', err);
+      } catch (error) {
+        console.error('Error fetching services:', error);
+        setAvailableServices([]);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -129,8 +139,8 @@ const statusOptions = [
     const submitPackage = async () => {
       setSubmitAttempted(true);
       if (!validateFields()) return;
-
-      // check duplicate name
+    
+      // Check duplicate name against all services
       try {
         const all = await fetch(`${API_BASE}/service-table`).then(r => r.json());
         const dup = all.some(s => s.name && s.name.trim().toLowerCase() === packageData.name.trim().toLowerCase());
@@ -139,35 +149,56 @@ const statusOptions = [
           return;
         }
       } catch (err) {
-        // ignore
+        console.error('Error checking duplicate names:', err);
       }
-
+    
       const payload = {
         name: packageData.name.trim(),
         type: 'Package Treatment',
         status: packageData.status,
         price: packageData.price ? parseFloat(packageData.price) : autoPrice,
         duration: Math.round(totalDuration),
-        packageServices: selectedServices.map(s => ({ serviceId: s.id, quantity: s.quantity, price: s.price, duration: s.duration }))
+        packageServices: selectedServices.map(s => ({
+          serviceId: s.id,
+          quantity: s.quantity || 1,
+          price: s.price,
+          duration: s.duration
+        }))
       };
-
+    
+      console.log('=== SUBMITTING PACKAGE ===');
+      console.log('Payload:', payload);
+    
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/service-table`, {
+        // Use the new packages endpoint instead of service-table
+        const res = await fetch(`${API_BASE}/packages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+    
         if (res.ok) {
+          const responseData = await res.json();
+          console.log('✅ Package created successfully:', responseData);
+          
           if (typeof onAddPackage === 'function') onAddPackage();
           onClose();
-          if (typeof showSnackbar === 'function') showSnackbar('Package added successfully', { severity: 'success' });
+          if (typeof showSnackbar === 'function') {
+            showSnackbar('Package created successfully!', { severity: 'success' });
+          }
         } else {
-          if (typeof showSnackbar === 'function') showSnackbar('Failed to add package', { severity: 'error' });
+          const errorData = await res.text();
+          console.error('❌ Failed to create package:', res.status, errorData);
+          if (typeof showSnackbar === 'function') {
+            showSnackbar(`Failed to create package: ${errorData}`, { severity: 'error' });
+          }
         }
       } catch (err) {
-        console.error(err);
-        if (typeof showSnackbar === 'function') showSnackbar('Failed to add package', { severity: 'error' });
+        console.error('❌ Error creating package:', err);
+        if (typeof showSnackbar === 'function') {
+          showSnackbar('Network error: Failed to create package', { severity: 'error' });
+        }
       } finally {
         setLoading(false);
       }

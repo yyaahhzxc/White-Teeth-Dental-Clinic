@@ -268,7 +268,7 @@ const fetchServices = async () => {
   // Replace your handleSubmit function
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
+  
     setSubmitting(true);
     try {
       // Calculate total price with quantities
@@ -287,79 +287,105 @@ const fetchServices = async () => {
       ).join(', ');
       
       const serviceIds = selectedServices.map(service => service.id);
-
+  
+      // Create serviceQuantities array for backend
+      const serviceQuantities = selectedServices.map(service => ({
+        serviceId: service.id,
+        quantity: service.quantity,
+        price: parseFloat(service.price),
+        duration: parseInt(service.duration)
+      }));
+  
       const appointmentData = {
         patientId: selectedPatient.id,
         serviceId: serviceIds[0], // Send the first service ID as primary serviceId
         serviceName: selectedServices[0].name, // Send the first service name
         serviceIds: serviceIds,
         serviceNames: serviceNames, // Send combined service names with quantities
-        serviceQuantities: selectedServices.map(service => ({ 
-          serviceId: service.id, 
-          quantity: service.quantity,
-          price: parseFloat(service.price),
-          duration: parseInt(service.duration)
-        })), // Enhanced quantities data with price and duration
+        serviceQuantities: serviceQuantities, // NEW: Send quantities data
         totalPrice: totalPrice,
         totalDuration: totalDuration,
         appointmentDate: normalizeDateForStorage(appointmentDate),
-        timeStart,
-        timeEnd,
-        comments: comments || '',
+        timeStart: timeStart,
+        timeEnd: timeEnd,
+        comments: comments,
         status: 'Scheduled'
       };
-
-      console.log('Sending appointment data with quantities:', appointmentData); // Debug log
-
-      const response = await fetch(`${API_BASE}/appointments`, {
+  
+      console.log('=== SUBMIT DEBUG ===');
+      console.log('Selected services with quantities:', selectedServices);
+      console.log('Service quantities being sent:', serviceQuantities);
+      console.log('Appointment data:', appointmentData);
+  
+      const response = await fetch('http://localhost:3001/appointments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(appointmentData),
       });
-
-      const result = await response.json();
-            
+  
       if (response.ok) {
-        // Dispatch event to trigger refresh in Appointments.js
-        window.dispatchEvent(new CustomEvent('appointmentAdded'));
-        setSnackbar({ 
-          open: true, 
-          message: 'Appointment created successfully!', 
-          severity: 'success' 
+        const responseData = await response.json();
+        console.log('✅ Appointment created successfully:', responseData);
+        
+        setSnackbar({
+          open: true,
+          message: 'Appointment created successfully!',
+          severity: 'success'
         });
-                
+  
         // Clear form
         setSelectedPatient(null);
+        setInputValue('');
         setSelectedServices([]);
+        setServiceInputValue('');
         setAppointmentDate('');
         setTimeStart('');
         setTimeEnd('');
         setComments('');
-        setInputValue('');
-        setServiceInputValue('');
-                
-        // Close dialog after a short delay
+  
+        // Close dialog after short delay
+        // Close dialog after short delay
         setTimeout(() => {
           onClose();
-          setSnackbar({ open: false, message: '', severity: 'success' });
-        }, 1500);
-                
+          
+          // REMOVE the onAddPatient callback completely - this was opening add-record modal
+          // if (onAddPatient) {
+          //   onAddPatient(responseData.appointment);
+          // }
+          
+          // Instead, dispatch custom events for the calendar to refresh
+          console.log('🚀 Dispatching appointment events for calendar refresh');
+          
+          window.dispatchEvent(new CustomEvent('appointmentCreated', {
+            detail: responseData.appointment
+          }));
+          
+          window.dispatchEvent(new CustomEvent('appointmentAdded', {
+            detail: responseData.appointment
+          }));
+          
+          // Also dispatch a general refresh event
+          window.dispatchEvent(new CustomEvent('refreshAppointments'));
+          
+        }, 1000);
       } else {
-        console.error('Server response:', result); // Debug log
-        setSnackbar({ 
-          open: true, 
-          message: result.error || 'Failed to create appointment', 
-          severity: 'error' 
+        const errorData = await response.text();
+        console.error('❌ Failed to create appointment:', response.status, errorData);
+        
+        setSnackbar({
+          open: true,
+          message: `Failed to create appointment: ${errorData}`,
+          severity: 'error'
         });
       }
     } catch (error) {
-      console.error('Error creating appointment:', error);
-      setSnackbar({ 
-        open: true, 
-        message: 'Network error. Please try again.', 
-        severity: 'error' 
+      console.error('❌ Error submitting appointment:', error);
+      setSnackbar({
+        open: true,
+        message: `Error: ${error.message}`,
+        severity: 'error'
       });
     } finally {
       setSubmitting(false);

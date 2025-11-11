@@ -59,6 +59,7 @@ function PatientList() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [medInfo, setMedInfo] = useState(null);
   // Handler to open patient view modal
+  
   const handleViewPatient = async (patient) => {
     setSelectedPatient(patient);
     try {
