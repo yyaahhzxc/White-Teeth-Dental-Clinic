@@ -221,14 +221,15 @@ function Header() {
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             {/* Navigation items in specific order. 'Logs' kept in routeMap but not shown. */}
             {(
-              ['Home', 'Records', 'Appointments', 'Invoices', 'Services', 'Accounting']
-            ).map((label) => {
+              ['Home', 'Records', 'Appointments', 'Billing', 'Invoices', 'Services', 'Accounting']
+            ).map((label, idx, arr) => {
               const routeMap = {
                 Home: '/dashboard',
                 Records: '/add-patient',
                 Appointments: '/appointments',
+                Billing: '/billing',
                 Invoices: '/invoice',
-                Logs: '/logs', // keep Logs mapping in code but don't render it
+                Logs: '/logs',
                 Services: '/service-page',
                 Users: '/accounts',
                 Accounting: '/accounting',

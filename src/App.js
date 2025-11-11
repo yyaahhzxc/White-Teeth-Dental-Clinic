@@ -13,6 +13,7 @@ import HomePage from './pages/HomePage';
 import ForgotPassword from './pages/ForgotPassword';
 import Appointments from './pages/Appointments';
 import Invoice from './pages/Invoice';
+import Billing from './pages/Billing';
 import Accounting from './pages/Accounting';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
@@ -211,6 +212,7 @@ function App() {
         <Route path="/accounts" element={<Accounts />} />
   <Route path="/appointments" element={<Appointments />} />
   <Route path="/invoice" element={<Invoice />} />
+  <Route path="/billing" element={<Billing />} />
   <Route path="/accounting" element={<Accounting />} />
 
   {/* Service Page */}

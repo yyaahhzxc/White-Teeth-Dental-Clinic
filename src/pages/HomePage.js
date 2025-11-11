@@ -87,9 +87,19 @@ export default function HomePage() {
     };
 
     const [rectStyle, setRectStyle] = useState({ left: 0, top: 0, width: 0, height: 0 });
-        const [isFixed, setIsFixed] = useState(false);
-        const [fixedTop, setFixedTop] = useState(null);
-        const [fixedTranslate, setFixedTranslate] = useState(0);
+    const [isFixed, setIsFixed] = useState(false);
+    const [fixedTop, setFixedTop] = useState(null);
+    const [fixedTranslate, setFixedTranslate] = useState(0);
+    const [isHovered, setIsHovered] = useState(false);
+    // Keep overflow visible briefly after hover ends so the circle/logo don't get clipped mid-animation
+    const [hoverExitGrace, setHoverExitGrace] = useState(false);
+    const hoverTimerRef = useRef(null);
+    const [isTucked, setIsTucked] = useState(false);
+    const [scrollbarWidth, setScrollbarWidth] = useState(0);
+    const [isReady, setIsReady] = useState(false); // enable animations after first paint
+    // Enable rectangle animation only after its initial layout is measured to avoid first-load width tween
+    const [rectAnimReady, setRectAnimReady] = useState(false);
+    const rectInitRef = useRef(false);
 
     // compute rectangle position so left edge aligns to circle center and right edge touches hero right edge
     useEffect(() => {
@@ -193,6 +203,109 @@ export default function HomePage() {
 
         return () => observer.disconnect();
     }, []);
+
+    // Measure scrollbar width so we can offset the sticky pill from the content edge
+    useEffect(() => {
+        const computeScrollbar = () => {
+            // Robust measurement: use a temporary scroll container
+            const outer = document.createElement('div');
+            outer.style.visibility = 'hidden';
+            outer.style.msOverflowStyle = 'scrollbar'; // for IE 10+
+            outer.style.overflow = 'scroll';
+            outer.style.position = 'absolute';
+            outer.style.top = '-9999px';
+            outer.style.width = '100px';
+            outer.style.height = '100px';
+            document.body.appendChild(outer);
+
+            const inner = document.createElement('div');
+            inner.style.width = '100%';
+            inner.style.height = '100%';
+            outer.appendChild(inner);
+
+            const width = outer.offsetWidth - inner.clientWidth;
+
+            document.body.removeChild(outer);
+
+            // Fallback to 16px typical width if detection yields 0 on overlay scrollbars
+            setScrollbarWidth(width > 0 ? width : 16);
+        };
+
+        computeScrollbar();
+        window.addEventListener('resize', computeScrollbar);
+        return () => window.removeEventListener('resize', computeScrollbar);
+    }, []);
+
+    // Tuck-in behavior driven by Home section visibility
+    // When the Home hero leaves the viewport (considering header height), tuck to the right.
+    useEffect(() => {
+        const sectionEl = homeRef.current;
+        if (!sectionEl) return;
+
+        const headerHeight = headerRef.current?.getBoundingClientRect().height || 80;
+
+        let observer;
+        try {
+            observer = new IntersectionObserver(
+                (entries) => {
+                    const entry = entries[0];
+                    // If the Home section is not visible, tuck; otherwise, untuck
+                    setIsTucked(!entry.isIntersecting);
+                },
+                {
+                    root: null,
+                    // Start tucking shortly after the hero scrolls under the header
+                    rootMargin: `-${headerHeight + 8}px 0px 0px 0px`,
+                    threshold: 0.01,
+                }
+            );
+            observer.observe(sectionEl);
+        } catch (e) {
+            // Fallback: simple scroll check if IntersectionObserver isn't available
+            const onScrollFallback = () => {
+                const bounds = sectionEl.getBoundingClientRect();
+                setIsTucked(bounds.bottom < (headerHeight + 8));
+            };
+            window.addEventListener('scroll', onScrollFallback, { passive: true });
+            onScrollFallback();
+            return () => window.removeEventListener('scroll', onScrollFallback);
+        }
+
+        // Initial state in case observer callback is delayed
+        // If bottom of hero is already above header line, we should be tucked
+        const initBounds = sectionEl.getBoundingClientRect();
+        setIsTucked(initBounds.bottom < (headerHeight + 8));
+
+        return () => {
+            if (observer) observer.disconnect();
+        };
+    }, []);
+
+    // Cleanup hover timer on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverTimerRef.current) {
+                clearTimeout(hoverTimerRef.current);
+                hoverTimerRef.current = null;
+            }
+        };
+    }, []);
+
+    // Enable transitions after first paint so initial layout doesn't animate
+    useEffect(() => {
+        const id = requestAnimationFrame(() => setIsReady(true));
+        return () => cancelAnimationFrame(id);
+    }, []);
+
+    // Turn on rectangle width transition only after we have initial non-zero size
+    useEffect(() => {
+        if (!rectInitRef.current && rectStyle.width > 0 && rectStyle.height > 0) {
+            rectInitRef.current = true;
+            // wait one frame to ensure the initial width has been painted without transition
+            const id = requestAnimationFrame(() => setRectAnimReady(true));
+            return () => cancelAnimationFrame(id);
+        }
+    }, [rectStyle.width, rectStyle.height]);
 
 
 
@@ -314,124 +427,141 @@ export default function HomePage() {
                 </Container>
 
                 {/* Absolute image group anchored to the hero and aligned to the screen right */}
-<Box
-  ref={rightBoxRef}
-  sx={{
-    position: 'fixed', // 👈 changed from absolute
-    right: 0,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    width: { xs: 260, md: 420 },
-    height: { xs: 160, md: 220 },
-    pointerEvents: 'auto',
-    overflow: 'visible',
-    zIndex: 10,
+                <Box
+                    ref={rightBoxRef}
+                    onMouseEnter={() => {
+                        setIsHovered(true);
+                        if (hoverTimerRef.current) {
+                            clearTimeout(hoverTimerRef.current);
+                            hoverTimerRef.current = null;
+                        }
+                        setHoverExitGrace(false);
+                    }}
+                    onMouseLeave={() => {
+                        setIsHovered(false);
+                        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                        setHoverExitGrace(true);
+                        hoverTimerRef.current = setTimeout(() => {
+                            setHoverExitGrace(false);
+                            hoverTimerRef.current = null;
+                        }, 460); // match transform duration
+                    }}
+                    sx={{
+                        position: 'fixed',
+                        // Use the same vertical position in hero and tucked states
+                        top: { xs: '35vh', md: '37vh' },
+                        right: scrollbarWidth ? `${scrollbarWidth}px` : 0,
+                        // Keep full width like in hero to mimic the same expansion behavior;
+                        // we reveal a peek by translating the inner wrapper while tucked.
+                        width: { xs: 260, md: 420 },
+                        height: { xs: 160, md: 220 },
+                        pointerEvents: 'auto',
+                        // Keep overflow visible, but clamp the right edge with clipPath so content never crosses into the scrollbar area.
+                        overflow: 'visible',
+                        // Allow a small bleed on top/bottom to avoid subpixel cropping of the circle while still
+                        // clamping the right edge against the scrollbar. Left is negative to reveal the tucked peek.
+                        clipPath: isTucked
+                            ? { xs: 'inset(-6px 0 -6px -160px)', md: 'inset(-10px 0 -10px -300px)' }
+                            : 'none',
+                        zIndex: 1050,
+                        cursor: 'pointer',
+                    }}
+                    onClick={() => navigate('/login')}
+                >
+                    {/* Content wrapper for positioning */}
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0, // Keep content anchored to the left
+                            height: '100%',
+                            width: { xs: 260, md: 420 }, // Fixed full width for content
+                            // While tucked (and not hovered), shift content right so only a peek remains visible.
+                            transform: (isTucked && !isHovered)
+                                ? { xs: 'translateX(150px)', md: 'translateX(270px)' } // More peek visible (30px more on xs, 50px more on md)
+                                : 'translateX(0)',
+                            transition: isReady ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+                        }}
+                    >
+                        {/* rectangle image (zIndex 0) with text */}
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                right: 0,
+                                top: rectStyle.top,
+                                // Hover behavior
+                                // - Untucked: extend a bit further left (+120/+240) to mirror hero effect
+                                // - Tucked: also extend further left on hover so full text is visible inside the container
+                                width: isHovered
+                                    ? { xs: `calc(100% - ${rectStyle.left}px + 120px + 2px)`, md: `calc(100% - ${rectStyle.left}px + 240px + 2px)` }
+                                    : `calc(100% - ${rectStyle.left}px + 2px)`,
+                                height: rectStyle.height,
+                                zIndex: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                transition: rectAnimReady ? 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+                            }}
+                        >
+                            <Box
+                                component="img"
+                                src="/Homepage-Home-Rectangle.png"
+                                alt="rectangle"
+                                sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    zIndex: 0,
+                                }}
+                            />
+                            <Typography
+                                sx={{
+                                    position: 'relative',
+                                    zIndex: 1,
+                                    color: 'white',
+                                    fontSize: { xs: 24, md: 36 },
+                                    fontWeight: 700,
+                                    opacity: isHovered ? 1 : 0,
+                                    transition: isReady ? 'opacity 0.3s ease-in-out 0.2s' : 'none',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Start Session
+                            </Typography>
+                        </Box>
 
-    '&:hover .rectangle': {
-      width: { xs: 360, md: 600 },
-      transition: 'width 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
-    },
-    '&:hover .circle': {
-      transform: 'translate(-180px, -50%)',
-      transition: 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)',
-    },
-    '&:hover .text': {
-      opacity: 1,
-      transform: 'translate(-50%, -50%)',
-      transition: `
-        opacity 0.6s ease,
-        transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)
-      `,
-    },
-  }}
->
-  {/* Rectangle background */}
-  <Box
-    className="rectangle"
-    component="img"
-    src="/Homepage-Home-Rectangle.png"
-    alt="rectangle"
-    sx={{
-      position: 'absolute',
-      right: 0,
-      top: 0,
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover',
-      borderTopLeftRadius: { xs: '80px', md: '120px' },
-      borderBottomLeftRadius: { xs: '80px', md: '120px' },
-      transition: 'width 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
-      zIndex: 0,
-    }}
-  />
-
-  {/* Circle wrapper */}
-  <Box
-    className="circle"
-    sx={{
-      position: 'absolute',
-      left: 0,
-      top: '50%',
-      transform: 'translateY(-50%)',
-      width: { xs: 140, md: 220 },
-      height: { xs: 140, md: 220 },
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundImage: 'url(/Homepage-Home-Circle.png)',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      transition: 'transform 0.8s cubic-bezier(0.22, 1, 0.36, 1)',
-      zIndex: 2,
-    }}
-  >
-    <Box
-      component="img"
-      src="/Homepage-Home-Logo.png"
-      alt="logo"
-      sx={{
-        width: '80%',
-        height: '80%',
-        zIndex: 3,
-        pointerEvents: 'none',
-      }}
-    />
-  </Box>
-
-  {/* Text */}
-  <Box
-    className="text"
-    sx={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(calc(-50% + 60px), -50%)',
-      opacity: 0,
-      color: 'white',
-      fontWeight: 600,
-      fontSize: { xs: '1rem', md: '1.4rem' },
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      whiteSpace: 'nowrap',
-      pointerEvents: 'none',
-      zIndex: 3,
-      transition: `
-        opacity 0.6s ease,
-        transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)
-      `,
-    }}
-  >
-    Start Session
-  </Box>
-</Box>
-
-
-
-
-            </Box>
-
-            {/*Dentist*/}
+                        {/* circle (wrapper) with logo centered (zIndex 1/2) */}
+                        <Box
+                            ref={circleRef}
+                            sx={{
+                                position: 'absolute',
+                                left: { xs: 10, md: 40 },
+                                top: { xs: 0, md: 10 },
+                                width: { xs: 140, md: 220 },
+                                height: { xs: 140, md: 220 },
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundImage: 'url(/Homepage-Home-Circle.png)',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                zIndex: 3,
+                                pointerEvents: 'none',
+                                // Slide circle left on hover (same as hero) to reveal full text; overflow of outer container
+                                // ensures it won't hit the scrollbar while tucked
+                                transform: isHovered ? { xs: 'translateX(-120px)', md: 'translateX(-240px)' } : 'none',
+                                transition: isReady ? 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+                            }}
+                        >
+                            <Box component="img" src="/Homepage-Home-Logo.png" alt="logo" sx={{ width: '80%', height: '80%', zIndex: 4, pointerEvents: 'none' }} />
+                        </Box>
+                    </Box>
+                </Box>
+            </Box>            {/*Dentist*/}
             <Box
                 ref={dentistRef}
                 sx={{
