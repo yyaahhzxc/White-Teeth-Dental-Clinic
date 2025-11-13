@@ -697,7 +697,7 @@ function SalesDashboard() {
                 <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{period === 'Daily' ? 'Daily Expenses' : period === 'Monthly' ? 'Monthly Expenses' : 'Yearly Expenses'}</Typography>
               </Paper>
               <Box sx={{ mb: 2 }}>
-                <Button fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '115px', backgroundColor: '#0056b3', fontSize: '24px', color: 'white', borderRadius: 1, py: 1.5 }}>Add Expense</Button>
+                <Button fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '115px', backgroundColor: '#0056b3', fontSize: '24px', color: 'white', py: 1.5 }}>Add Expense</Button>
               </Box>
               <Paper elevation={3} sx={{ p: 2, pt: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
