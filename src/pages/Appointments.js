@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
+import LogAppointment from './LogAppointment';
 import { API_BASE } from '../apiConfig';
 
 
@@ -203,6 +204,9 @@ function Appointments() {
   const [patientDetailsModalOpen, setPatientDetailsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientMedInfo, setPatientMedInfo] = useState(null);
+  
+  // Log Appointment modal state
+  const [logAppointmentOpen, setLogAppointmentOpen] = useState(false);
   
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
@@ -1805,7 +1809,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           </DialogContent>
         )}
         
-        <DialogActions sx={{ p: 3, pt: 1 }}>
+        <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'flex-end', gap: 2 }}>
           <Button 
             onClick={handleCloseModal}
             disabled={updating}
@@ -1819,6 +1823,30 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           >
             Close
           </Button>
+          {selectedAppointment?.status === 'done' && !editMode && (
+            <Button 
+              variant="contained"
+              onClick={() => setLogAppointmentOpen(true)}
+              sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                textTransform: 'none',
+                fontSize: '16px',
+                fontWeight: 700,
+                borderRadius: '12px',
+                px: 4,
+                py: 1.5,
+                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+                boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
+                  boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
+                  transform: 'translateY(-1px)'
+                }
+              }}
+            >
+              Log Appointment
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
       
@@ -1844,6 +1872,13 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           {updateError}
         </Alert>
       </Snackbar>
+      
+      {/* Log Appointment Modal */}
+      <LogAppointment 
+        open={logAppointmentOpen}
+        onClose={() => setLogAppointmentOpen(false)}
+        appointment={selectedAppointment}
+      />
       
       <QuickActionButton />
     </Box>

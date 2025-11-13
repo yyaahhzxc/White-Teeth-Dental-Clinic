@@ -15,31 +15,29 @@ import CreateInvoice from './CreateInvoice';
 function BillingAppointmentSummary({ 
   open = true, 
   onClose = () => {}, 
-  billingData = {} 
+  billingData = {},
+  onSaveBilling = () => {} // Callback to save billing data to parent component
 }) {
-  // Initialize with default billing data if not provided
+  // Initialize with billing data from appointment
   const initialBillingData = {
-    id: 1,
-    firstName: 'John',
-    lastName: 'Doe',
-    dateCreated: 'October 30, 2025',
-    ...billingData,
+    firstName: billingData.firstName || 'John',
+    lastName: billingData.lastName || 'Doe',
+    dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    service: billingData.service || '',
   };
 
   // State for CreateInvoice modal
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
 
+  // Initialize services from appointment data
+  const initialServices = billingData.service 
+    ? [{ id: 1, name: billingData.service, quantity: 1, price: 1000.00 }]
+    : [{ id: 1, name: 'Wisdom Tooth Extraction', quantity: 1, price: 1000.00 }];
+
   // Left side form state (modifiable)
-  const [services, setServices] = useState([
-    { id: 1, name: 'Wisdom Tooth Extraction', quantity: 1, price: 1000.00 }
-  ]);
-  const [additionalCharges, setAdditionalCharges] = useState([
-    { id: 1, name: 'Anaesthetic Carpule', quantity: 1, price: 500.00 },
-    { id: 2, name: 'Retainer Case', quantity: 1, price: 200.00 }
-  ]);
-  const [discounts, setDiscounts] = useState([
-    { id: 1, name: 'Employee Family', quantity: 1, price: 200.00 }
-  ]);
+  const [services, setServices] = useState(initialServices);
+  const [additionalCharges, setAdditionalCharges] = useState([]);
+  const [discounts, setDiscounts] = useState([]);
 
   // Calculate totals dynamically
   const calculations = useMemo(() => {
@@ -172,11 +170,41 @@ function BillingAppointmentSummary({
   };
 
   const handlePayBill = () => {
+    // Prepare billing entry data
+    const billingEntry = {
+      id: Date.now(), // Generate a unique ID
+      dateCreated: initialBillingData.dateCreated,
+      firstName: initialBillingData.firstName,
+      lastName: initialBillingData.lastName,
+      totalBill: calculations.total,
+      amountPaid: 0, // Will be updated when invoice is created
+      balance: calculations.total,
+      status: 'Unpaid', // Will be 'Paid' or 'Partial' after payment
+      services: calculations.validServices,
+      additionalCharges: calculations.validCharges,
+      discounts: calculations.validDiscounts,
+    };
+
+    // Save billing entry to local storage (frontend only)
+    try {
+      const existingBillings = JSON.parse(localStorage.getItem('billings') || '[]');
+      existingBillings.push(billingEntry);
+      localStorage.setItem('billings', JSON.stringify(existingBillings));
+      console.log('Billing entry saved:', billingEntry);
+      
+      // Trigger custom event for billing table to refresh
+      window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingEntry }));
+    } catch (error) {
+      console.error('Error saving billing entry:', error);
+    }
+
     // Prepare billing data for the invoice
     const invoiceBillingData = {
+      ...initialBillingData,
       services,
       additionalCharges,
       discounts,
+      billingId: billingEntry.id, // Pass the billing ID to invoice
     };
     setCreateInvoiceOpen(true);
   };
