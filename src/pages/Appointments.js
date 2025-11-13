@@ -203,6 +203,17 @@ function Appointments() {
 
   // Services state
   const [services, setServices] = useState([]);
+
+  // -- History placeholders (easy to replace with backend data later)
+  // To use these placeholders set `window.__USE_HISTORY_PLACEHOLDERS__ = true` from devtools
+  // or replace `HISTORY_PLACEHOLDERS` with your backend response when ready.
+  const HISTORY_PLACEHOLDERS = [
+    { id: 'ph-1', appointmentDate: new Date().toISOString(), patientName: 'Juan Dela Cruz', timeStart: '09:00', timeEnd: '10:00', procedure: 'Cleaning', comments: 'Follow-up in 6 months' },
+    { id: 'ph-2', appointmentDate: new Date().toISOString(), patientName: 'Maria Clara', timeStart: '10:30', timeEnd: '11:00', procedure: 'Filling', comments: 'N/A' },
+    { id: 'ph-3', appointmentDate: new Date().toISOString(), patientName: 'John Doe', timeStart: '11:30', timeEnd: '12:00', procedure: 'Extraction', comments: 'Patient had pain' },
+    { id: 'ph-4', appointmentDate: new Date().toISOString(), patientName: 'Jane Roe', timeStart: '13:00', timeEnd: '13:30', procedure: 'Consultation', comments: 'Prescribed meds' },
+    { id: 'ph-5', appointmentDate: new Date().toISOString(), patientName: 'Mark Smith', timeStart: '14:00', timeEnd: '14:45', procedure: 'Root Canal', comments: 'Needs follow-up' },
+  ];
   
   // Visit log modal state
   const [visitLogModalOpen, setVisitLogModalOpen] = useState(false);
@@ -1054,7 +1065,9 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
               <Box>
                 {/* History mode: use the shared DataTable layout used across the app */}
                 {(() => {
-                  const sourceAppointments = (categoryFilteredAppointments.length > 0 ? categoryFilteredAppointments : appointments);
+                  // History is currently disconnected from the calendar.
+                  // Use placeholders here so the history table is easy to replace with backend data later.
+                  const sourceAppointments = HISTORY_PLACEHOLDERS;
                   const historyAppointments = [...sourceAppointments].sort((a, b) => {
                     const da = new Date(a.appointmentDate || 0);
                     const db = new Date(b.appointmentDate || 0);
@@ -1099,7 +1112,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                               onChange={(v) => { setSearch(v); setPage(0); }}
                               placeholder="Search by date/patient/service/notes"
                               searchFields={["appointmentDate", "patientName", "procedure", "comments"]}
-                              data={categoryFilteredAppointments.length > 0 ? categoryFilteredAppointments : historyAppointments}
+                              data={HISTORY_PLACEHOLDERS}
                             />
 
                             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
