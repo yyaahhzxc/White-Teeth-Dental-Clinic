@@ -115,31 +115,31 @@ const [toothChartData, setToothChartData] = useState({
     return;
   }
 
-    try {
-      // 1. Save patient info
-      const patient = {
-        firstName,
-        lastName,
-        middleName,
-        suffix,
-        maritalStatus,
-        contactNumber,
-        occupation,
-        address,
-        dateOfBirth,
-        sex,
-        contactPersonName,
-        contactPersonRelationship,
-        contactPersonNumber,
-        contactPersonAddress,
-        dateCreated: new Date().toISOString(),
-
-        toothChart: {
-          selectedTeeth: toothChartData.selectedTeeth,
-          toothSummaries: toothChartData.toothSummaries,
-          createdAt: new Date().toISOString()
-        }
-      };
+  try {
+    // 1. Save patient info (this will log "Patient Added")
+    const patient = {
+      firstName,
+      lastName,
+      middleName,
+      suffix,
+      maritalStatus,
+      contactNumber,
+      occupation,
+      address,
+      dateOfBirth,
+      sex,
+      contactPersonName,
+      contactPersonRelationship,
+      contactPersonNumber,
+      contactPersonAddress,
+      dateCreated: new Date().toISOString(),
+      // Include tooth chart data in patient creation (this won't create separate log)
+      toothChart: {
+        selectedTeeth: toothChartData.selectedTeeth,
+        toothSummaries: toothChartData.toothSummaries,
+        createdAt: new Date().toISOString()
+      }
+    };
 
   const res = await fetch(`${API_BASE}/patients`, {
         method: 'POST',
@@ -151,18 +151,19 @@ const [toothChartData, setToothChartData] = useState({
 
       const savedPatient = await res.json();
 
-      // 2. Save medical info linked with patientId
-      const medicalInfo = {
-        patientId: savedPatient.id,
-        allergies,
-        bloodType,
-        bloodborneDiseases,
-        pregnancyStatus,
-        medications,
-        additionalNotes,
-        bloodPressure,
-        diabetic
-      };
+     // 2. Save medical info with skipLogging=true (prevent duplicate logging)
+     const medicalInfo = {
+      patientId: savedPatient.id,
+      allergies,
+      bloodType,
+      bloodborneDiseases,
+      pregnancyStatus,
+      medications,
+      additionalNotes,
+      bloodPressure,
+      diabetic,
+      skipLogging: true // ADD THIS - prevents separate medical info log
+    };
 
   await fetch(`${API_BASE}/medical-information`, {
         method: 'POST',

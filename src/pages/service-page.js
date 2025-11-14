@@ -81,13 +81,25 @@ function ServiceList() {
   // Fetch services from backend (no filtering - let FilterComponent handle all filtering)
   const fetchServices = async () => {
     try {
-      const response = await fetch(`${API_BASE}/service-table`);
+      // Use the new endpoint that returns both services and packages
+      const response = await fetch(`${API_BASE}/services-and-packages`);
       if (response.ok) {
         const data = await response.json();
-        setServices(data);
+        // Combine regular services and packages into one array
+        const allItems = [...(data.services || []), ...(data.packages || [])];
+        setServices(allItems);
+        console.log('Fetched services and packages:', {
+          services: data.services?.length || 0,
+          packages: data.packages?.length || 0,
+          total: allItems.length
+        });
+      } else {
+        console.error('Failed to fetch services and packages');
+        setServices([]);
       }
     } catch (error) {
-      console.error('Error fetching services:', error);
+      console.error('Error fetching services and packages:', error);
+      setServices([]);
     }
   };
 
@@ -154,22 +166,29 @@ function ServiceList() {
   };
 
   const handleAddService = () => {
-    // After adding, fetch the updated list
-    fetch(`${API_BASE}/service-table`)
+    // After adding, fetch the updated list using new endpoint
+    fetch(`${API_BASE}/services-and-packages`)
       .then(res => res.json())
       .then(data => {
-        setServices(data);
-        // Remove setFilteredServices - let FilterComponent handle filtering
+        const allItems = [...(data.services || []), ...(data.packages || [])];
+        setServices(allItems);
+      })
+      .catch(error => {
+        console.error('Error refreshing services:', error);
       });
     setShowServiceModal(false);
   };
 
   const handleAddPackage = () => {
-    // Refresh services after adding package
-    fetch(`${API_BASE}/service-table`)
+    // Refresh services after adding package using new endpoint
+    fetch(`${API_BASE}/services-and-packages`)
       .then(res => res.json())
       .then(data => {
-        setServices(data);
+        const allItems = [...(data.services || []), ...(data.packages || [])];
+        setServices(allItems);
+      })
+      .catch(error => {
+        console.error('Error refreshing services:', error);
       });
     setShowPackageModal(false);
   };
@@ -410,20 +429,34 @@ function ServiceList() {
                     }}
                     onClick={() => handleViewService(service)}
                   >
-                    <Box sx={{ flex: '2', textAlign: 'left' }}>
-                      <Typography
-                        sx={{
-                          fontFamily: 'Roboto, sans-serif',
-                          fontWeight: 400,
-                          fontSize: '15px',
-                          color: '#6d6b80',
-                          lineHeight: '22px',
-                          letterSpacing: '0.5px',
-                        }}
-                      >
-                        {service.name || '-'}
-                      </Typography>
-                    </Box>
+                   <Box sx={{ flex: '2', textAlign: 'left' }}>
+  <Typography
+    sx={{
+      fontFamily: 'Roboto, sans-serif',
+      fontWeight: 400,
+      fontSize: '15px',
+      color: '#6d6b80',
+      lineHeight: '22px',
+      letterSpacing: '0.5px',
+    }}
+  >
+    {service.name || '-'}
+  </Typography>
+  {service.type === 'Package Treatment' && (
+    <Typography
+      sx={{
+        fontFamily: 'Roboto, sans-serif',
+        fontWeight: 300,
+        fontSize: '12px',
+        color: '#9e9e9e',
+        fontStyle: 'italic',
+        mt: 0.5,
+      }}
+    >
+      Package (contains multiple services)
+    </Typography>
+  )}
+</Box>
 
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
@@ -553,19 +586,22 @@ function ServiceList() {
 
       {/* View Service Dialog */}
       <ViewService
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        service={selectedService}
-        onServiceUpdated={() => {
-          // Refresh the list after edit
-          fetch(`${API_BASE}/service-table`)
-            .then(res => res.json())
-            .then(data => {
-              setServices(data);
-              // Remove setFilteredServices - let FilterComponent handle filtering
-            });
-        }}
-      />
+  open={viewDialogOpen}
+  onClose={() => setViewDialogOpen(false)}
+  service={selectedService}
+  onServiceUpdated={() => {
+    // Refresh the list after edit using new endpoint
+    fetch(`${API_BASE}/services-and-packages`)
+      .then(res => res.json())
+      .then(data => {
+        const allItems = [...(data.services || []), ...(data.packages || [])];
+        setServices(allItems);
+      })
+      .catch(error => {
+        console.error('Error refreshing services:', error);
+      });
+  }}
+/>
 
       {/* Service Modal */}
       <AddService

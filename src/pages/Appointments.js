@@ -164,12 +164,190 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
   );
 }
 
+const fetchPackageDetails = async (serviceId) => {
+  try {
+    console.log('Checking if service is a package:', serviceId);
+    const response = await fetch(`${API_BASE}/packages/${serviceId}`);
+    if (response.ok) {
+      const packageData = await response.json();
+      console.log('Package details fetched:', packageData);
+      return packageData.packageServices || [];
+    }
+  } catch (error) {
+    console.error('Error fetching package details:', error);
+  }
+  return null;
+};
+
+
+const getAppointmentServiceDetails = async (appointment, services, fetchAppointmentDetailsFn) => {
+  console.log('=== GETTING APPOINTMENT SERVICE DETAILS ===');
+  console.log('Appointment:', appointment);
+  console.log('Available services:', services.length);
+  
+  let allServiceDetails = [];
+
+   // First, fetch the full appointment details to get all services
+  const appointmentDetails = await fetchAppointmentDetailsFn(appointment.id);
+  console.log('Full appointment details:', appointmentDetails);
+  
+  if (appointmentDetails && appointmentDetails.serviceIds) {
+    let serviceIds = [];
+    let quantities = [];
+    
+    // Parse service IDs and quantities
+    if (appointmentDetails.serviceIds.includes(':')) {
+      // New format: "id1:qty1,id2:qty2"
+      const serviceEntries = appointmentDetails.serviceIds.split(',');
+      serviceIds = serviceEntries.map(entry => {
+        const [id, qty] = entry.split(':');
+        quantities.push(parseInt(qty) || 1);
+        return parseInt(id.trim());
+      });
+    } else if (appointmentDetails.serviceIds.includes(',')) {
+      // Old format: just IDs
+      serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
+      quantities = new Array(serviceIds.length).fill(1);
+    } else {
+      // Single service
+      serviceIds = [parseInt(appointmentDetails.serviceIds)];
+      quantities = [1];
+    }
+    
+    console.log('Parsed service IDs:', serviceIds);
+    console.log('Parsed quantities:', quantities);
+    
+    // For each service, check if it's a package and expand it
+    for (let i = 0; i < serviceIds.length; i++) {
+      const serviceId = serviceIds[i];
+      const quantity = quantities[i];
+      
+      // Find the service in our services list
+      const service = services.find(s => s.id === serviceId);
+      console.log('Found service:', service);
+      
+      if (service && service.type === 'Package Treatment') {
+        console.log('Service is a package, fetching package details...');
+        // It's a package, get the package contents
+        const packageServices = await fetchPackageDetails(serviceId);
+        
+        if (packageServices && packageServices.length > 0) {
+          // Add package header
+          allServiceDetails.push({
+            type: 'package-header',
+            id: serviceId,
+            name: service.name,
+            quantity: quantity,
+            isPackage: true
+          });
+          
+          // Add each service in the package
+          packageServices.forEach(pkgService => {
+            allServiceDetails.push({
+              type: 'package-service',
+              id: pkgService.serviceId,
+              name: pkgService.name,
+              price: pkgService.price,
+              duration: pkgService.duration,
+              quantity: pkgService.quantity * quantity, // Multiply by package quantity
+              parentPackage: service.name,
+              isPackageService: true
+            });
+          });
+        } else {
+          // Package has no services, show as regular service
+          allServiceDetails.push({
+            type: 'service',
+            id: serviceId,
+            name: service.name,
+            price: service.price || 0,
+            duration: service.duration || 0,
+            quantity: quantity,
+            isPackage: false
+          });
+        }
+      } else {
+        // Regular service
+        allServiceDetails.push({
+          type: 'service',
+          id: serviceId,
+          name: service ? service.name : 'Unknown Service',
+          price: service ? service.price || 0 : 0,
+          duration: service ? service.duration || 0 : 0,
+          quantity: quantity,
+          isPackage: false
+        });
+      }
+    }
+  } else {
+    // Fallback to single service
+    const service = services.find(s => s.id === appointment.serviceId);
+    if (service) {
+      if (service.type === 'Package Treatment') {
+        console.log('Single service is a package, fetching package details...');
+        const packageServices = await fetchPackageDetails(service.id);
+        
+        if (packageServices && packageServices.length > 0) {
+          // Add package header
+          allServiceDetails.push({
+            type: 'package-header',
+            id: service.id,
+            name: service.name,
+            quantity: 1,
+            isPackage: true
+          });
+          
+          // Add each service in the package
+          packageServices.forEach(pkgService => {
+            allServiceDetails.push({
+              type: 'package-service',
+              id: pkgService.serviceId,
+              name: pkgService.name,
+              price: pkgService.price,
+              duration: pkgService.duration,
+              quantity: pkgService.quantity,
+              parentPackage: service.name,
+              isPackageService: true
+            });
+          });
+        } else {
+          allServiceDetails.push({
+            type: 'service',
+            id: service.id,
+            name: service.name,
+            price: service.price || 0,
+            duration: service.duration || 0,
+            quantity: 1,
+            isPackage: false
+          });
+        }
+      } else {
+        allServiceDetails.push({
+          type: 'service',
+          id: service.id,
+          name: service.name,
+          price: service.price || 0,
+          duration: service.duration || 0,
+          quantity: 1,
+          isPackage: false
+        });
+      }
+    }
+  }
+  
+  console.log('Final service details:', allServiceDetails);
+  return allServiceDetails;
+};
+
+
 function Appointments() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState('Week');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [appointmentServiceDetails, setAppointmentServiceDetails] = useState([]);
+const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   
   // Modal states
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -247,22 +425,42 @@ function Appointments() {
     fetchServices();
   }, [currentDate, calendarView]);
 
-  // Function to fetch services
-  const fetchServices = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/service-table`);
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data);
-      } else {
-        console.error('Failed to fetch services');
-        setServices([]);
-      }
-    } catch (error) {
-      console.error('Error fetching services:', error);
+  // Function to fetch services - UPDATED to include packages
+const fetchServices = async () => {
+  try {
+    console.log('Fetching services and packages...');
+    
+    // Try the new endpoint first
+    let response = await fetch(`${API_BASE}/services-and-packages`);
+    if (response.ok) {
+      const data = await response.json();
+      // Combine regular services and packages into one array
+      const allItems = [...(data.services || []), ...(data.packages || [])];
+      setServices(allItems);
+      console.log('Fetched via services-and-packages:', {
+        services: data.services?.length || 0,
+        packages: data.packages?.length || 0,
+        total: allItems.length
+      });
+      return;
+    }
+    
+    // Fallback to old endpoint
+    console.log('Fallback to service-table endpoint...');
+    response = await fetch(`${API_BASE}/service-table`);
+    if (response.ok) {
+      const data = await response.json();
+      setServices(data);
+      console.log('Fetched via service-table:', data.length);
+    } else {
+      console.error('Failed to fetch services');
       setServices([]);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    setServices([]);
+  }
+};
 
   // Update the useEffect around line 210
 useEffect(() => {
@@ -695,8 +893,11 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     }));
   };
 
-  // Handle appointment click
+  // Handle appointment click - UPDATED VERSION
   const handleAppointmentClick = async (appointment) => {
+    console.log('=== APPOINTMENT CLICK DEBUG ===');
+    console.log('Clicked appointment:', appointment);
+    
     // When opening the modal, if the appointment is currently ongoing, reflect that in the selectedAppointment's status
     const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
     let appointmentCopy = { ...appointment };
@@ -713,23 +914,37 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         }
       }
     }
-    setSelectedAppointment(appointmentCopy);
-    setModalOpen(true);
     
     // Ensure services are loaded before opening the modal
     if (services.length === 0) {
       console.log('Services not loaded, fetching from service-table...');
       await fetchServices();
     }
+    
+    console.log('Services available:', services.length);
+    
+    // PRELOAD service details BEFORE opening the modal
+    setLoadingServiceDetails(true);
+    try {
+      // Pass the required parameters to the helper function
+      const serviceDetails = await getAppointmentServiceDetails(
+        appointmentCopy, 
+        services, 
+        fetchAppointmentDetails
+      );
+      console.log('Service details result:', serviceDetails);
+      setAppointmentServiceDetails(serviceDetails);
+    } catch (error) {
+      console.error('Error fetching appointment service details:', error);
+      setAppointmentServiceDetails([]);
+    } finally {
+      setLoadingServiceDetails(false);
+    }
+    
+    // NOW open the modal after everything is loaded
+    setSelectedAppointment(appointmentCopy);
+    setModalOpen(true);
   };
-
-  useEffect(() => {
-  if (modalOpen && services.length === 0) {
-    console.log('Modal opened but no services loaded, fetching...');
-    fetchServices();
-  }
-}, [modalOpen]);
-
 
   // Close modal
   const handleCloseModal = () => {
@@ -739,6 +954,8 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     setEditedAppointment(null);
     setEditedServices([]);
     setServiceInputValue('');
+    setAppointmentServiceDetails([]); // Clear service details
+    setLoadingServiceDetails(false); // Reset loading state
   };
 
   const statusColors = {
@@ -1218,7 +1435,8 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           sx: {
             borderRadius: '12px',
             boxShadow: '0px 24px 48px rgba(0, 0, 0, 0.1)',
-            maxWidth: '700px'
+            maxWidth: '700px',
+            minHeight: '500px'
           }
         }}
       >
@@ -1236,7 +1454,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
             <IconButton
               color="primary"
               onClick={editMode ? handleSaveClick : handleEditClick}
-              disabled={updating}
+              disabled={updating || loadingServiceDetails}
               sx={{
                 borderRadius: 8,
                 backgroundColor: '#2148C0',
@@ -1258,7 +1476,8 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         </DialogTitle>
         
         {selectedAppointment && (
-          <DialogContent sx={{ pt: 2, pb: 3 }}>
+          <DialogContent sx={{ pt: 2, pb: 3,  minHeight: '400px' }}>
+            
             {/* Patient Info */}
             <Box sx={{ 
               display: 'flex', 
@@ -1396,8 +1615,10 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
 
               {/* Service and Status Row */}
               <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
-                {/* Service */}
-                <Box>
+
+
+           {/* Service */}
+<Box>
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
     <MedicalServices sx={{ color: '#5f6368', fontSize: 18 }} />
     <Typography variant="body2" sx={{ 
@@ -1410,21 +1631,23 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     </Typography>
   </Box>
   {editMode ? (
+    // ... keep your existing edit mode code ...
     <Box>
       <Autocomplete
-        value={null} // Always null since we handle selection manually
+        value={null}
         onChange={(event, newValue) => {
+
           if (newValue) {
-            // Check if service is already selected
+            
             const existingServiceIndex = editedServices.findIndex(item => item.service.id === newValue.id);
-            if (existingServiceIndex !== -1) {
-              // Increase quantity if already selected
+            if (existingServiceIndex !== -1)
+               {
               updateServiceQuantity(newValue.id, editedServices[existingServiceIndex].quantity + 1);
-            } else {
-              // Add new service with quantity 1
+            } else 
+            {
               setEditedServices(prev => [...prev, { service: newValue, quantity: 1 }]);
             }
-            // Clear the input
+
             setServiceInputValue('');
           }
         }}
@@ -1473,6 +1696,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
               </Typography>
               <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
                 ₱{option.price} • {option.duration} minutes
+                {option.type === 'Package Treatment' && ' • Package'}
               </Typography>
               {editedServices.find(item => item.service.id === option.id) && (
                 <Typography variant="body2" sx={{ color: '#1a73e8', fontSize: '12px', fontWeight: '600' }}>
@@ -1698,17 +1922,178 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
       )}
     </Box>
   ) : (
-    <Typography variant="body1" sx={{ 
-      fontFamily: 'Inter, sans-serif', 
-      fontWeight: '500',
-      fontSize: '15px',
-      color: '#202124',
-      p: 1.5,
-      backgroundColor: '#f8f9fa',
-      borderRadius: '8px'
-    }}>
-      {selectedAppointment.procedure}
-    </Typography>
+    <Box>
+      {loadingServiceDetails ? (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          py: 2,
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px'
+        }}>
+          <CircularProgress size={24} sx={{ color: '#2148C0' }} />
+        </Box>
+      ) : appointmentServiceDetails.length > 0 ? (
+        <Box sx={{ 
+          backgroundColor: '#f8f9fa', 
+          borderRadius: '12px',
+          overflow: 'hidden'
+        }}>
+          {appointmentServiceDetails.map((serviceDetail, index) => {
+            if (serviceDetail.type === 'package-header') {
+              return (
+                <Box key={`${serviceDetail.type}-${serviceDetail.id}`} sx={{
+                  backgroundColor: '#2148C0',
+                  color: 'white',
+                  p: 2,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <Box>
+                    <Typography sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '600',
+                      fontSize: '16px'
+                    }}>
+                      📦 {serviceDetail.name}
+                    </Typography>
+                    <Typography sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '13px',
+                      opacity: 0.9
+                    }}>
+                      Package Treatment
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: '16px'
+                  }}>
+                    <Typography sx={{ 
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      fontFamily: 'Inter, sans-serif'
+                    }}>
+                      x{serviceDetail.quantity}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            } else if (serviceDetail.type === 'package-service') {
+              return (
+                <Box key={`${serviceDetail.type}-${serviceDetail.id}-${index}`} sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  p: 2,
+                  backgroundColor: '#fff',
+                  borderBottom: '1px solid #f1f5f9',
+                  ml: 3 // Indent package services
+                }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '500',
+                      fontSize: '14px',
+                      color: '#202124'
+                    }}>
+                      ↳ {serviceDetail.name}
+                    </Typography>
+                    <Typography sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '12px',
+                      color: '#5f6368'
+                    }}>
+                      ₱{serviceDetail.price} • {serviceDetail.duration} mins
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    backgroundColor: '#e3f2fd',
+                    color: '#1565c0',
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: '12px',
+                    minWidth: '32px',
+                    textAlign: 'center'
+                  }}>
+                    <Typography sx={{ 
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      fontFamily: 'Inter, sans-serif'
+                    }}>
+                      x{serviceDetail.quantity}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            } else {
+              // Regular service
+              return (
+                <Box key={`${serviceDetail.type}-${serviceDetail.id}`} sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  p: 2,
+                  backgroundColor: '#fff',
+                  borderBottom: index < appointmentServiceDetails.length - 1 ? '1px solid #f1f5f9' : 'none'
+                }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontWeight: '500',
+                      fontSize: '15px',
+                      color: '#202124'
+                    }}>
+                      {serviceDetail.name}
+                    </Typography>
+                    <Typography sx={{ 
+                      fontFamily: 'Inter, sans-serif', 
+                      fontSize: '13px',
+                      color: '#5f6368'
+                    }}>
+                      ₱{serviceDetail.price} • {serviceDetail.duration} mins
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    backgroundColor: '#f8f9fa',
+                    color: '#5f6368',
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: '12px',
+                    minWidth: '32px',
+                    textAlign: 'center',
+                    border: '1px solid #e0e0e0'
+                  }}>
+                    <Typography sx={{ 
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      fontFamily: 'Inter, sans-serif'
+                    }}>
+                      x{serviceDetail.quantity}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            }
+          })}
+        </Box>
+      ) : (
+        <Typography variant="body1" sx={{ 
+          fontFamily: 'Inter, sans-serif', 
+          fontWeight: '500',
+          fontSize: '15px',
+          color: '#202124',
+          p: 1.5,
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px'
+        }}>
+          {selectedAppointment.procedure}
+        </Typography>
+      )}
+    </Box>
   )}
 </Box>
 
