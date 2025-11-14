@@ -1404,9 +1404,9 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           </Box>
 
           {/* Render Calendar / History with transition */}
-          <Box sx={{ position: 'relative' }}>
+          <Box sx={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
             <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
-              <Box>
+              <Box sx={{ height: '100%', overflowY: 'auto' }}>
                 {/* History mode: use the shared DataTable layout used across the app */}
                 {(() => {
                   // History is currently disconnected from the calendar.
@@ -1658,7 +1658,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
             </Fade>
 
             <Fade in={statusTab !== 'history'} timeout={300} unmountOnExit>
-              <Box>
+              <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {calendarView === 'Month' ? (
                   <MonthGrid 
                     appointments={appointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled')}
@@ -1669,8 +1669,8 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                 ) : (
                   <>
                     {/* Day Headers */}
-                    <Box sx={{ display: 'flex', position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                      <Box sx={{ width: '80px', height: '80px', flexShrink: 0, backgroundColor: 'white' }} />
+                    <Box sx={{ display: 'flex', flexShrink: 0, zIndex: 10, backgroundColor: 'white' }}>
+                      <Box sx={{ width: '80px', height: '80px', flexShrink: 0 }} />
                       {weekDates.map((date, dayIndex) => (
                         <Box key={dayIndex} sx={{ 
                           flex: 1, 
@@ -1680,8 +1680,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           minWidth: 0,
-                          flexShrink: 0,
-                          backgroundColor: 'white'
                         }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {date.toDateString() === new Date().toDateString() ? (
@@ -1699,39 +1697,60 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                       ))}
                     </Box>
 
-              {/* Calendar Grid */}
-              <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                <Box ref={calendarScrollRef} sx={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
-                  {/* Time Column */}
-                  <Box sx={{ width: '80px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-                    <Box sx={{ height: '20px', flexShrink: 0 }} />
-                    {timeSlots.map((timeSlot, idx) => (
-                      <Box key={timeSlot} sx={{ height: '80px', position: 'relative', flexShrink: 0 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: '#70757a',
-                            fontWeight: '400',
-                            fontFamily: 'Inter, sans-serif',
-                            fontSize: '10px',
-                            position: 'absolute',
-                            left: 8,
-                            top: 0,
-                            transform: 'translateY(-50%)',
-                            backgroundColor: 'white',
-                            px: '6px',
-                            height: '16px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            borderRadius: '2px',
-                            zIndex: 3
-                          }}
-                        >
-                          {timeSlot}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
+                    {/* Calendar Grid */}
+                    <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+                      <Box ref={calendarScrollRef} sx={{ 
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        overflowY: 'auto', 
+                        display: 'flex',
+                        '&::-webkit-scrollbar': {
+                          width: '8px',
+                        },
+                        '&::-webkit-scrollbar-track': {
+                          background: '#f1f1f1',
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                          background: '#c1c1c1',
+                          borderRadius: '4px',
+                          '&:hover': {
+                            background: '#a8a8a8',
+                          },
+                        },
+                      }}>
+                        {/* Time Column */}
+                        <Box sx={{ width: '80px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                          <Box sx={{ height: '20px', flexShrink: 0 }} />
+                          {timeSlots.map((timeSlot, idx) => (
+                            <Box key={timeSlot} sx={{ height: '80px', position: 'relative', flexShrink: 0 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: '#70757a',
+                                  fontWeight: '400',
+                                  fontFamily: 'Inter, sans-serif',
+                                  fontSize: '10px',
+                                  position: 'absolute',
+                                  left: 8,
+                                  top: 0,
+                                  transform: 'translateY(-50%)',
+                                  backgroundColor: 'white',
+                                  px: '6px',
+                                  height: '16px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  borderRadius: '2px',
+                                  zIndex: 3
+                                }}
+                              >
+                                {timeSlot}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
 
                         {/* Day Columns */}
                         <Box sx={{ flex: 1, display: 'flex', minHeight: '1280px' }}>
@@ -1759,238 +1778,238 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                                   const PIXELS_PER_MINUTE = SLOT_HEIGHT / 60; // px per minute
                                   const TOP_OFFSET = 20; // px top spacer present in column
 
-                            // get all appointments for this day
-                            const appointmentsForDay = appointments.filter(apt => {
-                              const aptDateStr = apt.appointmentDate.split('T')[0];
-                              const currentDisplayDate = weekDates[dayIndex];
-                              const year = currentDisplayDate.getFullYear();
-                              const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
-                              const day = String(currentDisplayDate.getDate()).padStart(2, '0');
-                              const targetDateStr = `${year}-${month}-${day}`;
-                              return aptDateStr === targetDateStr;
-                            });
+                                  // get all appointments for this day
+                                  const appointmentsForDay = appointments.filter(apt => {
+                                    const aptDateStr = apt.appointmentDate.split('T')[0];
+                                    const currentDisplayDate = weekDates[dayIndex];
+                                    const year = currentDisplayDate.getFullYear();
+                                    const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
+                                    const day = String(currentDisplayDate.getDate()).padStart(2, '0');
+                                    const targetDateStr = `${year}-${month}-${day}`;
+                                    return aptDateStr === targetDateStr;
+                                  });
 
-                            // Calculate overlap groups - appointments that share time slots
-                            // More robust algorithm: find all appointments that transitively overlap
-                            const appointmentGroups = [];
-                            const processedIds = new Set();
+                                  // Calculate overlap groups - appointments that share time slots
+                                  // More robust algorithm: find all appointments that transitively overlap
+                                  const appointmentGroups = [];
+                                  const processedIds = new Set();
 
-                            // Helper function to check if two time ranges overlap
-                            const timesOverlap = (start1, end1, start2, end2) => {
-                              return start1 < end2 && end1 > start2;
-                            };
+                                  // Helper function to check if two time ranges overlap
+                                  const timesOverlap = (start1, end1, start2, end2) => {
+                                    return start1 < end2 && end1 > start2;
+                                  };
 
-                            // Helper function to get time range in minutes
-                            const getTimeRange = (apt) => {
-                              const [startHour, startMin] = apt.timeStart ? apt.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
-                              const [endHour, endMin] = apt.timeEnd ? apt.timeEnd.split(':').map(Number) : [startHour + 1, startMin];
-                              return {
-                                start: startHour * 60 + (startMin || 0),
-                                end: endHour * 60 + (endMin || 0)
-                              };
-                            };
+                                  // Helper function to get time range in minutes
+                                  const getTimeRange = (apt) => {
+                                    const [startHour, startMin] = apt.timeStart ? apt.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
+                                    const [endHour, endMin] = apt.timeEnd ? apt.timeEnd.split(':').map(Number) : [startHour + 1, startMin];
+                                    return {
+                                      start: startHour * 60 + (startMin || 0),
+                                      end: endHour * 60 + (endMin || 0)
+                                    };
+                                  };
 
-                            appointmentsForDay.forEach(apt => {
-                              if (processedIds.has(apt.id)) return;
+                                  appointmentsForDay.forEach(apt => {
+                                    if (processedIds.has(apt.id)) return;
 
-                              const { start: aptStart, end: aptEnd } = getTimeRange(apt);
-                              
-                              // Find all appointments that overlap with this one (transitive closure)
-                              const overlapping = [apt];
-                              processedIds.add(apt.id);
-                              
-                              // Keep checking for new overlaps until no more found
-                              let foundNew = true;
-                              while (foundNew) {
-                                foundNew = false;
-                                
-                                appointmentsForDay.forEach(other => {
-                                  if (processedIds.has(other.id)) return;
-                                  
-                                  const { start: otherStart, end: otherEnd } = getTimeRange(other);
-                                  
-                                  // Check if 'other' overlaps with ANY appointment in the current group
-                                  for (const existing of overlapping) {
-                                    const { start: existingStart, end: existingEnd } = getTimeRange(existing);
+                                    const { start: aptStart, end: aptEnd } = getTimeRange(apt);
                                     
-                                    if (timesOverlap(existingStart, existingEnd, otherStart, otherEnd)) {
-                                      overlapping.push(other);
-                                      processedIds.add(other.id);
-                                      foundNew = true;
-                                      break;
+                                    // Find all appointments that overlap with this one (transitive closure)
+                                    const overlapping = [apt];
+                                    processedIds.add(apt.id);
+                                    
+                                    // Keep checking for new overlaps until no more found
+                                    let foundNew = true;
+                                    while (foundNew) {
+                                      foundNew = false;
+                                      
+                                      appointmentsForDay.forEach(other => {
+                                        if (processedIds.has(other.id)) return;
+                                        
+                                        const { start: otherStart, end: otherEnd } = getTimeRange(other);
+                                        
+                                        // Check if 'other' overlaps with ANY appointment in the current group
+                                        for (const existing of overlapping) {
+                                          const { start: existingStart, end: existingEnd } = getTimeRange(existing);
+                                          
+                                          if (timesOverlap(existingStart, existingEnd, otherStart, otherEnd)) {
+                                            overlapping.push(other);
+                                            processedIds.add(other.id);
+                                            foundNew = true;
+                                            break;
+                                          }
+                                        }
+                                      });
                                     }
-                                  }
-                                });
-                              }
 
-                              appointmentGroups.push(overlapping);
-                            });
+                                    appointmentGroups.push(overlapping);
+                                  });
 
-                            const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                            const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
-                            
-                            return appointmentGroups.flatMap((group, groupIndex) => {
-                              const groupSize = group.length;
-                              
-                              return group.map((appointment, indexInGroup) => {
-                                // compute start minutes from DAY_START_HOUR
-                                const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
-                                const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
-
-                                // compute duration in minutes
-                                let durationMinutes = 0;
-                                if (appointment.timeEnd) {
-                                  const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
-                                  const startTotal = startHour * 60 + (startMin || 0);
-                                  const endTotal = endHour * 60 + (endMin || 0);
-                                  durationMinutes = Math.max(1, endTotal - startTotal);
-                                } else if (appointment.duration) {
-                                  durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
-                                } else {
-                                  durationMinutes = 60; // fallback to 1 hour
-                                }
-
-                                const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
-                                const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE);
-
-                                // Determine if appointment is ongoing
-                                let isOngoing = false;
-                                if (isTodayColumn && appointment.status !== 'done' && appointment.status !== 'cancelled') {
-                                  if (appointment.timeStart && appointment.timeEnd) {
-                                    const [sH, sM] = appointment.timeStart.split(':').map(Number);
-                                    const [eH, eM] = appointment.timeEnd.split(':').map(Number);
-                                    const startTotal = sH * 60 + (sM || 0);
-                                    const endTotal = eH * 60 + (eM || 0);
-                                    isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
-                                  } else if (appointment.duration) {
-                                    const startTotal = (startHour * 60) + (startMin || 0);
-                                    const endTotal = startTotal + durationMinutes;
-                                    isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
-                                  }
-                                }
-
-                                // Use 'ongoing' color when intersecting current time, otherwise use appointment status color
-                                const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
-
-                                // NEW ROBUST POSITIONING SYSTEM
-                                // Rules:
-                                // 1. Maximum width is within the day's border only
-                                // 2. Cards start from the left side (with small left margin)
-                                // 3. Always keep a small gap on the right side
-                                // 4. If overlapping, dynamically adjust widths to fit all cards side-by-side
-                                
-                                const LEFT_MARGIN = 6;        // Small gap from left border
-                                const RIGHT_MARGIN = 8;       // Small gap from right border (always maintained)
-                                const CARD_GAP = 3;          // Gap between overlapping cards
-                                
-                                let leftPx, widthPx;
-                                
-                                if (groupSize === 1) {
-                                  // Single appointment - starts at left, leaves right margin
-                                  leftPx = LEFT_MARGIN;
-                                  widthPx = `calc(100% - ${LEFT_MARGIN + RIGHT_MARGIN}px)`;
-                                } else {
-                                  // Multiple overlapping appointments
-                                  // Calculate available space: 100% - left margin - right margin - gaps between cards
-                                  const totalGapsWidth = (groupSize - 1) * CARD_GAP;
-                                  const availableSpace = `100% - ${LEFT_MARGIN + RIGHT_MARGIN + totalGapsWidth}px`;
+                                  const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                                  const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
                                   
-                                  // Each card gets equal share of available space
-                                  const cardWidthPercent = `((${availableSpace}) / ${groupSize})`;
-                                  
-                                  // Calculate left position: left margin + (card width + gap) * index
-                                  // First card starts at LEFT_MARGIN, each subsequent card is offset by (width + gap)
-                                  if (indexInGroup === 0) {
-                                    leftPx = LEFT_MARGIN;
-                                  } else {
-                                    leftPx = `calc(${LEFT_MARGIN}px + (${cardWidthPercent} + ${CARD_GAP}px) * ${indexInGroup})`;
-                                  }
-                                  
-                                  widthPx = `calc(${cardWidthPercent})`;
-                                }
+                                  return appointmentGroups.flatMap((group, groupIndex) => {
+                                    const groupSize = group.length;
+                                    
+                                    return group.map((appointment, indexInGroup) => {
+                                      // compute start minutes from DAY_START_HOUR
+                                      const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
+                                      const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
 
-                                return (
-                                  <Paper
-                                    key={appointment.id}
-                                    elevation={0}
-                                    onClick={() => handleAppointmentClick(appointment)}
-                                    sx={{
-                                      p: '8px 12px',
-                                      backgroundColor: bgColor,
-                                      color: 'white',
-                                      borderRadius: '8px',
-                                      cursor: 'pointer',
-                                      height: `${Math.max(24, Math.round(heightPx))}px`,
-                                      overflow: 'hidden',
-                                      position: 'absolute',
-                                      left: typeof leftPx === 'number' ? `${leftPx}px` : leftPx,
-                                      width: widthPx,
-                                      maxWidth: `calc(100% - ${RIGHT_MARGIN}px)`, // Ensure never exceeds right boundary
-                                      top: `${Math.round(topPx)}px`,
-                                      boxSizing: 'border-box',
-                                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                                      zIndex: 20,
-                                      transition: 'transform 0.2s, box-shadow 0.2s',
-                                      '&:hover': {
-                                        transform: 'translateY(-2px)',
-                                        boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
+                                      // compute duration in minutes
+                                      let durationMinutes = 0;
+                                      if (appointment.timeEnd) {
+                                        const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
+                                        const startTotal = startHour * 60 + (startMin || 0);
+                                        const endTotal = endHour * 60 + (endMin || 0);
+                                        durationMinutes = Math.max(1, endTotal - startTotal);
+                                      } else if (appointment.duration) {
+                                        durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
+                                      } else {
+                                        durationMinutes = 60; // fallback to 1 hour
                                       }
-                                    }}
-                                  >
-                                    <Typography sx={{ fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '18px' }}>
-                                      {appointment.patientName}
-                                    </Typography>
-                                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', lineHeight: '16px', opacity: 0.9 }}>
-                                      {appointment.procedure}
-                                    </Typography>
-                                  </Paper>
-                                );
-                              });
-                            });
-                          })()}
-                          
-                          {/* FIXED: Current Time Indicator */}
-                          {date.toDateString() === new Date().toDateString() && timeIndicatorPosition !== null && (
-                            <Box sx={{
-                              position: 'absolute',
-                              top: `${timeIndicatorPosition + 20}px`,
-                              left: 0,
-                              right: 0,
-                              height: '2px',
-                              bgcolor: '#ea4335',
-                              zIndex: 1001,
-                              display: 'flex',
-                              alignItems: 'center',
-                              pointerEvents: 'none'
-                            }}>
-                              <Box sx={{
-                                position: 'absolute',
-                                left: '-6px',
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                bgcolor: '#ea4335'
-                              }}/>
-                              <Box sx={{
-                                width: '100%',
-                                height: '2px',
-                                bgcolor: '#ea4335'
-                              }}/>
+
+                                      const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
+                                      const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE);
+
+                                      // Determine if appointment is ongoing
+                                      let isOngoing = false;
+                                      if (isTodayColumn && appointment.status !== 'done' && appointment.status !== 'cancelled') {
+                                        if (appointment.timeStart && appointment.timeEnd) {
+                                          const [sH, sM] = appointment.timeStart.split(':').map(Number);
+                                          const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+                                          const startTotal = sH * 60 + (sM || 0);
+                                          const endTotal = eH * 60 + (eM || 0);
+                                          isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                        } else if (appointment.duration) {
+                                          const startTotal = (startHour * 60) + (startMin || 0);
+                                          const endTotal = startTotal + durationMinutes;
+                                          isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                        }
+                                      }
+
+                                      // Use 'ongoing' color when intersecting current time, otherwise use appointment status color
+                                      const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
+
+                                      // NEW ROBUST POSITIONING SYSTEM
+                                      // Rules:
+                                      // 1. Maximum width is within the day's border only
+                                      // 2. Cards start from the left side (with small left margin)
+                                      // 3. Always keep a small gap on the right side
+                                      // 4. If overlapping, dynamically adjust widths to fit all cards side-by-side
+                                      
+                                      const LEFT_MARGIN = 6;        // Small gap from left border
+                                      const RIGHT_MARGIN = 8;       // Small gap from right border (always maintained)
+                                      const CARD_GAP = 3;          // Gap between overlapping cards
+                                      
+                                      let leftPx, widthPx;
+                                      
+                                      if (groupSize === 1) {
+                                        // Single appointment - starts at left, leaves right margin
+                                        leftPx = LEFT_MARGIN;
+                                        widthPx = `calc(100% - ${LEFT_MARGIN + RIGHT_MARGIN}px)`;
+                                      } else {
+                                        // Multiple overlapping appointments
+                                        // Calculate available space: 100% - left margin - right margin - gaps between cards
+                                        const totalGapsWidth = (groupSize - 1) * CARD_GAP;
+                                        const availableSpace = `100% - ${LEFT_MARGIN + RIGHT_MARGIN + totalGapsWidth}px`;
+                                        
+                                        // Each card gets equal share of available space
+                                        const cardWidthPercent = `((${availableSpace}) / ${groupSize})`;
+                                        
+                                        // Calculate left position: left margin + (card width + gap) * index
+                                        // First card starts at LEFT_MARGIN, each subsequent card is offset by (width + gap)
+                                        if (indexInGroup === 0) {
+                                          leftPx = LEFT_MARGIN;
+                                        } else {
+                                          leftPx = `calc(${LEFT_MARGIN}px + (${cardWidthPercent} + ${CARD_GAP}px) * ${indexInGroup})`;
+                                        }
+                                        
+                                        widthPx = `calc(${cardWidthPercent})`;
+                                      }
+
+                                      return (
+                                        <Paper
+                                          key={appointment.id}
+                                          elevation={0}
+                                          onClick={() => handleAppointmentClick(appointment)}
+                                          sx={{
+                                            p: '8px 12px',
+                                            backgroundColor: bgColor,
+                                            color: 'white',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            height: `${Math.max(24, Math.round(heightPx))}px`,
+                                            overflow: 'hidden',
+                                            position: 'absolute',
+                                            left: typeof leftPx === 'number' ? `${leftPx}px` : leftPx,
+                                            width: widthPx,
+                                            maxWidth: `calc(100% - ${RIGHT_MARGIN}px)`, // Ensure never exceeds right boundary
+                                            top: `${Math.round(topPx)}px`,
+                                            boxSizing: 'border-box',
+                                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                                            zIndex: 20,
+                                            transition: 'transform 0.2s, box-shadow 0.2s',
+                                            '&:hover': {
+                                              transform: 'translateY(-2px)',
+                                              boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
+                                            }
+                                          }}
+                                        >
+                                          <Typography sx={{ fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '18px' }}>
+                                            {appointment.patientName}
+                                          </Typography>
+                                          <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', lineHeight: '16px', opacity: 0.9 }}>
+                                            {appointment.procedure}
+                                          </Typography>
+                                        </Paper>
+                                      );
+                                    });
+                                  });
+                                })()}
+                                
+                                {/* FIXED: Current Time Indicator */}
+                                {date.toDateString() === new Date().toDateString() && timeIndicatorPosition !== null && (
+                                  <Box sx={{
+                                    position: 'absolute',
+                                    top: `${timeIndicatorPosition + 20}px`,
+                                    left: 0,
+                                    right: 0,
+                                    height: '2px',
+                                    bgcolor: '#ea4335',
+                                    zIndex: 1001,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    pointerEvents: 'none'
+                                  }}>
+                                    <Box sx={{
+                                      position: 'absolute',
+                                      left: '-6px',
+                                      width: '12px',
+                                      height: '12px',
+                                      borderRadius: '50%',
+                                      bgcolor: '#ea4335'
+                                    }}/>
+                                    <Box sx={{
+                                      width: '100%',
+                                      height: '2px',
+                                      bgcolor: '#ea4335'
+                                    }}/>
+                                  </Box>
+                                )}
+                              </Box>
                             </Box>
-                          )}
+                          ))}
                         </Box>
                       </Box>
-                    ))}
-                  </Box>
-                </Box>
+                    </Box>
+                  </>
+                )}
               </Box>
-            </>
-          )}
-        </Box>
-      </Fade>
-    </Box>
-  </Paper>
-</Box>
+            </Fade>
+          </Box>
+        </Paper>
+      </Box>
       
       {/* Appointment Details Modal */}
       {statusTab !== 'history' && (
