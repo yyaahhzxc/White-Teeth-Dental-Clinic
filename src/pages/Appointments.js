@@ -170,180 +170,6 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
   );
 }
 
-const fetchPackageDetails = async (serviceId) => {
-  try {
-    console.log('Checking if service is a package:', serviceId);
-    const response = await fetch(`${API_BASE}/packages/${serviceId}`);
-    if (response.ok) {
-      const packageData = await response.json();
-      console.log('Package details fetched:', packageData);
-      return packageData.packageServices || [];
-    }
-  } catch (error) {
-    console.error('Error fetching package details:', error);
-  }
-  return null;
-};
-
-
-const getAppointmentServiceDetails = async (appointment, services, fetchAppointmentDetailsFn) => {
-  console.log('=== GETTING APPOINTMENT SERVICE DETAILS ===');
-  console.log('Appointment:', appointment);
-  console.log('Available services:', services.length);
-  
-  let allServiceDetails = [];
-
-   // First, fetch the full appointment details to get all services
-  const appointmentDetails = await fetchAppointmentDetailsFn(appointment.id);
-  console.log('Full appointment details:', appointmentDetails);
-  
-  if (appointmentDetails && appointmentDetails.serviceIds) {
-    let serviceIds = [];
-    let quantities = [];
-    
-    // Parse service IDs and quantities
-    if (appointmentDetails.serviceIds.includes(':')) {
-      // New format: "id1:qty1,id2:qty2"
-      const serviceEntries = appointmentDetails.serviceIds.split(',');
-      serviceIds = serviceEntries.map(entry => {
-        const [id, qty] = entry.split(':');
-        quantities.push(parseInt(qty) || 1);
-        return parseInt(id.trim());
-      });
-    } else if (appointmentDetails.serviceIds.includes(',')) {
-      // Old format: just IDs
-      serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
-      quantities = new Array(serviceIds.length).fill(1);
-    } else {
-      // Single service
-      serviceIds = [parseInt(appointmentDetails.serviceIds)];
-      quantities = [1];
-    }
-    
-    console.log('Parsed service IDs:', serviceIds);
-    console.log('Parsed quantities:', quantities);
-    
-    // For each service, check if it's a package and expand it
-    for (let i = 0; i < serviceIds.length; i++) {
-      const serviceId = serviceIds[i];
-      const quantity = quantities[i];
-      
-      // Find the service in our services list
-      const service = services.find(s => s.id === serviceId);
-      console.log('Found service:', service);
-      
-      if (service && service.type === 'Package Treatment') {
-        console.log('Service is a package, fetching package details...');
-        // It's a package, get the package contents
-        const packageServices = await fetchPackageDetails(serviceId);
-        
-        if (packageServices && packageServices.length > 0) {
-          // Add package header
-          allServiceDetails.push({
-            type: 'package-header',
-            id: serviceId,
-            name: service.name,
-            quantity: quantity,
-            isPackage: true
-          });
-          
-          // Add each service in the package
-          packageServices.forEach(pkgService => {
-            allServiceDetails.push({
-              type: 'package-service',
-              id: pkgService.serviceId,
-              name: pkgService.name,
-              price: pkgService.price,
-              duration: pkgService.duration,
-              quantity: pkgService.quantity * quantity, // Multiply by package quantity
-              parentPackage: service.name,
-              isPackageService: true
-            });
-          });
-        } else {
-          // Package has no services, show as regular service
-          allServiceDetails.push({
-            type: 'service',
-            id: serviceId,
-            name: service.name,
-            price: service.price || 0,
-            duration: service.duration || 0,
-            quantity: quantity,
-            isPackage: false
-          });
-        }
-      } else {
-        // Regular service
-        allServiceDetails.push({
-          type: 'service',
-          id: serviceId,
-          name: service ? service.name : 'Unknown Service',
-          price: service ? service.price || 0 : 0,
-          duration: service ? service.duration || 0 : 0,
-          quantity: quantity,
-          isPackage: false
-        });
-      }
-    }
-  } else {
-    // Fallback to single service
-    const service = services.find(s => s.id === appointment.serviceId);
-    if (service) {
-      if (service.type === 'Package Treatment') {
-        console.log('Single service is a package, fetching package details...');
-        const packageServices = await fetchPackageDetails(service.id);
-        
-        if (packageServices && packageServices.length > 0) {
-          // Add package header
-          allServiceDetails.push({
-            type: 'package-header',
-            id: service.id,
-            name: service.name,
-            quantity: 1,
-            isPackage: true
-          });
-          
-          // Add each service in the package
-          packageServices.forEach(pkgService => {
-            allServiceDetails.push({
-              type: 'package-service',
-              id: pkgService.serviceId,
-              name: pkgService.name,
-              price: pkgService.price,
-              duration: pkgService.duration,
-              quantity: pkgService.quantity,
-              parentPackage: service.name,
-              isPackageService: true
-            });
-          });
-        } else {
-          allServiceDetails.push({
-            type: 'service',
-            id: service.id,
-            name: service.name,
-            price: service.price || 0,
-            duration: service.duration || 0,
-            quantity: 1,
-            isPackage: false
-          });
-        }
-      } else {
-        allServiceDetails.push({
-          type: 'service',
-          id: service.id,
-          name: service.name,
-          price: service.price || 0,
-          duration: service.duration || 0,
-          quantity: 1,
-          isPackage: false
-        });
-      }
-    }
-  }
-  
-  console.log('Final service details:', allServiceDetails);
-  return allServiceDetails;
-};
 
 
 const fetchPackageDetails = async (serviceId) => {
@@ -533,6 +359,16 @@ function Appointments() {
   const [loading, setLoading] = useState(false);
   const [appointmentServiceDetails, setAppointmentServiceDetails] = useState([]);
 const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
+
+
+// Add these missing state variables:
+const [showFilterBox, setShowFilterBox] = useState(false);
+const [activeFilters, setActiveFilters] = useState([{ category: '', type: '' }]);
+const [categoryFilteredAppointments, setCategoryFilteredAppointments] = useState([]);
+const [search, setSearch] = useState('');
+const [page, setPage] = useState(0);
+const [rowsPerPage, setRowsPerPage] = useState(10);
+
   // Filter states for History table
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [activeFilters, setActiveFilters] = useState([{ category: '', type: '' }]);
