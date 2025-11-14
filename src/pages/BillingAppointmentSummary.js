@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -6,9 +6,6 @@ import {
   IconButton,
   TextField,
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -31,12 +28,6 @@ function BillingAppointmentSummary({
 
   // State for CreateInvoice modal
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
-  
-  // State for confirmation dialog
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  
-  // State to track if billing is locked (non-editable)
-  const [isLocked, setIsLocked] = useState(false);
 
   // Initialize services from appointment data
   const initialServices = billingData.service 
@@ -75,19 +66,6 @@ function BillingAppointmentSummary({
       validDiscounts,
     };
   }, [services, additionalCharges, discounts]);
-
-  // Listen for invoice creation to lock the form
-  useEffect(() => {
-    const handleInvoiceCreated = () => {
-      console.log('Invoice created - locking billing form');
-      setIsLocked(true);
-    };
-
-    window.addEventListener('invoiceCreated', handleInvoiceCreated);
-    return () => {
-      window.removeEventListener('invoiceCreated', handleInvoiceCreated);
-    };
-  }, []);
 
   // Add service handler
   const handleAddService = () => {
@@ -192,17 +170,6 @@ function BillingAppointmentSummary({
   };
 
   const handlePayBill = () => {
-    // Show confirmation dialog instead of proceeding directly
-    setConfirmDialogOpen(true);
-  };
-  
-  const handleConfirmPayBill = () => {
-    // Close confirmation dialog
-    setConfirmDialogOpen(false);
-    
-    // Don't lock the form yet - allow editing during invoice creation
-    // Lock will happen after invoice is created
-    
     // Prepare billing entry data
     const billingEntry = {
       id: Date.now(), // Generate a unique ID
@@ -248,9 +215,6 @@ function BillingAppointmentSummary({
       onClose={onClose}
       maxWidth={false}
       disablePortal
-      sx={{
-        zIndex: 1300, // Billing Appointment Summary Modal (lowest modal)
-      }}
       PaperProps={{
         sx: {
           backgroundColor: '#f9f9f9',
@@ -383,7 +347,6 @@ function BillingAppointmentSummary({
                     value={service.name}
                     onChange={(e) => handleUpdateService(service.id, 'name', e.target.value)}
                     size="small"
-                    disabled={isLocked}
                     sx={{ 
                       flex: 1,
                       minWidth: 200,
@@ -401,7 +364,6 @@ function BillingAppointmentSummary({
                       value={service.quantity}
                       onChange={(e) => handleUpdateService(service.id, 'quantity', e.target.value)}
                       size="small"
-                      disabled={isLocked}
                       sx={{ 
                         width: 60,
                         '& .MuiOutlinedInput-root': {
@@ -424,7 +386,6 @@ function BillingAppointmentSummary({
                         value={service.price}
                         onChange={(e) => handleUpdateService(service.id, 'price', e.target.value)}
                         size="small"
-                        disabled={isLocked}
                         sx={{ 
                           flex: 1,
                           '& .MuiOutlinedInput-root': {
@@ -438,7 +399,6 @@ function BillingAppointmentSummary({
                     <IconButton 
                       size="small" 
                       onClick={() => handleDeleteService(service.id)}
-                      disabled={isLocked}
                       sx={{ color: '#d32f2f', ml: 0.5 }}
                     >
                       <CloseIcon fontSize="small" />
@@ -449,7 +409,6 @@ function BillingAppointmentSummary({
               
               <Button 
                 onClick={handleAddService}
-                disabled={isLocked}
                 sx={{ 
                   color: '#274fc7',
                   fontWeight: 'bold',
@@ -507,7 +466,6 @@ function BillingAppointmentSummary({
                     value={charge.name}
                     onChange={(e) => handleUpdateCharge(charge.id, 'name', e.target.value)}
                     size="small"
-                    disabled={isLocked}
                     sx={{ 
                       flex: 1,
                       minWidth: 200,
@@ -525,7 +483,6 @@ function BillingAppointmentSummary({
                       value={charge.quantity}
                       onChange={(e) => handleUpdateCharge(charge.id, 'quantity', e.target.value)}
                       size="small"
-                      disabled={isLocked}
                       sx={{ 
                         width: 60,
                         '& .MuiOutlinedInput-root': {
@@ -548,7 +505,6 @@ function BillingAppointmentSummary({
                         value={charge.price}
                         onChange={(e) => handleUpdateCharge(charge.id, 'price', e.target.value)}
                         size="small"
-                        disabled={isLocked}
                         sx={{ 
                           flex: 1,
                           '& .MuiOutlinedInput-root': {
@@ -562,7 +518,6 @@ function BillingAppointmentSummary({
                     <IconButton 
                       size="small" 
                       onClick={() => handleDeleteCharge(charge.id)}
-                      disabled={isLocked}
                       sx={{ color: '#d32f2f', ml: 0.5 }}
                     >
                       <CloseIcon fontSize="small" />
@@ -573,7 +528,6 @@ function BillingAppointmentSummary({
               
               <Button 
                 onClick={handleAddCharge}
-                disabled={isLocked}
                 sx={{ 
                   color: '#274fc7',
                   fontWeight: 'bold',
@@ -631,7 +585,6 @@ function BillingAppointmentSummary({
                     value={discount.name}
                     onChange={(e) => handleUpdateDiscount(discount.id, 'name', e.target.value)}
                     size="small"
-                    disabled={isLocked}
                     sx={{ 
                       flex: 1,
                       minWidth: 200,
@@ -649,7 +602,6 @@ function BillingAppointmentSummary({
                       value={discount.quantity}
                       onChange={(e) => handleUpdateDiscount(discount.id, 'quantity', e.target.value)}
                       size="small"
-                      disabled={isLocked}
                       sx={{ 
                         width: 60,
                         '& .MuiOutlinedInput-root': {
@@ -671,7 +623,6 @@ function BillingAppointmentSummary({
                         type="text"
                         value={discount.price}
                         onChange={(e) => handleUpdateDiscount(discount.id, 'price', e.target.value)}
-                        disabled={isLocked}
                         size="small"
                         sx={{ 
                           flex: 1,
@@ -686,7 +637,6 @@ function BillingAppointmentSummary({
                     <IconButton 
                       size="small" 
                       onClick={() => handleDeleteDiscount(discount.id)}
-                      disabled={isLocked}
                       sx={{ color: '#d32f2f', ml: 0.5 }}
                     >
                       <CloseIcon fontSize="small" />
@@ -697,7 +647,6 @@ function BillingAppointmentSummary({
               
               <Button 
                 onClick={handleAddDiscount}
-                disabled={isLocked}
                 sx={{ 
                   color: '#274fc7',
                   fontWeight: 'bold',
@@ -760,10 +709,10 @@ function BillingAppointmentSummary({
                   {service.name}
                 </Typography>
                 <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
-                  {service.quantity || 1}
+                  1
                 </Typography>
                 <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
-                  {(parseFloat(service.price) * (service.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {parseFloat(service.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
               </Box>
             ))}
@@ -790,10 +739,10 @@ function BillingAppointmentSummary({
                       {charge.name}
                     </Typography>
                     <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
-                      {charge.quantity || 1}
+                      1
                     </Typography>
                     <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
-                      {(parseFloat(charge.price) * (charge.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {parseFloat(charge.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </Box>
                 ))}
@@ -820,10 +769,10 @@ function BillingAppointmentSummary({
                       {discount.name}
                     </Typography>
                     <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
-                      {discount.quantity || 1}
+                      1
                     </Typography>
                     <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
-                      -{(parseFloat(discount.price) * (discount.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      -{parseFloat(discount.price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </Box>
                 ))}
@@ -893,58 +842,6 @@ function BillingAppointmentSummary({
           discounts,
         }}
       />
-      
-      {/* Confirmation Dialog */}
-      <Dialog
-        open={confirmDialogOpen}
-        onClose={() => setConfirmDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: '10px',
-            p: 2,
-          }
-        }}
-      >
-        <DialogTitle sx={{ 
-          color: '#2148c0', 
-          fontWeight: 'bold', 
-          fontFamily: 'Inter, sans-serif',
-          pb: 1,
-        }}>
-          Confirm Bill Details
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontFamily: 'Inter, sans-serif', color: '#1a1c21' }}>
-            Are you sure you want to proceed? You won't be able to edit the billing details after confirmation.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button 
-            onClick={() => setConfirmDialogOpen(false)}
-            sx={{ 
-              color: '#666',
-              textTransform: 'none',
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            No
-          </Button>
-          <Button 
-            onClick={handleConfirmPayBill}
-            variant="contained"
-            sx={{ 
-              backgroundColor: '#2148c0',
-              textTransform: 'none',
-              fontFamily: 'Inter, sans-serif',
-              '&:hover': {
-                backgroundColor: '#1a3a9c',
-              }
-            }}
-          >
-            Yes
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Dialog>
   );
 }

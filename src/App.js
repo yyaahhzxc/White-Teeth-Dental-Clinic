@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Box, Paper, TextField, Button, Typography, InputAdornment, IconButton } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
@@ -20,7 +20,6 @@ import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import Accounts from './pages/Accounts';
 import { API_BASE } from './apiConfig';
-import GlobalToast from './components/GlobalToast';
 
 
 
@@ -219,7 +218,6 @@ function App() {
   {/* Service Page */}
   <Route path="/service-page" element={<ServiceList />} />
       </Routes>
-      <GlobalToast />
     </Box>
   );
 }

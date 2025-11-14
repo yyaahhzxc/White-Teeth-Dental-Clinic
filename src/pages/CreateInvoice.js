@@ -12,7 +12,6 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ViewInvoice from '../view-invoice';
-import toastService from '../services/toastService';
 
 function CreateInvoice({ 
   open = true, 
@@ -22,7 +21,6 @@ function CreateInvoice({
   // State for payment information
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState('');
-  const [referenceNumber, setReferenceNumber] = useState('');
   const [showViewInvoice, setShowViewInvoice] = useState(false);
 
   // Calculate the total from billing data
@@ -71,13 +69,6 @@ function CreateInvoice({
       remainingBalance: calculations.remainingBalance,
       billingData,
     });
-    
-    // Dispatch invoice created event to lock the billing form
-    window.dispatchEvent(new Event('invoiceCreated'));
-    
-    // Show global toast using the dedicated service
-    toastService.show('Invoice created successfully!');
-    
     // Open the ViewInvoice modal
     setShowViewInvoice(true);
   };
@@ -105,22 +96,17 @@ function CreateInvoice({
       amountPaid: parseFloat(amountPaid) || 0,
       balance: calculations.remainingBalance,
       paymentMethod: paymentMethod,
-      referenceNumber: referenceNumber,
     };
-  }, [calculations, amountPaid, paymentMethod, referenceNumber]);
+  }, [calculations, amountPaid, paymentMethod]);
 
   return (
-    <>
-      <Dialog 
-        open={open} 
-        onClose={onClose}
-        maxWidth={false}
-        disablePortal
-        sx={{
-          zIndex: 1400, // Create Invoice Modal (second highest)
-        }}
-        PaperProps={{
-          sx: {
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      maxWidth={false}
+      disablePortal
+      PaperProps={{
+        sx: {
           backgroundColor: '#f9f9f9',
           borderRadius: '10px',
           p: 0,
@@ -378,29 +364,6 @@ function CreateInvoice({
               </Box>
             </Box>
           </Box>
-          
-          {/* Reference Number Field (conditional) */}
-          {(paymentMethod === 'Card' || paymentMethod === 'GCash') && (
-            <Box sx={{ mb: 3 }}>
-              <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '14.81px', fontWeight: 500, mb: 0.75 }}>
-                Reference Number
-              </Typography>
-              <TextField
-                placeholder="Enter reference number"
-                value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
-                size="small"
-                fullWidth
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: 'white',
-                    fontSize: '14.81px',
-                    fontFamily: 'Raleway, sans-serif',
-                  }
-                }}
-              />
-            </Box>
-          )}
 
           {/* Remaining Balance */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -440,9 +403,7 @@ function CreateInvoice({
         onClose={() => setShowViewInvoice(false)}
         invoice={invoiceData}
       />
-
-      </Dialog>
-    </>
+    </Dialog>
   );
 }
 

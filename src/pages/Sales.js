@@ -136,9 +136,6 @@ function SalesDashboard() {
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  //Add these missing state variables with your other useState declarations
-const [hasFetchedExpenses, setHasFetchedExpenses] = useState(false);
-const [isInitialized, setIsInitialized] = useState(false);
 
   // Table / filter / pagination state to mirror Invoice page behavior
   const [search, setSearch] = useState('');
@@ -209,73 +206,25 @@ const [isInitialized, setIsInitialized] = useState(false);
   };
 
   // Deduplicate expense rows by id or by composite key (date|amount|name)
-  // Replace your existing dedupeExpenses function
-// Replace your existing dedupeExpenses function
-const dedupeExpenses = (arr) => {
-  if (!Array.isArray(arr)) {
-    console.log('⚠️ dedupeExpenses received non-array:', typeof arr);
-    return [];
-  }
-  
-  console.log('🔍 Starting deduplication of', arr.length, 'expenses');
-  
-  const seen = new Set();
-  const result = [];
-  const duplicates = [];
-  
-  arr.forEach((expense, index) => {
-    // Create a unique key based on id first, then fallback to composite key
-    let uniqueKey;
-    
-    if (expense.id && !String(expense.id).startsWith('local-')) {
-      // Use server ID as primary key (most reliable)
-      uniqueKey = `id:${expense.id}`;
-    } else {
-      // Fallback to composite key for local/temporary entries
-      const date = expense.date || '';
-      const amount = Number(expense.amountNumber || expense.amount || 0);
-      const name = (expense.expense || expense.name || '').toString().toLowerCase().trim();
-      const category = (expense.category || '').toString().toLowerCase().trim();
-      uniqueKey = `composite:${date}|${amount}|${name}|${category}`;
-    }
-    
-    if (!seen.has(uniqueKey)) {
-      seen.add(uniqueKey);
-      result.push(expense);
-    } else {
-      duplicates.push({ 
-        index, 
-        expense: expense.expense || expense.name, 
-        uniqueKey,
-        id: expense.id 
-      });
-    }
-  });
-  
-  if (duplicates.length > 0) {
-    console.log('🚨 Found and removed', duplicates.length, 'duplicates:', duplicates);
-  }
-  
-  console.log('✅ Deduplication complete:', arr.length, '→', result.length, 'expenses');
-  return result;
-};
-
-//Add this function after your other functions for debugging
-const forceRefreshExpenses = async () => {
-  console.log('🔄 Force refreshing expenses...');
-  setHasFetchedExpenses(false);
-  setExpenses([]);
-  await fetchExpenses();
-};
-
-// Make it available for debugging (add this near the end of your component)
-if (typeof window !== 'undefined') {
-  window.forceRefreshExpenses = forceRefreshExpenses;
-}
-
-
-
-
+  const dedupeExpenses = (arr) => {
+    const map = new Map();
+    (arr || []).forEach((r) => {
+      const comp = `${(r.date || '')}|${Number(r.amountNumber || r.amount || 0)}|${(r.expense || r.name || '').toString().toLowerCase()}`;
+      const existing = map.get(comp);
+      if (!existing) {
+        map.set(comp, r);
+        return;
+      }
+      // If existing is a local placeholder and new one is from server, prefer server row
+      const existingIsLocal = existing.id && String(existing.id).startsWith('local-');
+      const newIsLocal = r.id && String(r.id).startsWith('local-');
+      if (existingIsLocal && !newIsLocal) {
+        map.set(comp, r);
+      }
+      // otherwise keep the first (usually newest-first ordering provided by callers)
+    });
+    return Array.from(map.values());
+  };
 
   const aggregated = aggregateData(categoryFilteredData || [], period);
 
@@ -363,70 +312,31 @@ if (typeof window !== 'undefined') {
   const openExpenseDialog = () => setShowExpenseModal(true);
   const closeExpenseDialog = () => setShowExpenseModal(false);
   // onSubmit from AddExpenseDialog will pass the server-returned expense when available.
- // Replace your existing handleExpenseSubmit function
-const handleExpenseSubmit = (savedOrPayload) => {
-  console.log('💰 Processing new expense:', savedOrPayload);
-  
-  // savedOrPayload may be server row { id, year, seq, name, category, amount, date, createdAt }
-  // or a fallback payload from client. Normalize both.
-  const row = savedOrPayload && savedOrPayload.id
-    ? mapDbExpenseToRow({
-        id: savedOrPayload.id,
-        name: savedOrPayload.name || savedOrPayload.expense,
-        category: savedOrPayload.category,
-        amount: savedOrPayload.amount,
-        date: savedOrPayload.date,
-        createdAt: savedOrPayload.createdAt,
-      })
-    : // fallback payload shape
-      mapDbExpenseToRow({
-        id: savedOrPayload.id || null,
-        name: savedOrPayload.expense || savedOrPayload.description || 'Expense',
-        category: savedOrPayload.category || 'General',
-        amount: savedOrPayload.amount || savedOrPayload.amountNumber || 0,
-        date: savedOrPayload.date || new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString(),
-      });
+  const handleExpenseSubmit = (savedOrPayload) => {
+    // savedOrPayload may be server row { id, year, seq, name, category, amount, date, createdAt }
+    // or a fallback payload from client. Normalize both.
+    const row = savedOrPayload && savedOrPayload.id
+      ? mapDbExpenseToRow({
+          id: savedOrPayload.id,
+          name: savedOrPayload.name || savedOrPayload.expense,
+          category: savedOrPayload.category,
+          amount: savedOrPayload.amount,
+          date: savedOrPayload.date,
+          createdAt: savedOrPayload.createdAt,
+        })
+      : // fallback payload shape
+        mapDbExpenseToRow({
+          id: `local-${Date.now()}`,
+          name: savedOrPayload.expense || savedOrPayload.description || 'Expense',
+          category: savedOrPayload.category || 'General',
+          amount: savedOrPayload.amount || savedOrPayload.amountNumber || 0,
+          date: savedOrPayload.date || new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        });
 
-  console.log('📝 Mapped expense row:', row);
-
-  // Check if this expense already exists before adding
-  setExpenses((prevExpenses) => {
-    console.log('🔍 Checking for duplicates in', prevExpenses.length, 'existing expenses');
-    
-    const existingIndex = prevExpenses.findIndex(expense => {
-      // Check by server ID first (most reliable)
-      if (row.id && expense.id && 
-          !String(row.id).startsWith('local-') && 
-          !String(expense.id).startsWith('local-')) {
-        return expense.id === row.id;
-      }
-      
-      // Fallback to composite key check for exact matches
-      const sameDate = expense.date === row.date;
-      const sameName = (expense.expense || '').toLowerCase().trim() === (row.expense || '').toLowerCase().trim();
-      const sameCategory = (expense.category || '').toLowerCase().trim() === (row.category || '').toLowerCase().trim();
-      const sameAmount = Number(expense.amountNumber || 0) === Number(row.amountNumber || 0);
-      
-      return sameDate && sameName && sameCategory && sameAmount;
-    });
-
-    if (existingIndex !== -1) {
-      console.log('⚠️ Expense already exists at index', existingIndex, '- not adding duplicate');
-      console.log('   Existing:', prevExpenses[existingIndex]);
-      console.log('   New:', row);
-      return prevExpenses; // Return unchanged array
-    }
-
-    console.log('✅ Adding new expense to beginning of list');
-    return [row, ...prevExpenses]; // Add to beginning
-  });
-  
-  setShowExpenseModal(false);
-};
-
-
-
+    setExpenses((s) => dedupeExpenses([row, ...s]));
+    setShowExpenseModal(false);
+  };
 
   // apply search on the aggregated label
   const filtered = (aggregated || []).filter((item) => {
@@ -523,8 +433,6 @@ const handleExpenseSubmit = (savedOrPayload) => {
     aggregatedYearlyExpenses.sort((a, b) => (b.dateSort || '').localeCompare(a.dateSort || ''));
   }
 
-  const safeExpenses = dedupeExpenses(expensesRows);
-  
   // Filtering for table display depends on whether we're in Monthly or Yearly aggregated mode
   const rowsForDisplay = period === 'Monthly' ? (aggregatedMonthlyExpenses || []) : period === 'Yearly' ? (aggregatedYearlyExpenses || []) : (expensesRows || []);
   const filteredExpensesRows = (rowsForDisplay || []).filter((item) => {
@@ -577,82 +485,26 @@ const handleExpenseSubmit = (savedOrPayload) => {
       createdAt: row.createdAt,
     };
   };
-// Replace your existing fetchExpenses function
-const fetchExpenses = async () => {
-  if (hasFetchedExpenses) {
-    console.log('⏭️ Expenses already fetched, skipping fetch to prevent duplicates');
-    return;
-  }
 
-  if (loadingExpenses) {
-    console.log('⏳ Already loading expenses, skipping duplicate fetch');
-    return;
-  }
+  const fetchExpenses = async () => {
+    setLoadingExpenses(true);
+    try {
+      const res = await fetch('http://localhost:3001/expenses');
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const rows = await res.json();
+      const mapped = (rows || []).map(mapDbExpenseToRow)
+        .sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
+      setExpenses(dedupeExpenses(mapped));
+    } catch (e) {
+      console.error('Failed to load expenses', e);
+      // fallback to initial placeholders so UI still shows something
+      setExpenses(initialExpenseData);
+    } finally {
+      setLoadingExpenses(false);
+    }
+  };
 
-  console.log('🔄 Fetching expenses from server...');
-  setLoadingExpenses(true);
-  
-  try {
-    const res = await fetch('http://localhost:3001/expenses');
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-    const rows = await res.json();
-    console.log('📊 Received expenses from server:', rows.length);
-    
-    const mapped = (rows || []).map(mapDbExpenseToRow)
-      .sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
-    
-    console.log('🔧 Mapped expenses:', mapped.length);
-    
-    // Only dedupe when setting from server data
-    const deduped = dedupeExpenses(mapped);
-    console.log('✅ Final expenses after dedup:', deduped.length);
-    
-    // Set expenses and mark as fetched
-    setExpenses(deduped);
-    setHasFetchedExpenses(true);
-    
-  } catch (e) {
-    console.error('❌ Failed to load expenses', e);
-    // fallback to initial placeholders so UI still shows something
-    const fallbackExpenses = dedupeExpenses(initialExpenseData.map(mapDbExpenseToRow));
-    setExpenses(fallbackExpenses);
-    setHasFetchedExpenses(true); // Still mark as fetched to prevent retries
-  } finally {
-    setLoadingExpenses(false);
-  }
-};
-
-
-
- // Initial load effect - only runs once when component mounts
-useEffect(() => {
-  if (!hasFetchedExpenses && !isInitialized) {
-    console.log('🚀 Component mounted, fetching expenses for the first time');
-    setIsInitialized(true);
-    fetchExpenses();
-  }
-}, []); // Empty dependency array - only run once
-
-// Tab switching effect - DOES NOT refetch data
-useEffect(() => {
-  console.log('🔄 Active tab changed to:', activeTab);
-  console.log('📊 Current expenses count before tab switch:', expenses.length);
-  
-  // Only reset pagination when switching tabs - DO NOT refetch data
-  setPage(0);
-  
-  // Log current expenses to debug
-  if (activeTab === 'expenses' && expenses.length > 0) {
-    console.log('📋 Current expenses when switching to expenses tab:', 
-      expenses.slice(0, 5).map(e => ({ id: e.id, name: e.expense, date: e.date }))
-    );
-  }
-}, [activeTab]); // Remove expenses.length from dependencies to prevent re-renders
-
-
-
-
-  
+  useEffect(() => { fetchExpenses(); }, []);
 
   return (
     <Box
@@ -945,20 +797,12 @@ useEffect(() => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
                       {visibleExpenses.length > 0 ? visibleExpenses.map((row, idx) => (
                         period !== 'Daily' ? (
-                          <Box key={
-                            row.id 
-                              ? `exp-${row.id}` 
-                              : `exp-${row.date}-${row.expense}-${row.amountNumber}`
-                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
+                          <Box key={`exp-${row.id || row.dateSort || row.date || row.expense || idx}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
                             <Box sx={{ flex: 3, textAlign: 'left', color: '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
                             <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         ) : (
-                          <Box key={
-                            row.id
-                              ? `exp-${row.id}`
-                              : `exp-${row.date}-${row.expense}-${row.amountNumber}`
-                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
+                          <Box key={`exp-${row.dateSort || row.date || row.expense || idx}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
                             <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{new Date(row.date).toLocaleDateString()}</Box>
                             <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.expense}</Box>
                             <Box sx={{ flex: 1, textAlign: 'left', color: '#6d6b80' }}>{row.category}</Box>
