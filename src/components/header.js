@@ -221,18 +221,17 @@ function Header() {
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             {/* Navigation items in specific order. 'Logs' kept in routeMap but not shown. */}
             {(
-              ['Home', 'Records', 'Appointments', 'Billing', 'Invoices', 'Services', 'Accounting']
+              ['Home', 'Records', 'Appointments', 'Billing', 'Services', 'Sales']
             ).map((label, idx, arr) => {
               const routeMap = {
                 Home: '/dashboard',
                 Records: '/add-patient',
                 Appointments: '/appointments',
                 Billing: '/billing',
-                Invoices: '/invoice',
                 Logs: '/logs',
                 Services: '/service-page',
                 Users: '/accounts',
-                Accounting: '/accounting',
+                Sales: '/sales',
               };
               const isActive = activeRoute === routeMap[label];
               return (
