@@ -25,7 +25,7 @@ import Pagination from '../components/Pagination';
 const API_BASE = 'http://localhost:3001';
 
 function ServiceList() {
-  // ...existing code...
+  // State for services data
   const [services, setServices] = useState([]);
   const [categoryFilteredServices, setCategoryFilteredServices] = useState([]);
   const [filteredServices, setFilteredServices] = useState([]);
@@ -41,8 +41,8 @@ function ServiceList() {
 
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  // ...existing code...
 
+  // Navigation and modal states
   const navigate = useNavigate();
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showPackageModal, setShowPackageModal] = useState(false);
@@ -57,11 +57,6 @@ function ServiceList() {
     { label: 'Treatment Type', value: 'type', types: ['Single Treatment', 'Package Treatment'] },
     { label: 'Status', value: 'status', types: ['Active', 'Inactive'] },
   ];
-
-  // Fetch services from backend
-  useEffect(() => {
-    fetchServices();
-  }, []);
 
   // Helper to build query string from filters
   const buildFilterQuery = (filters) => {
@@ -152,6 +147,7 @@ function ServiceList() {
   const sortedServices = sortData(filteredServices, sortConfig);
   const totalPages = Math.ceil(sortedServices.length / rowsPerPage);
   const visibleServices = sortedServices.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  
   // Calculate scrollbar display value for table rows
   const scrollbarDisplay = visibleServices && visibleServices.length > 5 ? 'block' : 'none';
 
@@ -430,33 +426,33 @@ function ServiceList() {
                     onClick={() => handleViewService(service)}
                   >
                    <Box sx={{ flex: '2', textAlign: 'left' }}>
-  <Typography
-    sx={{
-      fontFamily: 'Roboto, sans-serif',
-      fontWeight: 400,
-      fontSize: '15px',
-      color: '#6d6b80',
-      lineHeight: '22px',
-      letterSpacing: '0.5px',
-    }}
-  >
-    {service.name || '-'}
-  </Typography>
-  {service.type === 'Package Treatment' && (
-    <Typography
-      sx={{
-        fontFamily: 'Roboto, sans-serif',
-        fontWeight: 300,
-        fontSize: '12px',
-        color: '#9e9e9e',
-        fontStyle: 'italic',
-        mt: 0.5,
-      }}
-    >
-      Package (contains multiple services)
-    </Typography>
-  )}
-</Box>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {service.name || '-'}
+                      </Typography>
+                      {service.type === 'Package Treatment' && (
+                        <Typography
+                          sx={{
+                            fontFamily: 'Roboto, sans-serif',
+                            fontWeight: 300,
+                            fontSize: '12px',
+                            color: '#9e9e9e',
+                            fontStyle: 'italic',
+                            mt: 0.5,
+                          }}
+                        >
+                          Package (contains multiple services)
+                        </Typography>
+                      )}
+                    </Box>
 
                     <Box sx={{ flex: '1', textAlign: 'center' }}>
                       <Typography
@@ -586,22 +582,22 @@ function ServiceList() {
 
       {/* View Service Dialog */}
       <ViewService
-  open={viewDialogOpen}
-  onClose={() => setViewDialogOpen(false)}
-  service={selectedService}
-  onServiceUpdated={() => {
-    // Refresh the list after edit using new endpoint
-    fetch(`${API_BASE}/services-and-packages`)
-      .then(res => res.json())
-      .then(data => {
-        const allItems = [...(data.services || []), ...(data.packages || [])];
-        setServices(allItems);
-      })
-      .catch(error => {
-        console.error('Error refreshing services:', error);
-      });
-  }}
-/>
+        open={viewDialogOpen}
+        onClose={() => setViewDialogOpen(false)}
+        service={selectedService}
+        onServiceUpdated={() => {
+          // Refresh the list after edit using new endpoint
+          fetch(`${API_BASE}/services-and-packages`)
+            .then(res => res.json())
+            .then(data => {
+              const allItems = [...(data.services || []), ...(data.packages || [])];
+              setServices(allItems);
+            })
+            .catch(error => {
+              console.error('Error refreshing services:', error);
+            });
+        }}
+      />
 
       {/* Service Modal */}
       <AddService

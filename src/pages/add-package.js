@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -9,421 +9,546 @@ import {
   Typography,
   Box,
   IconButton,
-  Fade,
-  Autocomplete,
-  Chip,
-  InputAdornment,
   MenuItem,
   Divider,
+  Fade,
+  InputAdornment,
+  Alert,
   LinearProgress,
-  Alert
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Chip,
+  Autocomplete,
+  Paper
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  ShoppingBasket as PackageIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  MedicalServices as ServiceIcon,
   Description as DescIcon,
   AttachMoney as PriceIcon,
   Schedule as TimeIcon,
   ToggleOn as StatusIcon,
-  Add as AddIcon,
-  Remove as RemoveIcon
+  LocalOffer as PackageIcon
 } from '@mui/icons-material';
 
-import { API_BASE } from '../apiConfig';
+const API_BASE = 'http://localhost:3001'; // Use direct API_BASE
 
 const statusOptions = [
   { value: 'Active', label: 'Active', color: '#4caf50' },
   { value: 'Inactive', label: 'Inactive', color: '#f44336' }
 ];
 
-  export default function AddPackage({ open, onClose, onAddPackage, showSnackbar }) {
-    const [packageData, setPackageData] = useState({
+const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
+  const [packageData, setPackageData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    duration: '',
+    status: 'Active'
+  });
+
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [availableServices, setAvailableServices] = useState([]);
+  const [serviceToAdd, setServiceToAdd] = useState(null);
+  const [serviceQuantity, setServiceQuantity] = useState(1);
+
+  // UI states
+  const [loading, setLoading] = useState(false);
+  const [requiredError, setRequiredError] = useState(false);
+  const [requiredFields, setRequiredFields] = useState({});
+  const [nameExists, setNameExists] = useState(false);
+  const [allPackages, setAllPackages] = useState([]);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  // Fetch available services and existing packages for validation
+  useEffect(() => {
+    if (open) {
+      fetchData();
+      resetForm();
+    }
+  }, [open]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch services (excluding packages)
+      const servicesResponse = await fetch(`${API_BASE}/service-table`);
+      if (servicesResponse.ok) {
+        const services = await servicesResponse.json();
+        // Filter out packages, only get single treatments
+        const singleServices = services.filter(s => s.type !== 'Package Treatment');
+        setAvailableServices(singleServices);
+      }
+
+      // Fetch existing packages for name validation
+      const packagesResponse = await fetch(`${API_BASE}/packages`);
+      if (packagesResponse.ok) {
+        const packages = await packagesResponse.json();
+        setAllPackages(packages);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setPackageData({
       name: '',
+      description: '',
       price: '',
       duration: '',
       status: 'Active'
     });
+    setSelectedServices([]);
+    setServiceToAdd(null);
+    setServiceQuantity(1);
+    setRequiredError(false);
+    setRequiredFields({});
+    setNameExists(false);
+    setSubmitAttempted(false);
+  };
 
-    const [availableServices, setAvailableServices] = useState([]);
-    const [selectedServices, setSelectedServices] = useState([]); // {id,name,price,duration,quantity}
-    const [loading, setLoading] = useState(false);
-    const [submitAttempted, setSubmitAttempted] = useState(false);
-    const [nameExists, setNameExists] = useState(false);
-
-    // computed totals
-    const totalDuration = selectedServices.reduce((sum, s) => sum + ((s.duration || 0) * (s.quantity || 1)), 0);
-    const autoPrice = selectedServices.reduce((sum, s) => sum + ((parseFloat(s.price) || 0) * (s.quantity || 1)), 0);
-
-    useEffect(() => {
-      if (open) {
-        fetchServices();
-        setPackageData({ name: '', price: '', duration: '', status: 'Active' });
-        setSelectedServices([]);
-        setSubmitAttempted(false);
-        setNameExists(false);
-      }
-    }, [open]);
-
-    const fetchServices = async () => {
-      setLoading(true);
-      try {
-        // Use the services-and-packages endpoint to get regular services only
-        const response = await fetch(`${API_BASE}/services-and-packages`);
-        if (response.ok) {
-          const data = await response.json();
-          // Only use regular services for package creation, not other packages
-          setAvailableServices(data.services || []);
-          console.log('Available services for package:', data.services?.length || 0);
-        } else {
-          console.error('Failed to fetch services');
-          setAvailableServices([]);
-        }
-      } catch (error) {
-        console.error('Error fetching services:', error);
-        setAvailableServices([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const handleChange = (field, value) => {
-      setPackageData(prev => ({ ...prev, [field]: value }));
-      if (field === 'name') setNameExists(false);
-    };
-
-    const handleSelectServices = (e, values) => {
-      const mapped = values.map(v => {
-        const existing = selectedServices.find(s => s.id === v.id);
-        return {
-          id: v.id,
-          name: v.name,
-          price: v.price,
-          duration: v.duration,
-          quantity: existing ? existing.quantity : 1
-        };
-      });
-      setSelectedServices(mapped);
-    };
-
-    const updateQuantity = (serviceId, delta) => {
-      setSelectedServices(prev => prev.map(s => {
-        if (s.id === serviceId) {
-          const q = Math.max(1, (s.quantity || 1) + delta);
-          return { ...s, quantity: q };
-        }
-        return s;
-      }));
-    };
-
-    const validateFields = () => {
-      const errors = {};
-      if (!packageData.name.trim()) errors.name = true;
-      if (selectedServices.length === 0) errors.services = true;
-      return Object.keys(errors).length === 0;
-    };
-
-    const getFieldError = (fieldName) => {
-      if (!submitAttempted) return false;
-      if (fieldName === 'name') return !packageData.name.trim();
-      if (fieldName === 'services') return selectedServices.length === 0;
-      if (fieldName === 'status') return !packageData.status;
-      return false;
-    };
-
-    const getHelperText = (fieldName) => {
-      if (fieldName === 'name' && nameExists) return 'A service or package with this name already exists';
-      if (getFieldError(fieldName)) return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required`;
-      return '';
-    };
-
-    const submitPackage = async () => {
-      setSubmitAttempted(true);
-      if (!validateFields()) return;
+  const handlePackageChange = (e) => {
+    const { name, value } = e.target;
+    setPackageData(prev => ({ ...prev, [name]: value }));
     
-      // Check duplicate name against all services
-      try {
-        const all = await fetch(`${API_BASE}/service-table`).then(r => r.json());
-        const dup = all.some(s => s.name && s.name.trim().toLowerCase() === packageData.name.trim().toLowerCase());
-        if (dup) {
-          setNameExists(true);
-          return;
-        }
-      } catch (err) {
-        console.error('Error checking duplicate names:', err);
-      }
+    // Clear errors when user starts typing
+    if (name === 'name') setNameExists(false);
+    if (submitAttempted && requiredFields[name]) {
+      setRequiredFields(prev => ({ ...prev, [name]: false }));
+    }
+  };
+
+  const handleAddService = () => {
+    if (!serviceToAdd) return;
+
+    const existingIndex = selectedServices.findIndex(s => s.serviceId === serviceToAdd.id);
     
-      const payload = {
-        name: packageData.name.trim(),
-        type: 'Package Treatment',
-        status: packageData.status,
-        price: packageData.price ? parseFloat(packageData.price) : autoPrice,
-        duration: Math.round(totalDuration),
-        packageServices: selectedServices.map(s => ({
-          serviceId: s.id,
-          quantity: s.quantity || 1,
-          price: s.price,
-          duration: s.duration
-        }))
+    if (existingIndex >= 0) {
+      // Update existing service quantity
+      const updated = [...selectedServices];
+      updated[existingIndex].quantity += serviceQuantity;
+      setSelectedServices(updated);
+    } else {
+      // Add new service
+      const newService = {
+        serviceId: serviceToAdd.id,
+        name: serviceToAdd.name,
+        price: serviceToAdd.price || 0,
+        duration: serviceToAdd.duration || 0,
+        quantity: serviceQuantity
       };
-    
-      console.log('=== SUBMITTING PACKAGE ===');
-      console.log('Payload:', payload);
-    
-      setLoading(true);
-      try {
-        // Use the new packages endpoint instead of service-table
-        const res = await fetch(`${API_BASE}/packages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-    
-        if (res.ok) {
-          const responseData = await res.json();
-          console.log('✅ Package created successfully:', responseData);
-          
-          if (typeof onAddPackage === 'function') onAddPackage();
-          onClose();
-          if (typeof showSnackbar === 'function') {
-            showSnackbar('Package created successfully!', { severity: 'success' });
-          }
-        } else {
-          const errorData = await res.text();
-          console.error('❌ Failed to create package:', res.status, errorData);
-          if (typeof showSnackbar === 'function') {
-            showSnackbar(`Failed to create package: ${errorData}`, { severity: 'error' });
-          }
-        }
-      } catch (err) {
-        console.error('❌ Error creating package:', err);
-        if (typeof showSnackbar === 'function') {
-          showSnackbar('Network error: Failed to create package', { severity: 'error' });
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+      setSelectedServices(prev => [...prev, newService]);
+    }
 
-    return (
-      <Dialog
-        open={open}
-        onClose={onClose}
-        fullWidth
-        maxWidth="md"
-        TransitionComponent={Fade}
-        TransitionProps={{ timeout: 300 }}
+    setServiceToAdd(null);
+    setServiceQuantity(1);
+  };
+
+  const handleRemoveService = (serviceId) => {
+    setSelectedServices(prev => prev.filter(s => s.serviceId !== serviceId));
+  };
+
+  const handleUpdateQuantity = (serviceId, newQuantity) => {
+    if (newQuantity < 1) return;
+    setSelectedServices(prev => 
+      prev.map(s => s.serviceId === serviceId ? { ...s, quantity: newQuantity } : s)
+    );
+  };
+
+  const validateFields = () => {
+    const errors = {};
+    if (!packageData.name.trim()) errors.name = true;
+    if (!packageData.description.trim()) errors.description = true;
+    if (!packageData.status.trim()) errors.status = true;
+    if (selectedServices.length === 0) errors.services = true;
+    
+    setRequiredFields(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const calculateTotals = () => {
+    const totalPrice = selectedServices.reduce((sum, service) => 
+      sum + (service.price * service.quantity), 0
+    );
+    const totalDuration = selectedServices.reduce((sum, service) => 
+      sum + (service.duration * service.quantity), 0
+    );
+    return { totalPrice, totalDuration };
+  };
+
+  const submitPackage = async () => {
+    setSubmitAttempted(true);
+    const isValid = validateFields();
+
+    // Check for duplicate name
+    const duplicate = allPackages.some(
+      p => p.name.trim().toLowerCase() === packageData.name.trim().toLowerCase()
+    );
+    setNameExists(duplicate);
+
+    if (!isValid || duplicate) {
+      setRequiredError(true);
+      setTimeout(() => setRequiredError(false), 3000);
+      return;
+    }
+
+    setLoading(true);
+    
+    const { totalPrice, totalDuration } = calculateTotals();
+    
+    try {
+      const response = await fetch(`${API_BASE}/packages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: packageData.name.trim(),
+          description: packageData.description.trim(),
+          price: parseFloat(packageData.price) || totalPrice,
+          duration: parseInt(packageData.duration) || totalDuration,
+          status: packageData.status,
+          services: selectedServices.map(s => ({
+            serviceId: s.serviceId,
+            quantity: s.quantity
+          }))
+        })
+      });
+
+      if (response.ok) {
+        const newPackage = await response.json();
+        console.log('Package created:', newPackage);
+        
+        if (onAddPackage) onAddPackage();
+        onClose();
+        
+        if (typeof showSnackbar === 'function') {
+          showSnackbar(`Package "${packageData.name}" created successfully!`, { severity: 'success' });
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create package');
+      }
+    } catch (err) {
+      console.error('Package creation error:', err);
+      if (typeof showSnackbar === 'function') {
+        showSnackbar(`Failed to create package: ${err.message}`, { severity: 'error' });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getFieldError = (fieldName) => {
+    return submitAttempted && requiredFields[fieldName];
+  };
+
+  const getHelperText = (fieldName, customText = '') => {
+    if (fieldName === 'name' && nameExists) {
+      return 'A package with this name already exists';
+    }
+    if (fieldName === 'services' && selectedServices.length === 0) {
+      return 'Package must contain at least one service';
+    }
+    if (getFieldError(fieldName)) {
+      return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required`;
+    }
+    return customText;
+  };
+
+  const { totalPrice, totalDuration } = calculateTotals();
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      TransitionComponent={Fade}
+      TransitionProps={{ timeout: 300 }}
+      sx={{
+        '& .MuiDialog-paper': {
+          borderRadius: '16px',
+          boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14)',
+          overflow: 'hidden',
+          maxWidth: '800px',
+          margin: '16px'
+        }
+      }}
+    >
+      {/* Header */}
+      <DialogTitle
         sx={{
-          '& .MuiDialog-paper': {
-            borderRadius: '16px',
-            boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14), 0 9px 46px 8px rgba(0,0,0,0.12), 0 11px 15px -7px rgba(0,0,0,0.20)',
-            overflow: 'hidden',
-            maxWidth: '600px',
-            margin: '16px'
-          }
+          background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+          color: 'white',
+          position: 'relative',
+          px: 4,
+          py: 3,
+          textAlign: 'center'
         }}
       >
-        <DialogTitle sx={{ background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)', color: 'white', position: 'relative', px: 4, py: 3, textAlign: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
-            <PackageIcon sx={{ fontSize: 32 }} />
-            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: '28px', fontFamily: 'Inter, sans-serif' }}>
-              Add New Package
-            </Typography>
-          </Box>
-          <IconButton
-            onClick={onClose}
-            disabled={loading}
-            sx={{
-              position: 'absolute',
-              right: 12,
-              top: 12,
-              color: 'white',
-              backgroundColor: 'rgba(255,255,255,0.1)',
-              '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' },
-              '&:disabled': { color: 'rgba(255,255,255,0.5)' }
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
+          <PackageIcon sx={{ fontSize: 32 }} />
+          <Typography variant="h4" sx={{ fontWeight: 700, fontSize: '28px', fontFamily: 'Inter, sans-serif' }}>
+            Create Service Package
+          </Typography>
+        </Box>
+        
+        <IconButton
+          onClick={onClose}
+          disabled={loading}
+          sx={{
+            position: 'absolute',
+            right: 12,
+            top: 12,
+            color: 'white',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' }
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
 
-        {loading && (
-          <LinearProgress sx={{ backgroundColor: 'rgba(33, 72, 192, 0.1)', '& .MuiLinearProgress-bar': { backgroundColor: '#2148C0' } }} />
+      {/* Progress Bar */}
+      {loading && <LinearProgress />}
+
+      {/* Content */}
+      <DialogContent sx={{ p: 4, backgroundColor: '#fafbfc' }}>
+        {/* Error Alert */}
+        {requiredError && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: '12px' }}>
+            <Typography variant="body2">
+              {nameExists ? 'Package name already exists' : 'Please fill in all required fields correctly'}
+            </Typography>
+          </Alert>
         )}
 
-        <DialogContent sx={{ p: 4, backgroundColor: '#fafbfc' }}>
-          {submitAttempted && !validateFields() && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: '12px' }}>
-              <Typography variant="body2">Please fill in all required fields correctly</Typography>
-            </Alert>
-          )}
+        <Box sx={{ display: 'grid', gap: 3 }}>
+          {/* Package Basic Info */}
+          <Paper sx={{ p: 3, borderRadius: '12px', backgroundColor: 'white' }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#2148C0' }}>
+              Package Information
+            </Typography>
 
-          {nameExists && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: '12px' }}>
-              <Typography variant="body2">A service or package with this name already exists</Typography>
-            </Alert>
-          )}
-
-          <Box sx={{ display: 'grid', gap: 3 }}>
-            {/* Package Name */}
-            <Box>
-              <Typography variant="body2" sx={{ mt: 5, mb: 1, fontWeight: 600, color: '#374151', fontFamily: 'Inter, sans-serif', fontSize: '14px' }}>
-                Package Name *
-              </Typography>
+            <Box sx={{ display: 'grid', gap: 3 }}>
+              {/* Package Name */}
               <TextField
                 fullWidth
                 name="name"
+                label="Package Name"
                 value={packageData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                placeholder="e.g., Family Cleaning Package"
+                onChange={handlePackageChange}
+                placeholder="e.g., Complete Dental Checkup Package"
                 disabled={loading}
-                size="small"
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', backgroundColor: 'white' } }}
+                error={getFieldError('name') || nameExists}
+                helperText={getHelperText('name')}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PackageIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
               />
-            </Box>
 
-            {/* Services multi-select */}
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: '#374151', fontFamily: 'Inter, sans-serif', fontSize: '14px' }}>
-                Services *
-              </Typography>
-              <Autocomplete
-                multiple
-                options={availableServices}
-                getOptionLabel={(opt) => opt.name || ''}
-                value={selectedServices.map(s => availableServices.find(a => a.id === s.id) || s)}
-                onChange={handleSelectServices}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip label={option.name} {...getTagProps({ index })} key={option.id} />
-                  ))
-                }
-                renderInput={(params) => (
-                  <TextField {...params} placeholder="Search and select services" size="small" />
-                )}
-              />
-            </Box>
-
-            {/* Selected services list (visible even when empty) */}
-            <Box sx={{ p: 2, backgroundColor: '#fff', borderRadius: '12px' }}>
-              <Typography sx={{ fontWeight: 600, mb: 2 }}>Selected Services</Typography>
-              {selectedServices.length === 0 ? (
-                <Box sx={{ p: 2, borderRadius: '8px', backgroundColor: '#f8f9fa' }}>
-                  <Typography sx={{ color: '#6b7280' }}>No services selected </Typography>
-                </Box>
-              ) : (
-                selectedServices.map(s => (
-                  <Box key={s.id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Box>
-                      <Typography sx={{ fontWeight: 600 }}>{s.name}</Typography>
-                      <Typography sx={{ color: '#6b7280', fontSize: 13 }}>{s.duration} min • ₱{s.price}</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <IconButton size="small" onClick={() => updateQuantity(s.id, -1)}><RemoveIcon fontSize="small" /></IconButton>
-                      <Typography>{s.quantity || 1}</Typography>
-                      <IconButton size="small" onClick={() => updateQuantity(s.id, 1)}><AddIcon fontSize="small" /></IconButton>
-                    </Box>
-                  </Box>
-                ))
-              )}
-
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography sx={{ fontWeight: 700 }}>Auto Duration</Typography>
-                <Typography>{totalDuration} minutes</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontWeight: 700 }}>Auto Price</Typography>
-                <Typography>₱{autoPrice.toFixed(2)}</Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-            <Box>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>Package Price (₱)</Typography>
+              {/* Description */}
               <TextField
                 fullWidth
-                size="small"
-                value={packageData.price}
-                onChange={(e) => handleChange('price', e.target.value)}
-                placeholder={autoPrice ? `Auto: ₱${autoPrice.toFixed(2)}` : '0.00'}
-                InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+                name="description"
+                label="Description"
+                value={packageData.description}
+                onChange={handlePackageChange}
+                placeholder="Describe what this package includes..."
+                multiline
+                rows={3}
+                disabled={loading}
+                error={getFieldError('description')}
+                helperText={getHelperText('description')}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
               />
-            </Box>
 
-            <Box>
-              <Typography variant="body2" sx={{ 
-                mb: 1, 
-                fontWeight: 600,
-                color: '#374151',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px'
-              }}>
-                Status *
-              </Typography>
+              {/* Status */}
               <TextField
                 select
                 fullWidth
                 name="status"
+                label="Status"
                 value={packageData.status}
-                onChange={(e) => handleChange('status', e.target.value)}
+                onChange={handlePackageChange}
                 disabled={loading}
                 error={getFieldError('status')}
                 helperText={getHelperText('status')}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <StatusIcon sx={{ color: '#6b7280', fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    backgroundColor: 'white',
-                    fontFamily: 'Inter, sans-serif',
-                    '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-                    '&.Mui-focused': { boxShadow: '0 4px 12px rgba(33, 72, 192, 0.15)' }
-                  }
-                }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
               >
                 {statusOptions.map((status) => (
                   <MenuItem key={status.value} value={status.value}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box
-                        sx={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          backgroundColor: status.color
-                        }}
-                      />
-                      <Typography sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                        {status.label}
-                      </Typography>
+                      <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: status.color }} />
+                      <Typography>{status.label}</Typography>
                     </Box>
                   </MenuItem>
                 ))}
               </TextField>
             </Box>
-            </Box>
-          </Box>
-        </DialogContent>
+          </Paper>
 
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={onClose} disabled={loading} sx={{ color: '#5f6368' }}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={submitPackage}
-            disabled={loading}
-            sx={{
-              backgroundColor: '#2148c0',
-              color: 'white',
-              '&:hover': { backgroundColor: '#1e3fa8' }
-            }}
-          >
-            Save Package
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
-  }
+          {/* Services Section */}
+          <Paper sx={{ p: 3, borderRadius: '12px', backgroundColor: 'white' }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#2148C0' }}>
+              Package Services {getFieldError('services') && <span style={{ color: '#f44336' }}>*</span>}
+            </Typography>
+
+            {/* Add Service Form */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 2, mb: 3, alignItems: 'end' }}>
+              <Autocomplete
+                value={serviceToAdd}
+                onChange={(event, newValue) => setServiceToAdd(newValue)}
+                options={availableServices}
+                getOptionLabel={(option) => option.name || ''}
+                renderInput={(params) => (
+                  <TextField {...params} label="Select Service" placeholder="Choose a service to add..." />
+                )}
+                renderOption={(props, option) => (
+                  <Box component="li" {...props}>
+                    <Box>
+                      <Typography sx={{ fontWeight: 500 }}>{option.name}</Typography>
+                      <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                        ₱{option.price?.toLocaleString()} • {option.duration} mins
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              />
+
+              <TextField
+                type="number"
+                label="Quantity"
+                value={serviceQuantity}
+                onChange={(e) => setServiceQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                inputProps={{ min: 1 }}
+                sx={{ width: '100px' }}
+              />
+
+              <Button
+                variant="contained"
+                onClick={handleAddService}
+                disabled={!serviceToAdd}
+                startIcon={<AddIcon />}
+                sx={{ height: '56px', px: 3, borderRadius: '12px' }}
+              >
+                Add
+              </Button>
+            </Box>
+
+            {/* Selected Services List */}
+            <Box>
+              {selectedServices.length === 0 ? (
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  py: 4, 
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '12px',
+                  border: getFieldError('services') ? '1px solid #f44336' : '1px solid #e5e7eb'
+                }}>
+                  <Typography sx={{ 
+                    color: getFieldError('services') ? '#f44336' : '#6b7280',
+                    fontStyle: 'italic'
+                  }}>
+                    {getHelperText('services', 'No services added yet. Add services to create a package.')}
+                  </Typography>
+                </Box>
+              ) : (
+                <List sx={{ backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  {selectedServices.map((service, index) => (
+                    <ListItem key={service.serviceId} sx={{ borderBottom: index < selectedServices.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                      <ListItemText
+                        primary={<Typography sx={{ fontWeight: 600 }}>{service.name}</Typography>}
+                        secondary={
+                          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                            <Chip label={`₱${(service.price * service.quantity).toLocaleString()}`} size="small" sx={{ backgroundColor: '#e8f5e8', color: '#2e7d32' }} />
+                            <Chip label={`${service.duration * service.quantity} mins`} size="small" sx={{ backgroundColor: '#e3f2fd', color: '#1976d2' }} />
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TextField
+                          type="number"
+                          value={service.quantity}
+                          onChange={(e) => handleUpdateQuantity(service.serviceId, parseInt(e.target.value))}
+                          size="small"
+                          inputProps={{ min: 1, style: { textAlign: 'center' } }}
+                          sx={{ width: '70px' }}
+                        />
+                        <IconButton onClick={() => handleRemoveService(service.serviceId)} size="small" sx={{ color: '#f44336' }}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+
+            {/* Package Totals */}
+            {selectedServices.length > 0 && (
+              <Paper sx={{ 
+                mt: 3, 
+                p: 3, 
+                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+                color: 'white',
+                borderRadius: '12px'
+              }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>Package Summary</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Total Price</Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 700 }}>₱{totalPrice.toLocaleString()}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Total Duration</Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 700 }}>{totalDuration} minutes</Typography>
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ mt: 2, opacity: 0.9 }}>
+                  {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} included
+                </Typography>
+              </Paper>
+            )}
+          </Paper>
+        </Box>
+      </DialogContent>
+
+      <Divider />
+
+      {/* Actions */}
+      <DialogActions sx={{ p: 3, backgroundColor: 'white', gap: 2 }}>
+        <Button onClick={onClose} disabled={loading} sx={{ borderRadius: '12px', px: 3, py: 1.5 }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={submitPackage}
+          disabled={loading || selectedServices.length === 0}
+          sx={{
+            borderRadius: '12px',
+            px: 4,
+            py: 1.5,
+            background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+            '&:hover': { background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)' }
+          }}
+        >
+          {loading ? 'Creating Package...' : 'Create Package'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default AddPackage;
