@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Container, Typography, Grid, Button, Paper, Collapse, FormControl, Select, MenuItem } from '@mui/material';
 import AddExpenseDialog from './add-expense';
 import { ArrowDropDown } from '@mui/icons-material';
@@ -141,7 +141,10 @@ function SalesDashboard() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [expenses, setExpenses] = useState(initialExpenseData);
+  // start empty; will load from backend
+  const [expenses, setExpenses] = useState([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [activeFilters, setActiveFilters] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -200,6 +203,27 @@ function SalesDashboard() {
       revenue: `Php ${r.revenueNumber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     }));
     return arr;
+  };
+
+  // Deduplicate expense rows by id or by composite key (date|amount|name)
+  const dedupeExpenses = (arr) => {
+    const map = new Map();
+    (arr || []).forEach((r) => {
+      const comp = `${(r.date || '')}|${Number(r.amountNumber || r.amount || 0)}|${(r.expense || r.name || '').toString().toLowerCase()}`;
+      const existing = map.get(comp);
+      if (!existing) {
+        map.set(comp, r);
+        return;
+      }
+      // If existing is a local placeholder and new one is from server, prefer server row
+      const existingIsLocal = existing.id && String(existing.id).startsWith('local-');
+      const newIsLocal = r.id && String(r.id).startsWith('local-');
+      if (existingIsLocal && !newIsLocal) {
+        map.set(comp, r);
+      }
+      // otherwise keep the first (usually newest-first ordering provided by callers)
+    });
+    return Array.from(map.values());
   };
 
   const aggregated = aggregateData(categoryFilteredData || [], period);
@@ -287,21 +311,30 @@ function SalesDashboard() {
   // Expense dialog handlers (placeholder)
   const openExpenseDialog = () => setShowExpenseModal(true);
   const closeExpenseDialog = () => setShowExpenseModal(false);
-  const handleExpenseSubmit = (payload) => {
-    // Placeholder: wire to backend or update state
-    // payload: { description, amount, date }
-    console.log('Add expense (placeholder)', payload);
-    // Append to row-level expenses state
-    const isoDate = payload.date || new Date().toISOString().split('T')[0];
-    const amountNumber = Number(payload.amount || 0) || 0;
-    const newItem = {
-      date: isoDate,
-      expense: payload.expense || payload.description || 'Expense',
-      category: payload.category || 'General',
-      amountNumber,
-      amount: `Php ${amountNumber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    };
-    setExpenses((s) => [newItem, ...s]);
+  // onSubmit from AddExpenseDialog will pass the server-returned expense when available.
+  const handleExpenseSubmit = (savedOrPayload) => {
+    // savedOrPayload may be server row { id, year, seq, name, category, amount, date, createdAt }
+    // or a fallback payload from client. Normalize both.
+    const row = savedOrPayload && savedOrPayload.id
+      ? mapDbExpenseToRow({
+          id: savedOrPayload.id,
+          name: savedOrPayload.name || savedOrPayload.expense,
+          category: savedOrPayload.category,
+          amount: savedOrPayload.amount,
+          date: savedOrPayload.date,
+          createdAt: savedOrPayload.createdAt,
+        })
+      : // fallback payload shape
+        mapDbExpenseToRow({
+          id: `local-${Date.now()}`,
+          name: savedOrPayload.expense || savedOrPayload.description || 'Expense',
+          category: savedOrPayload.category || 'General',
+          amount: savedOrPayload.amount || savedOrPayload.amountNumber || 0,
+          date: savedOrPayload.date || new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        });
+
+    setExpenses((s) => dedupeExpenses([row, ...s]));
     setShowExpenseModal(false);
   };
 
@@ -338,9 +371,76 @@ function SalesDashboard() {
     amountNumber: Number(e.amountNumber || e.amount || 0),
   }));
 
-  const filteredExpensesRows = (expensesRows || []).filter((item) => {
+  // If Monthly period is selected, aggregate row-level expenses into per-month totals
+  let aggregatedMonthlyExpenses = [];
+  if (period === 'Monthly') {
+    const map = new Map();
+    (expensesRows || []).forEach((r) => {
+      try {
+        const key = (r.date || '').slice(0, 7); // YYYY-MM
+        if (!key) return;
+        const entry = map.get(key) || { monthKey: key, amountNumber: 0 };
+        entry.amountNumber += Number(r.amountNumber || 0) || 0;
+        map.set(key, entry);
+      } catch (e) {
+        // ignore bad dates
+      }
+    });
+    aggregatedMonthlyExpenses = Array.from(map.entries()).map(([key, v]) => {
+      const dateForSort = `${key}-01`;
+      const label = new Date(dateForSort).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+      return {
+        id: key,
+        date: dateForSort,
+        dateSort: dateForSort,
+        label,
+        amountNumber: v.amountNumber,
+        amount: `Php ${Number(v.amountNumber || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      };
+    });
+    // newest month first
+    aggregatedMonthlyExpenses.sort((a, b) => (b.dateSort || '').localeCompare(a.dateSort || ''));
+  }
+
+  // If Yearly period is selected, aggregate row-level expenses into per-year totals
+  let aggregatedYearlyExpenses = [];
+  if (period === 'Yearly') {
+    const mapY = new Map();
+    (expensesRows || []).forEach((r) => {
+      try {
+        const key = (r.date || '').slice(0, 4); // YYYY
+        if (!key) return;
+        const entry = mapY.get(key) || { yearKey: key, amountNumber: 0 };
+        entry.amountNumber += Number(r.amountNumber || 0) || 0;
+        mapY.set(key, entry);
+      } catch (e) {
+        // ignore bad dates
+      }
+    });
+    aggregatedYearlyExpenses = Array.from(mapY.entries()).map(([key, v]) => {
+      const dateForSort = `${key}-01-01`;
+      const label = String(key);
+      return {
+        id: key,
+        date: dateForSort,
+        dateSort: dateForSort,
+        label,
+        amountNumber: v.amountNumber,
+        amount: `Php ${Number(v.amountNumber || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      };
+    });
+    // newest year first
+    aggregatedYearlyExpenses.sort((a, b) => (b.dateSort || '').localeCompare(a.dateSort || ''));
+  }
+
+  // Filtering for table display depends on whether we're in Monthly or Yearly aggregated mode
+  const rowsForDisplay = period === 'Monthly' ? (aggregatedMonthlyExpenses || []) : period === 'Yearly' ? (aggregatedYearlyExpenses || []) : (expensesRows || []);
+  const filteredExpensesRows = (rowsForDisplay || []).filter((item) => {
     if (!search) return true;
     const q = search.toLowerCase();
+    if (period === 'Monthly' || period === 'Yearly') {
+      return (item.label || '').toLowerCase().includes(q) || (item.date || '').toLowerCase().includes(q);
+    }
     return (item.date || '').toLowerCase().includes(q) || (item.expense || '').toLowerCase().includes(q) || (item.category || '').toLowerCase().includes(q);
   });
 
@@ -371,6 +471,40 @@ function SalesDashboard() {
 
   const handleAddService = () => setShowServiceModal(false);
   const handleAddPackage = () => setShowPackageModal(false);
+
+  // fetch expenses from backend
+  const mapDbExpenseToRow = (row) => {
+    const amountNumber = Number(row.amount || row.amountNumber || 0) || 0;
+    return {
+      id: row.id,
+      date: row.date ? row.date.split('T')[0] : (new Date()).toISOString().split('T')[0],
+      expense: row.name || row.expense || 'Expense',
+      category: row.category || 'General',
+      amountNumber,
+      amount: `Php ${amountNumber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      createdAt: row.createdAt,
+    };
+  };
+
+  const fetchExpenses = async () => {
+    setLoadingExpenses(true);
+    try {
+      const res = await fetch('http://localhost:3001/expenses');
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const rows = await res.json();
+      const mapped = (rows || []).map(mapDbExpenseToRow)
+        .sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
+      setExpenses(dedupeExpenses(mapped));
+    } catch (e) {
+      console.error('Failed to load expenses', e);
+      // fallback to initial placeholders so UI still shows something
+      setExpenses(initialExpenseData);
+    } finally {
+      setLoadingExpenses(false);
+    }
+  };
+
+  useEffect(() => { fetchExpenses(); }, []);
 
   return (
     <Box
@@ -513,7 +647,7 @@ function SalesDashboard() {
                   <Box sx={{ px: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '200px', maxHeight: '550px', overflow: 'auto' }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
                       {visible.length > 0 ? visible.map((row) => (
-                        <Box key={row.dateSort || row.label} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
+                        <Box key={`rev-${row.id || row.dateSort || row.label}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
                           <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.label || row.date}</Box>
                           <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.revenue}</Box>
                         </Box>
@@ -643,17 +777,17 @@ function SalesDashboard() {
                           currentSort={sortConfig}
                           onSort={handleSort}
                           textAlign="left"
-                          sx={{ flex: '2' }}
+                          sx={{ flex: period !== 'Daily' ? '3' : '2' }}
                         />
-                        <Box sx={{ flex: 2, px: 2, color: '#6d6b80' }}>Expense</Box>
-                        <Box sx={{ flex: 1, px: 2, color: '#6d6b80' }}>Category</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 2, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Expense</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 1, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Category</Box>
                         <SortableHeader
                           label="Amount"
                           sortKey="amountNumber"
                           currentSort={sortConfig}
                           onSort={handleSort}
                           textAlign="right"
-                          sx={{ flex: '1', display: 'flex', justifyContent: 'flex-end' }}
+                          sx={{ flex: period === 'Monthly' ? '1' : '1', display: 'flex', justifyContent: 'flex-end' }}
                         />
                       </Box>
                   </Box>
@@ -661,19 +795,35 @@ function SalesDashboard() {
                 tableRows={
                   <Box sx={{ px: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '200px', maxHeight: '550px', overflow: 'auto' }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
-                      {visibleExpenses.length > 0 ? visibleExpenses.map((row) => (
-                        <Box key={row.dateSort || row.date} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{new Date(row.date).toLocaleDateString()}</Box>
-                          <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.expense}</Box>
-                          <Box sx={{ flex: 1, textAlign: 'left', color: '#6d6b80' }}>{row.category}</Box>
-                          <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
-                        </Box>
+                      {visibleExpenses.length > 0 ? visibleExpenses.map((row, idx) => (
+                        period !== 'Daily' ? (
+                          <Box key={`exp-${row.id || row.dateSort || row.date || row.expense || idx}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ flex: 3, textAlign: 'left', color: '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
+                          </Box>
+                        ) : (
+                          <Box key={`exp-${row.dateSort || row.date || row.expense || idx}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{new Date(row.date).toLocaleDateString()}</Box>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.expense}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'left', color: '#6d6b80' }}>{row.category}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
+                          </Box>
+                        )
                       )) : (
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
-                            <Box sx={{ flex: 2 }} />
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                            <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
+                            {period !== 'Daily' ? (
+                              <>
+                                <Box sx={{ flex: 3, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
+                                <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                              </>
+                            ) : (
+                              <>
+                                <Box sx={{ flex: 2, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
+                                <Box sx={{ flex: 2 }} />
+                                <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                              </>
+                            )}
                           </Box>
                         </Box>
                       )}

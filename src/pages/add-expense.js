@@ -17,15 +17,32 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
     }
   }, [open]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const parsedAmt = Number(String(amount).replace(/[^0-9.-]+/g, '')) || 0;
     const payload = { expense: description.trim(), amount: parsedAmt, date, category };
+
     try {
-      onSubmit(payload);
+      // POST to backend expenses endpoint
+      const res = await fetch('http://localhost:3001/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json && json.expense) {
+        // return saved expense row to caller so UI can update from DB
+        onSubmit(json.expense);
+      } else {
+        console.error('Failed to save expense', json);
+        // still call onSubmit with payload as fallback
+        onSubmit(payload);
+      }
     } catch (e) {
-      // swallow
+      console.error('Error saving expense', e);
+      onSubmit(payload);
+    } finally {
+      onClose();
     }
-    onClose();
   };
 
   const isValid = () => {
