@@ -779,6 +779,35 @@ app.post('/appointments', (req, res) => {
         totalDuration: finalTotalDuration,
         hasMultipleServices: hasJunctionServices && finalServiceNames && finalServiceNames.includes(',')
       };
+
+      
+    // ADD THIS: Log the appointment creation
+    logActivity(
+      'Appointment Created',
+      `New appointment created for ${row.patientName} on ${appointmentDate} (${finalServiceNames})`,
+      'appointments',
+      appointmentId,
+      req.user?.id,
+      req.user?.username || 'system',
+      null,
+      {
+        patientName: row.patientName,
+        appointmentDate,
+        timeStart,
+        timeEnd,
+        serviceName: finalServiceNames,
+        status,
+        totalPrice: finalTotalPrice,
+        totalDuration: finalTotalDuration
+      },
+      req
+    );
+    console.log('✅ Appointment created and logged successfully');
+    res.json({ 
+      message: 'Appointment created successfully', 
+      appointment: processedRow 
+    });
+
       
       console.log('✅ Returning created appointment:', {
         id: processedRow.id,
@@ -1067,6 +1096,69 @@ app.put('/appointments/:id', (req, res) => {
         totalDuration: finalTotalDuration,
         hasMultipleServices: hasJunctionServices && finalServiceNames && finalServiceNames.includes(',')
       };
+
+       // ADD THIS: Log the appointment update
+    // First get the old appointment data for comparison
+    db.get('SELECT * FROM appointments WHERE id = ?', [id], (oldErr, oldAppointment) => {
+      if (!oldErr && oldAppointment) {
+        // Identify what changed
+        const changes = [];
+        if (appointmentDate !== oldAppointment.appointmentDate) {
+          changes.push(`date: ${oldAppointment.appointmentDate} → ${appointmentDate}`);
+        }
+        if (timeStart !== oldAppointment.timeStart) {
+          changes.push(`start time: ${oldAppointment.timeStart} → ${timeStart}`);
+        }
+        if (timeEnd !== oldAppointment.timeEnd) {
+          changes.push(`end time: ${oldAppointment.timeEnd} → ${timeEnd}`);
+        }
+        if (status !== oldAppointment.status) {
+          changes.push(`status: ${oldAppointment.status} → ${status}`);
+        }
+        if (serviceId !== oldAppointment.serviceId) {
+          changes.push(`service updated`);
+        }
+
+        const changeDescription = changes.length > 0 ? ` (${changes.join(', ')})` : '';
+
+        logActivity(
+          'Appointment Updated',
+          `Appointment updated for ${row.patientName}${changeDescription}`,
+          'appointments',
+          id,
+          req.user?.id,
+          req.user?.username || 'system',
+          {
+            appointmentDate: oldAppointment.appointmentDate,
+            timeStart: oldAppointment.timeStart,
+            timeEnd: oldAppointment.timeEnd,
+            status: oldAppointment.status,
+            serviceId: oldAppointment.serviceId,
+            comments: oldAppointment.comments
+          },
+          {
+            appointmentDate,
+            timeStart,
+            timeEnd,
+            status,
+            serviceId,
+            serviceName: finalServiceNames,
+            comments,
+            totalPrice: finalTotalPrice,
+            totalDuration: finalTotalDuration
+          },
+          req
+        );
+      }
+      
+      console.log('✅ Appointment updated and logged successfully');
+      res.json({ 
+        message: 'Appointment updated successfully', 
+        appointment: processedRow 
+      });
+    });
+    
+
       
       console.log('✅ Returning updated appointment:', {
         id: processedRow.id,
