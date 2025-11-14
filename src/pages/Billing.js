@@ -6,7 +6,7 @@ import {
   Collapse,
   Chip,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
@@ -21,15 +21,46 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 
 function Billing() {
-  // Mock billing data (not connected to backend)
-  const [billings, setBillings] = useState([
-    { id: 1, dateCreated: 'October 30, 2025', firstName: 'Vince', lastName: 'Valmores', totalBill: 2500.00, amountPaid: 2500.00, balance: 0.00, status: 'Paid' },
-    { id: 2, dateCreated: 'October 30, 2025', firstName: 'Jane', lastName: 'Foster', totalBill: 500.00, amountPaid: 500.00, balance: 0.00, status: 'Paid' },
-    { id: 3, dateCreated: 'October 25, 2025', firstName: 'Thor', lastName: 'Odinson', totalBill: 600.00, amountPaid: 450.00, balance: 150.00, status: 'Partial' },
-    { id: 4, dateCreated: 'October 17, 2025', firstName: 'Jan', lastName: 'Gerona', totalBill: 1000.00, amountPaid: 700.00, balance: 300.00, status: 'Partial' },
-    { id: 5, dateCreated: 'October 16, 2025', firstName: 'Warlter', lastName: 'Andao', totalBill: 1400.00, amountPaid: 950.00, balance: 450.00, status: 'Partial' },
-    { id: 6, dateCreated: 'October 10, 2025', firstName: 'Ben', lastName: 'Dover', totalBill: 1000.00, amountPaid: 1000.00, balance: 0.00, status: 'Paid' },
-  ]);
+  // Helper function to format dates
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
+  // Initial mock billing data
+  const initialBillings = [
+    { id: 1, dateCreated: formatDate('2025-10-30'), firstName: 'Vince', lastName: 'Valmores', totalBill: 2500.00, amountPaid: 2500.00, balance: 0.00, status: 'Paid' },
+    { id: 2, dateCreated: formatDate('2025-10-30'), firstName: 'Jane', lastName: 'Foster', totalBill: 500.00, amountPaid: 500.00, balance: 0.00, status: 'Paid' },
+    { id: 3, dateCreated: formatDate('2025-10-25'), firstName: 'Thor', lastName: 'Odinson', totalBill: 600.00, amountPaid: 450.00, balance: 150.00, status: 'Partial' },
+    { id: 4, dateCreated: formatDate('2025-10-17'), firstName: 'Jan', lastName: 'Gerona', totalBill: 1000.00, amountPaid: 700.00, balance: 300.00, status: 'Partial' },
+    { id: 5, dateCreated: formatDate('2025-10-16'), firstName: 'Warlter', lastName: 'Andao', totalBill: 1400.00, amountPaid: 950.00, balance: 450.00, status: 'Partial' },
+    { id: 6, dateCreated: formatDate('2025-10-10'), firstName: 'Ben', lastName: 'Dover', totalBill: 1000.00, amountPaid: 1000.00, balance: 0.00, status: 'Paid' },
+  ];
+
+  // Load billings from localStorage or use initial data
+  const [billings, setBillings] = useState(() => {
+    try {
+      const storedBillings = localStorage.getItem('billings');
+      if (storedBillings) {
+        const parsed = JSON.parse(storedBillings);
+        // Merge with initial billings (avoid duplicates)
+        const merged = [...initialBillings];
+        parsed.forEach(newBilling => {
+          if (!merged.find(b => b.id === newBilling.id)) {
+            merged.push(newBilling);
+          }
+        });
+        return merged;
+      }
+      return initialBillings;
+    } catch (error) {
+      console.error('Error loading billings from localStorage:', error);
+      return initialBillings;
+    }
+  });
 
   const [categoryFilteredBillings, setCategoryFilteredBillings] = useState([]);
   const [filteredBillings, setFilteredBillings] = useState([]);
@@ -51,12 +82,63 @@ function Billing() {
   const [selectedBilling, setSelectedBilling] = useState(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if we should open billing modal from navigation state
+  useEffect(() => {
+    if (location.state?.openBillingModal && location.state?.billingData) {
+      setModalOpen(true);
+      setSelectedBilling(location.state.billingData);
+      // Clear the state to prevent reopening on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   // Filter categories for billing
   const filterCategories = [
     { label: 'Status', value: 'status', types: ['Paid', 'Partial'] },
     { label: 'Date Range', value: 'dateRange', types: ['Last 7 days', 'Last 30 days', 'Last 90 days'] },
   ];
+
+  // Listen for new billing entries
+  useEffect(() => {
+    const handleBillingCreated = (event) => {
+      console.log('New billing created:', event.detail);
+      const newBilling = event.detail;
+      
+      // Format date to "Month Day, Year"
+      const dateObj = new Date(newBilling.dateCreated);
+      const formattedDate = dateObj.toLocaleDateString('en-US', { 
+        month: 'long', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+      
+      setBillings(prevBillings => {
+        const billingWithFormattedDate = { ...newBilling, dateCreated: formattedDate };
+        const newBillings = [...prevBillings, billingWithFormattedDate];
+        // Update localStorage
+        localStorage.setItem('billings', JSON.stringify(newBillings));
+        return newBillings;
+      });
+    };
+    
+    const handleInvoiceCreated = () => {
+      console.log('Invoice created - refreshing billing table');
+      // Force reload billings from localStorage to get updated statuses
+      const storedBillings = localStorage.getItem('billings');
+      if (storedBillings) {
+        setBillings(JSON.parse(storedBillings));
+      }
+    };
+
+    window.addEventListener('billingCreated', handleBillingCreated);
+    window.addEventListener('invoiceCreated', handleInvoiceCreated);
+    return () => {
+      window.removeEventListener('billingCreated', handleBillingCreated);
+      window.removeEventListener('invoiceCreated', handleInvoiceCreated);
+    };
+  }, []);
 
   // Initialize data
   useEffect(() => {
