@@ -1658,7 +1658,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
             </Fade>
 
             <Fade in={statusTab !== 'history'} timeout={300} unmountOnExit>
-              <Box>
+              <Box sx={{ height: 'calc(100vh - 300px)', display: 'flex', flexDirection: 'column' }}>
                 {calendarView === 'Month' ? (
                   <MonthGrid 
                     appointments={appointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled')}
@@ -1986,6 +1986,9 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
               </Box>
             </>
           )}
+        </Box>
+      </Fade>
+          </Box>
         </Paper>
       </Box>
       
