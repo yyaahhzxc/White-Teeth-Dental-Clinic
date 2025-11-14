@@ -141,110 +141,54 @@ useEffect(() => {
   }
 }, [service]);
 
+// REPLACE the existing handleSaveClick function (around line 100-150) with this:
 const handleSaveClick = async () => {
-  if (!patient || !patient.id) {
-    showSnackbar('Cannot save. No patient selected.');
+  setSubmitAttempted(true);
+  const isValid = validateFields();
+
+  // Check for duplicate name (case-insensitive), excluding current service
+  const duplicate = allServices.some(
+    s => s.id !== editedService.id && 
+    s.name.trim().toLowerCase() === editedService.name.trim().toLowerCase()
+  );
+  setNameExists(duplicate);
+
+  if (!isValid || duplicate) {
+    setRequiredError(true);
+    setTimeout(() => setRequiredError(false), 3000);
     return;
   }
-  
+
+  setLoading(true);
   try {
-    // Determine what data has actually changed to decide which endpoint to call
-    const patientDataChanged = (
-      firstName !== patient.firstName ||
-      lastName !== patient.lastName ||
-      middleName !== patient.middleName ||
-      suffix !== patient.suffix ||
-      maritalStatus !== patient.maritalStatus ||
-      contactNumber !== patient.contactNumber ||
-      occupation !== patient.occupation ||
-      address !== patient.address ||
-      dateOfBirth !== patient.dateOfBirth ||
-      sex !== patient.sex ||
-      contactPersonName !== patient.contactPersonName ||
-      contactPersonRelationship !== patient.contactPersonRelationship ||
-      contactPersonNumber !== patient.contactPersonNumber ||
-      contactPersonAddress !== patient.contactPersonAddress
-    );
-
-    const medicalDataChanged = (
-      allergies !== (medInfo?.allergies || '') ||
-      bloodType !== (medInfo?.bloodType || '') ||
-      bloodborneDiseases !== (medInfo?.bloodborneDiseases || '') ||
-      pregnancyStatus !== (medInfo?.pregnancyStatus || '') ||
-      medications !== (medInfo?.medications || '') ||
-      additionalNotes !== (medInfo?.additionalNotes || '') ||
-      bloodPressure !== (medInfo?.bloodPressure || '') ||
-      diabetic !== (medInfo?.diabetic || '')
-    );
-
-    // Check if tooth chart data changed (you'll need to compare with original data)
-    // For now, we'll assume tooth chart might have changed if we're on the medical tab
-    const toothChartChanged = tabIndex === 1; // Only update tooth chart if on medical tab
-
-    let updateCount = 0;
+    // Determine if this is a package or service
+    const isPackage = editedService.type === 'Package Treatment';
+    const endpoint = isPackage ? `${API_BASE}/packages/${editedService.id}` : `${API_BASE}/service-table/${editedService.id}`;
     
-    // Only update patient info if it changed - creates "Patient Updated" log
-    if (patientDataChanged) {
-      await fetch(`${API_BASE}/patients/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName, lastName, middleName, suffix, maritalStatus,
-          contactNumber, occupation, address, dateOfBirth, sex,
-          contactPersonName, contactPersonRelationship, contactPersonNumber, contactPersonAddress
-          // Don't include skipLogging - we want this logged
-        })
-      });
-      updateCount++;
-    }
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...editedService,
+        price: parseFloat(editedService.price),
+        duration: parseInt(editedService.duration)
+      })
+    });
 
-     // Only update medical info if it changed - creates "Medical Info Updated" log
-     if (medicalDataChanged) {
-      await fetch(`${API_BASE}/medical-information/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-          medications, additionalNotes, bloodPressure, diabetic,
-          // Add skipLogging only if we're doing multiple updates
-          skipLogging: patientDataChanged // Skip logging if patient data was also updated
-        })
-      });
-      updateCount++;
-    }
-
-    // Only update tooth chart if it changed - creates "Tooth Chart Updated" log
-    if (toothChartChanged && toothChartData.selectedTeeth.length >= 0) {
-      await fetch(`${API_BASE}/tooth-chart/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          selectedTeeth: toothChartData.selectedTeeth,
-          toothSummaries: toothChartData.toothSummaries,
-          // Add skipLogging only if we're doing multiple updates
-          skipLogging: patientDataChanged || medicalDataChanged // Skip logging if other data was updated
-        })
-      });
-      updateCount++;
-    }
-
-    setEditMode(false); // Exit edit mode on successful save
-    
-    if (onRecordUpdated) onRecordUpdated(); // Refresh the list in the parent component
-
-    // Show appropriate success message
-    if (updateCount === 0) {
-      showSnackbar('No changes detected.');
+    if (response.ok) {
+      setIsEditing(false);
+      if (onServiceUpdated) onServiceUpdated();
+      showSnackbar('Service updated successfully!');
     } else {
-      showSnackbar(`Successfully updated ${updateCount} section${updateCount > 1 ? 's' : ''}.`);
+      throw new Error('Failed to update service');
     }
-
   } catch (err) {
-    console.error("Save Error:", err);
+    console.error('Save Error:', err);
     showSnackbar('Failed to save changes. Please try again.');
+  } finally {
+    setLoading(false);
   }
 };
-
 
 
   const handleChange = (e) => {
