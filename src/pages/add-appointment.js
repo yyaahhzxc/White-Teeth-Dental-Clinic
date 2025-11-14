@@ -35,20 +35,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   const [serviceLoading, setServiceLoading] = useState(false);
   const [serviceInputValue, setServiceInputValue] = useState('');
 
-  // Appointment time states - Initialize with current date and time
-  const [appointmentDate, setAppointmentDate] = useState(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
-  const [timeStart, setTimeStart] = useState(() => {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  });
+  // Appointment time states
+  const [appointmentDate, setAppointmentDate] = useState('');
+  const [timeStart, setTimeStart] = useState('');
   const [timeEnd, setTimeEnd] = useState('');
 
   // Comments state
@@ -282,50 +271,6 @@ const fetchServices = async () => {
   
     setSubmitting(true);
     try {
-      // First, fetch all appointments to check for conflicts
-      const appointmentsResponse = await fetch(`${API_BASE}/appointments`);
-      if (!appointmentsResponse.ok) {
-        throw new Error('Failed to fetch appointments for conflict check');
-      }
-      const allAppointments = await appointmentsResponse.json();
-      
-      // Check for time conflicts
-      const normalizedDate = normalizeDateForStorage(appointmentDate);
-      const [startHour, startMin] = timeStart.split(':').map(Number);
-      const [endHour, endMin] = timeEnd.split(':').map(Number);
-      const newStartMinutes = startHour * 60 + startMin;
-      const newEndMinutes = endHour * 60 + endMin;
-      
-      const conflictingAppointment = allAppointments.find(apt => {
-        // Only check appointments on the same date
-        const aptDateStr = apt.appointmentDate.split('T')[0];
-        if (aptDateStr !== normalizedDate) return false;
-        
-        // Only consider conflicts with scheduled or ongoing appointments
-        // Allow overlapping with done or cancelled appointments
-        if (apt.status === 'done' || apt.status === 'cancelled') return false;
-        
-        // Check time overlap
-        if (!apt.timeStart || !apt.timeEnd) return false;
-        const [aptStartH, aptStartM] = apt.timeStart.split(':').map(Number);
-        const [aptEndH, aptEndM] = apt.timeEnd.split(':').map(Number);
-        const aptStartMinutes = aptStartH * 60 + aptStartM;
-        const aptEndMinutes = aptEndH * 60 + aptEndM;
-        
-        // Check if times overlap
-        return (newStartMinutes < aptEndMinutes && newEndMinutes > aptStartMinutes);
-      });
-      
-      if (conflictingAppointment) {
-        setSnackbar({
-          open: true,
-          message: `Unable to book appointment: conflicting schedule with ${conflictingAppointment.firstName} ${conflictingAppointment.lastName}`,
-          severity: 'error'
-        });
-        setSubmitting(false);
-        return;
-      }
-      
       // Calculate total price with quantities
       const totalPrice = selectedServices.reduce((total, service) => 
         total + (parseFloat(service.price) * service.quantity), 0

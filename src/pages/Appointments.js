@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -43,7 +42,6 @@ import {
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import LogAppointment from './LogAppointment';
-import BillingAppointmentSummary from './BillingAppointmentSummary';
 import { API_BASE } from '../apiConfig';
 
 
@@ -352,8 +350,6 @@ const getAppointmentServiceDetails = async (appointment, services, fetchAppointm
 // Render FilterComponent outside the Appointments component render is not valid.
 // Instead we mount it within the component where needed; add below Appointments export.
 function Appointments() {
-  const navigate = useNavigate();
-  const calendarScrollRef = useRef(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState('Week');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -420,12 +416,6 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   
   // Success message state
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
-
-  // Add state to track if appointment was logged
-  const [appointmentLogged, setAppointmentLogged] = useState(false);
-
-  // Billing modal state
-  const [billingModalOpen, setBillingModalOpen] = useState(false);
 
   // Helper function to convert 24h to 12h format
   const convertTo12Hour = (time24) => {
@@ -897,21 +887,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         };
         
         setSelectedAppointment(updatedAppointment);
-        
-        // Set appropriate success message based on status change
-        const statusChanged = editedAppointment.status !== selectedAppointment.status;
-        if (statusChanged) {
-          const statusMessages = {
-            'done': 'Appointment marked as done!',
-            'cancelled': 'Appointment cancelled!',
-            'scheduled': 'Appointment rescheduled!',
-            'ongoing': 'Appointment status updated to ongoing!'
-          };
-          setSuccessMessage(statusMessages[editedAppointment.status] || 'Appointment updated successfully!');
-        } else {
-          setSuccessMessage('Appointment updated successfully!');
-        }
-        
         setUpdateSuccess(true);
         setEditMode(false);
         setEditedAppointment(null);
@@ -956,11 +931,9 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     console.log('Clicked appointment:', appointment);
     
     // When opening the modal, if the appointment is currently ongoing, reflect that in the selectedAppointment's status
-    // BUT: only if the status is not already 'done' or 'cancelled'
     const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
     let appointmentCopy = { ...appointment };
-    
-    if (appointment.appointmentDate && appointment.status !== 'done' && appointment.status !== 'cancelled') {
+    if (appointment.appointmentDate) {
       const aptDateStr = appointment.appointmentDate.split('T')[0];
       const todayStr = new Date().toISOString().split('T')[0];
       if (aptDateStr === todayStr && appointment.timeStart && appointment.timeEnd) {
@@ -973,7 +946,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         }
       }
     }
-    
     setSelectedAppointment(appointmentCopy);
     setModalOpen(true);
     
@@ -1016,83 +988,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     setEditedAppointment(null);
     setEditedServices([]);
     setServiceInputValue('');
-    setAppointmentLogged(false);
-  };
-
-  // Handler for marking appointment as done
-  const handleMarkAsDone = async () => {
-    if (!selectedAppointment) return;
-    
-    setUpdating(true);
-    setUpdateError(null);
-    
-    try {
-      const response = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...selectedAppointment,
-          status: 'done'
-        }),
-      });
-
-      if (response.ok) {
-        // Update local state - important: update selectedAppointment to show done status
-        const updatedAppointment = { ...selectedAppointment, status: 'done' };
-        setSelectedAppointment(updatedAppointment);
-        
-        // Update appointments list
-        setAppointments(prev => prev.map(apt => 
-          apt.id === selectedAppointment.id ? updatedAppointment : apt
-        ));
-        
-        setSuccessMessage('Appointment marked as done!');
-        setUpdateSuccess(true);
-        
-        // Refresh appointments to ensure calendar updates
-        if (calendarView === 'Week') {
-          fetchAppointmentsForWeek();
-        } else {
-          fetchAppointmentsForMonth();
-        }
-      } else {
-        setUpdateError('Failed to update appointment status');
-      }
-    } catch (error) {
-      console.error('Error updating appointment:', error);
-      setUpdateError(`Network error: ${error.message}`);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  // Handler for when appointment is logged successfully
-  const handleAppointmentLogged = () => {
-    setLogAppointmentOpen(false);
-    setAppointmentLogged(true);
-    // Modal stays open, button changes
-  };
-
-  // Handler for proceeding to billing
-  const handleProceedToBilling = () => {
-    // Close the appointment details modal
-    setModalOpen(false);
-    // Pass billing data via navigation state
-    navigate('/billing', {
-      state: {
-        openBillingModal: true,
-        billingData: {
-          patient: {
-            firstName: selectedAppointment.firstName,
-            lastName: selectedAppointment.lastName
-          },
-          appointmentId: selectedAppointment.id,
-          appointmentDate: selectedAppointment.appointmentDate
-        }
-      }
-    });
   };
 
   const statusColors = {
@@ -1223,24 +1118,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
 
   const timeIndicatorPosition = calculateCurrentTimePosition();
   const todayIndex = weekDates.findIndex(d => d.toDateString() === new Date().toDateString());
-
-  // Auto-scroll to current time position on mount
-  useEffect(() => {
-    if (calendarScrollRef.current && timeIndicatorPosition !== null && todayIndex !== -1) {
-      // Scroll to position the time needle near the center of the viewport
-      const scrollContainer = calendarScrollRef.current;
-      const containerHeight = scrollContainer.clientHeight;
-      const scrollPosition = timeIndicatorPosition - (containerHeight / 2) + 20; // +20 for top offset
-      
-      // Delay scroll slightly to ensure DOM is ready
-      setTimeout(() => {
-        scrollContainer.scrollTo({
-          top: Math.max(0, scrollPosition),
-          behavior: 'smooth'
-        });
-      }, 100);
-    }
-  }, []); // Run only once on mount
 
   return (
     <Box sx={{ bgcolor: '#2148c0', minHeight: '100vh' }}>
@@ -1701,7 +1578,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
 
               {/* Calendar Grid */}
               <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                <Box ref={calendarScrollRef} sx={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
+                <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
                   {/* Time Column */}
                   <Box sx={{ width: '80px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
                     <Box sx={{ height: '20px', flexShrink: 0 }} />
@@ -1770,182 +1647,85 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
                               return aptDateStr === targetDateStr;
                             });
 
-                            // Calculate overlap groups - appointments that share time slots
-                            // More robust algorithm: find all appointments that transitively overlap
-                            const appointmentGroups = [];
-                            const processedIds = new Set();
-
-                            // Helper function to check if two time ranges overlap
-                            const timesOverlap = (start1, end1, start2, end2) => {
-                              return start1 < end2 && end1 > start2;
-                            };
-
-                            // Helper function to get time range in minutes
-                            const getTimeRange = (apt) => {
-                              const [startHour, startMin] = apt.timeStart ? apt.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
-                              const [endHour, endMin] = apt.timeEnd ? apt.timeEnd.split(':').map(Number) : [startHour + 1, startMin];
-                              return {
-                                start: startHour * 60 + (startMin || 0),
-                                end: endHour * 60 + (endMin || 0)
-                              };
-                            };
-
-                            appointmentsForDay.forEach(apt => {
-                              if (processedIds.has(apt.id)) return;
-
-                              const { start: aptStart, end: aptEnd } = getTimeRange(apt);
-                              
-                              // Find all appointments that overlap with this one (transitive closure)
-                              const overlapping = [apt];
-                              processedIds.add(apt.id);
-                              
-                              // Keep checking for new overlaps until no more found
-                              let foundNew = true;
-                              while (foundNew) {
-                                foundNew = false;
-                                
-                                appointmentsForDay.forEach(other => {
-                                  if (processedIds.has(other.id)) return;
-                                  
-                                  const { start: otherStart, end: otherEnd } = getTimeRange(other);
-                                  
-                                  // Check if 'other' overlaps with ANY appointment in the current group
-                                  for (const existing of overlapping) {
-                                    const { start: existingStart, end: existingEnd } = getTimeRange(existing);
-                                    
-                                    if (timesOverlap(existingStart, existingEnd, otherStart, otherEnd)) {
-                                      overlapping.push(other);
-                                      processedIds.add(other.id);
-                                      foundNew = true;
-                                      break;
-                                    }
-                                  }
-                                });
-                              }
-
-                              appointmentGroups.push(overlapping);
-                            });
-
                             const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
                             const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
-                            
-                            return appointmentGroups.flatMap((group, groupIndex) => {
-                              const groupSize = group.length;
-                              
-                              return group.map((appointment, indexInGroup) => {
-                                // compute start minutes from DAY_START_HOUR
-                                const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
-                                const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
+                            return appointmentsForDay.map((appointment) => {
+                              // compute start minutes from DAY_START_HOUR
+                              const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
+                              const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
 
-                                // compute duration in minutes
-                                let durationMinutes = 0;
-                                if (appointment.timeEnd) {
-                                  const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
-                                  const startTotal = startHour * 60 + (startMin || 0);
-                                  const endTotal = endHour * 60 + (endMin || 0);
-                                  durationMinutes = Math.max(1, endTotal - startTotal);
+                              // compute duration in minutes
+                              let durationMinutes = 0;
+                              if (appointment.timeEnd) {
+                                const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
+                                const startTotal = startHour * 60 + (startMin || 0);
+                                const endTotal = endHour * 60 + (endMin || 0);
+                                durationMinutes = Math.max(1, endTotal - startTotal);
+                              } else if (appointment.duration) {
+                                // appointment.duration may be in hours (e.g., 1.5)
+                                durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
+                              } else {
+                                durationMinutes = 60; // fallback to 1 hour
+                              }
+
+                              const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
+                              const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE); // min height
+
+                              // Determine if appointment is ongoing (current time intersects start..end)
+                              // Only consider it ongoing if this column represents today
+                              let isOngoing = false;
+                              if (isTodayColumn) {
+                                if (appointment.timeStart && appointment.timeEnd) {
+                                  const [sH, sM] = appointment.timeStart.split(':').map(Number);
+                                  const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+                                  const startTotal = sH * 60 + (sM || 0);
+                                  const endTotal = eH * 60 + (eM || 0);
+                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
                                 } else if (appointment.duration) {
-                                  durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
-                                } else {
-                                  durationMinutes = 60; // fallback to 1 hour
+                                  // fallback: treat appointments with duration and no explicit end
+                                  const startTotal = (startHour * 60) + (startMin || 0);
+                                  const endTotal = startTotal + durationMinutes;
+                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
                                 }
+                              }
 
-                                const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
-                                const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE);
+                              // Use 'ongoing' color when intersecting current time
+                              const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
 
-                                // Determine if appointment is ongoing
-                                let isOngoing = false;
-                                if (isTodayColumn && appointment.status !== 'done' && appointment.status !== 'cancelled') {
-                                  if (appointment.timeStart && appointment.timeEnd) {
-                                    const [sH, sM] = appointment.timeStart.split(':').map(Number);
-                                    const [eH, eM] = appointment.timeEnd.split(':').map(Number);
-                                    const startTotal = sH * 60 + (sM || 0);
-                                    const endTotal = eH * 60 + (eM || 0);
-                                    isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
-                                  } else if (appointment.duration) {
-                                    const startTotal = (startHour * 60) + (startMin || 0);
-                                    const endTotal = startTotal + durationMinutes;
-                                    isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
-                                  }
-                                }
-
-                                // Use 'ongoing' color when intersecting current time, otherwise use appointment status color
-                                const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
-
-                                // NEW ROBUST POSITIONING SYSTEM
-                                // Rules:
-                                // 1. Maximum width is within the day's border only
-                                // 2. Cards start from the left side (with small left margin)
-                                // 3. Always keep a small gap on the right side
-                                // 4. If overlapping, dynamically adjust widths to fit all cards side-by-side
-                                
-                                const LEFT_MARGIN = 6;        // Small gap from left border
-                                const RIGHT_MARGIN = 8;       // Small gap from right border (always maintained)
-                                const CARD_GAP = 3;          // Gap between overlapping cards
-                                
-                                let leftPx, widthPx;
-                                
-                                if (groupSize === 1) {
-                                  // Single appointment - starts at left, leaves right margin
-                                  leftPx = LEFT_MARGIN;
-                                  widthPx = `calc(100% - ${LEFT_MARGIN + RIGHT_MARGIN}px)`;
-                                } else {
-                                  // Multiple overlapping appointments
-                                  // Calculate available space: 100% - left margin - right margin - gaps between cards
-                                  const totalGapsWidth = (groupSize - 1) * CARD_GAP;
-                                  const availableSpace = `100% - ${LEFT_MARGIN + RIGHT_MARGIN + totalGapsWidth}px`;
-                                  
-                                  // Each card gets equal share of available space
-                                  const cardWidthPercent = `((${availableSpace}) / ${groupSize})`;
-                                  
-                                  // Calculate left position: left margin + (card width + gap) * index
-                                  // First card starts at LEFT_MARGIN, each subsequent card is offset by (width + gap)
-                                  if (indexInGroup === 0) {
-                                    leftPx = LEFT_MARGIN;
-                                  } else {
-                                    leftPx = `calc(${LEFT_MARGIN}px + (${cardWidthPercent} + ${CARD_GAP}px) * ${indexInGroup})`;
-                                  }
-                                  
-                                  widthPx = `calc(${cardWidthPercent})`;
-                                }
-
-                                return (
-                                  <Paper
-                                    key={appointment.id}
-                                    elevation={0}
-                                    onClick={() => handleAppointmentClick(appointment)}
-                                    sx={{
-                                      p: '8px 12px',
-                                      backgroundColor: bgColor,
-                                      color: 'white',
-                                      borderRadius: '8px',
-                                      cursor: 'pointer',
-                                      height: `${Math.max(24, Math.round(heightPx))}px`,
-                                      overflow: 'hidden',
-                                      position: 'absolute',
-                                      left: typeof leftPx === 'number' ? `${leftPx}px` : leftPx,
-                                      width: widthPx,
-                                      maxWidth: `calc(100% - ${RIGHT_MARGIN}px)`, // Ensure never exceeds right boundary
-                                      top: `${Math.round(topPx)}px`,
-                                      boxSizing: 'border-box',
-                                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                                      zIndex: 20,
-                                      transition: 'transform 0.2s, box-shadow 0.2s',
-                                      '&:hover': {
-                                        transform: 'translateY(-2px)',
-                                        boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
-                                      }
-                                    }}
-                                  >
-                                    <Typography sx={{ fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '18px' }}>
-                                      {appointment.patientName}
-                                    </Typography>
-                                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', lineHeight: '16px', opacity: 0.9 }}>
-                                      {appointment.procedure}
-                                    </Typography>
-                                  </Paper>
-                                );
-                              });
+                              return (
+                                <Paper
+                                  key={appointment.id}
+                                  elevation={0}
+                                  onClick={() => handleAppointmentClick(appointment)}
+                                  sx={{
+                                    p: '8px 12px',
+                                    backgroundColor: bgColor,
+                                    color: 'white',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    height: `${Math.max(24, Math.round(heightPx))}px`,
+                                    overflow: 'hidden',
+                                    position: 'absolute',
+                                    left: '6px',
+                                    right: '6px',
+                                    top: `${Math.round(topPx)}px`,
+                                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                                    zIndex: 20,
+                                    transition: 'transform 0.2s, box-shadow 0.2s',
+                                    '&:hover': {
+                                      transform: 'translateY(-2px)',
+                                      boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
+                                    }
+                                  }}
+                                >
+                                  <Typography sx={{ fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '18px' }}>
+                                    {appointment.patientName}
+                                  </Typography>
+                                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', lineHeight: '16px', opacity: 0.9 }}>
+                                    {appointment.procedure}
+                                  </Typography>
+                                </Paper>
+                              );
                             });
                           })()}
                           
@@ -2769,52 +2549,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           >
             Close
           </Button>
-          
-          {/* Show Mark as Done button if appointment is currently ongoing and not in edit mode */}
-          {(() => {
-            const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
-            const aptDateStr = selectedAppointment?.appointmentDate?.split('T')[0];
-            const todayStr = new Date().toISOString().split('T')[0];
-            const isToday = aptDateStr === todayStr;
-            
-            let isOngoing = false;
-            if (isToday && selectedAppointment?.timeStart && selectedAppointment?.timeEnd) {
-              const [sH, sM] = selectedAppointment.timeStart.split(':').map(Number);
-              const [eH, eM] = selectedAppointment.timeEnd.split(':').map(Number);
-              const startTotal = sH * 60 + (sM || 0);
-              const endTotal = eH * 60 + (eM || 0);
-              isOngoing = nowTotal >= startTotal && nowTotal < endTotal;
-            }
-            
-            return isOngoing && selectedAppointment?.status !== 'done' && !editMode && (
-              <Button 
-                variant="contained"
-                onClick={handleMarkAsDone}
-                disabled={updating}
-                sx={{ 
-                  fontFamily: 'Inter, sans-serif',
-                  textTransform: 'none',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  borderRadius: '12px',
-                  px: 4,
-                  py: 1.5,
-                  background: 'linear-gradient(135deg, #0d652d 0%, #0a4d22 100%)',
-                  boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #0a4d22 0%, #083b1a 100%)',
-                    boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
-                    transform: 'translateY(-1px)'
-                  }
-                }}
-              >
-                Mark as Done
-              </Button>
-            );
-          })()}
-          
-          {/* Show Log Appointment button if done and not logged yet */}
-          {selectedAppointment?.status === 'done' && !editMode && !appointmentLogged && (
+          {selectedAppointment?.status === 'done' && !editMode && (
             <Button 
               variant="contained"
               onClick={() => setLogAppointmentOpen(true)}
@@ -2836,32 +2571,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
               }}
             >
               Log Appointment
-            </Button>
-          )}
-          
-          {/* Show Proceed to Billing button if appointment was logged */}
-          {appointmentLogged && !editMode && (
-            <Button 
-              variant="contained"
-              onClick={handleProceedToBilling}
-              sx={{ 
-                fontFamily: 'Inter, sans-serif',
-                textTransform: 'none',
-                fontSize: '16px',
-                fontWeight: 700,
-                borderRadius: '12px',
-                px: 4,
-                py: 1.5,
-                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-                boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
-                  boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
-                  transform: 'translateY(-1px)'
-                }
-              }}
-            >
-              Proceed to Billing
             </Button>
           )}
         </DialogActions>
@@ -2896,21 +2605,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         open={logAppointmentOpen}
         onClose={() => setLogAppointmentOpen(false)}
         appointment={selectedAppointment}
-        onAppointmentLogged={handleAppointmentLogged}
-      />
-      
-      {/* Billing Appointment Summary Modal */}
-      <BillingAppointmentSummary
-        open={billingModalOpen}
-        onClose={() => setBillingModalOpen(false)}
-        billingData={{
-          firstName: selectedAppointment?.patientName?.split(' ')[0] || '',
-          lastName: selectedAppointment?.patientName?.split(' ').slice(1).join(' ') || '',
-          dateCreated: selectedAppointment?.appointmentDate 
-            ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-            : '',
-          service: selectedAppointment?.procedure || '',
-        }}
       />
       
       <QuickActionButton />

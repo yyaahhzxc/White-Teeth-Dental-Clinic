@@ -15,7 +15,7 @@ import {
 import { Close, AccessTime, CalendarToday, Edit } from '@mui/icons-material';
 import TeethChart from '../components/TeethChart';
 
-function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
+function LogAppointment({ open, onClose, appointment }) {
   const [activeTab, setActiveTab] = useState(0);
   const [editingField, setEditingField] = useState(null);
   const [successMessage, setSuccessMessage] = useState(false);
@@ -33,32 +33,12 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
     notes: 'Patient reports no major medical concerns affecting dental care. Noted impaction in the upper left and presence of a root fragment in the lower right. Routine monitoring and regular check-ups recommended.'
   };
 
-  // Helper function to format date from YYYY-MM-DD to MM/DD/YYYY
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${month}/${day}/${year}`;
-  };
-
-  // Helper function to convert 24h to 12h format
-  const convertTo12Hour = (time24) => {
-    if (!time24) return '';
-    const [hours, minutes] = time24.split(':');
-    const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
-  };
-
-  // Initialize visit log data from appointment if available, otherwise use defaults
+  // Mock visit log data - will be replaced with actual data later
   const [visitLog, setVisitLog] = useState({
-    date: appointment?.appointmentDate ? formatDate(appointment.appointmentDate) : '12/31/2025',
-    timeStart: appointment?.timeStart ? convertTo12Hour(appointment.timeStart) : '1:00 PM',
-    timeEnd: appointment?.timeEnd ? convertTo12Hour(appointment.timeEnd) : '1:00 PM',
-    concern: appointment?.concern || 'Wisdom Tooth Extraction',
+    date: '12/31/2025',
+    timeStart: '1:00 PM',
+    timeEnd: '1:00 PM',
+    concern: 'Wisdom Tooth Extraction',
     attendingDentist: 'Dr. Sarah Gerona',
     proceduresDone: '',
     progressNotes: '',
@@ -107,14 +87,10 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
       // Show success message
       setSuccessMessage(true);
       
-      // Close modal and notify parent after a brief delay
+      // Close modal after a brief delay
       setTimeout(() => {
         setSuccessMessage(false);
         onClose();
-        // Notify parent that appointment was logged
-        if (onAppointmentLogged) {
-          onAppointmentLogged();
-        }
       }, 2000);
     } catch (error) {
       console.error('Error saving billing entry:', error);
