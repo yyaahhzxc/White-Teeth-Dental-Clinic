@@ -14,7 +14,7 @@ This is a dental clinic management system built as a desktop application. The sy
 - **Service Management** - Dental services catalog and pricing
 - **Appointment Scheduling** - Patient appointment booking and management
 - **User Management** - Role-based access control (Administrator, Dentist, Assistant, Receptionist)
-- **Sales & Invoicing** - Financial tracking and invoice generation
+- **Accounting & Invoicing** - Financial tracking and invoice generation
 - **Audit Logs** - System activity tracking
 
 **Quick Overview:**
@@ -171,7 +171,7 @@ White-Teeth-Dental-Clinic/
 │   ├── Accounts.js              # User account management
 │   ├── Profile.js               # User profile settings
 │   ├── Invoice.js               # Invoice generation
-│   ├── Sales.js                 # Financial management
+│   ├── Accounting.js            # Financial management
 │   ├── Settings.js              # System settings
 │   ├── Logs.js                  # Audit logs viewer
 │   ├── add-record.js            # Add patient modal

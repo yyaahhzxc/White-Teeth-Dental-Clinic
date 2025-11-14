@@ -4,7 +4,7 @@ import { Box, Button, Typography, FormControl, Select, MenuItem } from '@mui/mat
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 
-const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPageChange, activeColor, activeHoverColor }) => {
+const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPageChange }) => {
   function getPageItems(current, total) {
     const pages = [];
     if (total <= 7) {
@@ -83,7 +83,7 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
           const zeroBased = pageNumber - 1;
           const isActive = zeroBased === page;
           return (
-                <Button
+            <Button
               key={pageNumber}
               size="small"
               variant={isActive ? 'contained' : 'outlined'}
@@ -93,11 +93,11 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
                 mx: 0.5,
                 py: 0.5,
                 px: 1,
-                    backgroundColor: isActive ? (activeColor || '#1746A2') : 'transparent',
-                    color: isActive ? 'white' : 'inherit',
+                backgroundColor: isActive ? '#1746A2' : 'transparent',
+                color: isActive ? 'white' : 'inherit',
                 borderColor: '#ddd',
                 '&:hover': {
-                      backgroundColor: isActive ? (activeHoverColor || '#1746A2') : '#f4f4f4',
+                  backgroundColor: isActive ? '#1746A2' : '#f4f4f4',
                 },
                 textTransform: 'none',
                 fontSize: '0.9rem',
@@ -115,7 +115,7 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
               mx: 0.5,
               py: 0.5,
               px: 1,
-              backgroundColor: activeColor || '#1746A2',
+              backgroundColor: '#1746A2',
               color: 'white',
               textTransform: 'none',
               fontSize: '0.9rem',

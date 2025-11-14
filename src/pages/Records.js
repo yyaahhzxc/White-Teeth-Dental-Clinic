@@ -62,37 +62,16 @@ function PatientList() {
   
   const handleViewPatient = async (patient) => {
     setSelectedPatient(patient);
-    
     try {
       const res = await fetch(`${API_BASE}/medical-information/${patient.id}`);
       const data = await res.json();
       setMedInfo(data || null);
-      
-      // Optional: Log the patient record access
-      try {
-        await fetch(`${API_BASE}/logs`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'Patient Record Viewed',
-            description: `Patient record accessed for ${patient.firstName} ${patient.lastName}`,
-            tableName: 'patients',
-            recordId: patient.id,
-            username: 'current_user' // Replace with actual username if available
-          })
-        });
-      } catch (logError) {
-        console.error('Failed to log record access:', logError);
-        // Don't throw - this shouldn't prevent viewing the record
-      }
     } catch (err) {
       console.error("Error fetching medical info:", err);
       setMedInfo(null);
     }
-    
     setViewDialogOpen(true);
   };
-  
 
   // Filter categories for patient records
   const filterCategories = [

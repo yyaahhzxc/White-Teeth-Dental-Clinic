@@ -54,8 +54,6 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
   console.log('✅ Connected to SQLite database.');
 });
 
-
-
 db.run(`
   CREATE TABLE IF NOT EXISTS appointments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -234,22 +232,6 @@ db.run(`
   }
 });
 
-// Create expenses table (primary key = year + seq in id)
-db.run(`
-  CREATE TABLE IF NOT EXISTS expenses (
-    id TEXT PRIMARY KEY,            -- format "YYYY-0001"
-    year INTEGER NOT NULL,
-    seq INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    category TEXT,
-    amount REAL NOT NULL,
-    date TEXT NOT NULL,             -- ISO date string
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`, (err) => {
-  if (err) console.error('Error creating expenses table:', err);
-  else console.log('✅ Expenses table ready');
-});
 
 //TABLE CREATION FUNCTIONS
 
@@ -1556,11 +1538,9 @@ app.post('/patients', (req, res) => {
     firstName, lastName, middleName, suffix, maritalStatus,
     contactNumber, occupation, address, dateOfBirth, sex,
     contactPersonName, contactPersonRelationship, contactPersonNumber,
-    contactPersonAddress, dateCreated, toothChart,
-    skipLogging= false
+    contactPersonAddress, dateCreated, toothChart
   } = req.body;
 
-  // First, insert the patient
   // First, insert the patient
   db.run(
     `INSERT INTO patients (
@@ -1574,53 +1554,36 @@ app.post('/patients', (req, res) => {
       contactPersonAddress, dateCreated
     ],
     function (err) {
-      if (err) {
-        console.error('Error adding patient:', err);
-        return res.status(500).json({ error: err.message });
-      }
+      if (err) return res.status(500).json({ error: err.message });
       
       const patientId = this.lastID;
-      const patientName = `${firstName} ${lastName}`.trim();
       
-      // ONLY log the patient creation (remove duplicate logging)
-      logActivity(
-        'Patient Added',
-        `New patient record created for ${patientName}`,
-        'patients',
-        patientId,
-        req.user?.id,
-        req.user?.username || 'system',
-        null,
-        { firstName, lastName, middleName, contactNumber, dateOfBirth, sex },
-        req
-      );
-
-
-   
-      // If tooth chart data exists, save it WITHOUT logging here
+      // If tooth chart data exists, save it
       if (toothChart && (toothChart.selectedTeeth.length > 0 || Object.keys(toothChart.toothSummaries).length > 0)) {
         db.run(
-          'INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+          `INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?)`,
           [
             patientId,
-            JSON.stringify(toothChart.selectedTeeth || []),
-            JSON.stringify(toothChart.toothSummaries || {}),
-            new Date().toISOString(),
+            JSON.stringify(toothChart.selectedTeeth),
+            JSON.stringify(toothChart.toothSummaries),
+            toothChart.createdAt || new Date().toISOString(),
             new Date().toISOString()
           ],
           function (toothErr) {
             if (toothErr) {
               console.error('Error saving tooth chart:', toothErr);
+              // Still return success for patient, but log the tooth chart error
             }
-            // DON'T log here - tooth chart logging will happen when explicitly saved via PUT /tooth-chart/:patientId
-            
-            // SEND RESPONSE HERE AFTER TOOTH CHART IS SAVED
-            res.json({ id: patientId, message: 'Patient added successfully' });
+            res.json({ 
+              id: patientId, 
+              message: 'Patient saved successfully',
+              toothChartSaved: !toothErr 
+            });
           }
         );
       } else {
-        // SEND RESPONSE HERE IF NO TOOTH CHART
-        res.json({ id: patientId, message: 'Patient added successfully' });
+        res.json({ id: patientId, message: 'Patient saved successfully' });
       }
     }
   );
@@ -1647,99 +1610,51 @@ app.get('/tooth-chart/:patientId', (req, res) => {
   );
 });
 
-// Replace your PUT /tooth-chart/:patientId endpoint
-// Replace your PUT /tooth-chart/:patientId endpoint
+// Update tooth chart
 app.put('/tooth-chart/:patientId', (req, res) => {
   const patientId = req.params.patientId;
-  const { 
-    selectedTeeth, 
-    toothSummaries,
-    // Add flag to control logging
-    skipLogging = false 
-  } = req.body;
-
+  const { selectedTeeth, toothSummaries } = req.body;
   
-   // Get patient name for logging
-  db.get('SELECT firstName, lastName FROM patients WHERE id = ?', [patientId], (err, patient) => {
-    if (err) {
-      console.error('Error fetching patient:', err);
-      return res.status(500).json({ error: err.message });
+  // Check if tooth chart exists
+  db.get('SELECT id FROM tooth_charts WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing tooth chart
+      db.run(
+        `UPDATE tooth_charts SET selectedTeeth = ?, toothSummaries = ?, updatedAt = ?
+         WHERE patientId = ?`,
+        [
+          JSON.stringify(selectedTeeth),
+          JSON.stringify(toothSummaries),
+          new Date().toISOString(),
+          patientId
+        ],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Tooth chart updated successfully', changes: this.changes });
+        }
+      );
+    } else {
+      // Create new tooth chart
+      db.run(
+        `INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          patientId,
+          JSON.stringify(selectedTeeth),
+          JSON.stringify(toothSummaries),
+          new Date().toISOString(),
+          new Date().toISOString()
+        ],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Tooth chart created successfully', id: this.lastID });
+        }
+      );
     }
-
-    const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : `Patient ID ${patientId}`;
-
-    // Check if tooth chart exists
-    db.get('SELECT * FROM tooth_charts WHERE patientId = ?', [patientId], (err, oldChart) => {
-      if (err) {
-        console.error('Error fetching tooth chart:', err);
-        return res.status(500).json({ error: err.message });
-      }
-
-
-
-   if (oldChart) {
-        // Update existing tooth chart
-        db.run(
-          'UPDATE tooth_charts SET selectedTeeth = ?, toothSummaries = ?, updatedAt = ? WHERE patientId = ?',
-          [JSON.stringify(selectedTeeth), JSON.stringify(toothSummaries), new Date().toISOString(), patientId],
-          function (updateErr) {
-            if (updateErr) {
-              console.error('Error updating tooth chart:', updateErr);
-              return res.status(500).json({ error: updateErr.message });
-            }
-
-            // Only log if this is explicit tooth chart update (not cascade)
-            if (!skipLogging && this.changes > 0) {
-              logActivity(
-                'Tooth Chart Updated',
-                `Tooth chart updated for ${patientName}`,
-                'tooth_charts',
-                oldChart.id,
-                req.user?.id,
-                req.user?.username || 'system',
-                { selectedTeeth: JSON.parse(oldChart.selectedTeeth || '[]'), toothSummaries: JSON.parse(oldChart.toothSummaries || '{}') },
-                { selectedTeeth, toothSummaries },
-                req
-              );
-            }
-
-            res.json({ message: 'Tooth chart updated successfully' });
-          }
-        );
-      } else {
-        // Create new tooth chart - only log if not cascade
-        db.run(
-          'INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
-          [patientId, JSON.stringify(selectedTeeth), JSON.stringify(toothSummaries), new Date().toISOString(), new Date().toISOString()],
-          function (insertErr) {
-            if (insertErr) {
-              console.error('Error creating tooth chart:', insertErr);
-              return res.status(500).json({ error: insertErr.message });
-            }
-
-            // Only log if this is explicit creation (not cascade)
-            if (!skipLogging) {
-              logActivity(
-                'Tooth Chart Added',
-                `Tooth chart created for ${patientName}`,
-                'tooth_charts',
-                this.lastID,
-                req.user?.id,
-                req.user?.username || 'system',
-                null,
-                { selectedTeeth, toothSummaries },
-                req
-              );
-            }
-
-            res.json({ id: this.lastID, message: 'Tooth chart created successfully' });
-          }
-        );
-      }
-    });
   });
 });
-
 
 app.get('/patients-with-tooth-charts', (req, res) => {
   db.all(`
@@ -1769,25 +1684,8 @@ app.put('/patients/:id', (req, res) => {
     firstName, lastName, middleName, suffix, maritalStatus,
     contactNumber, occupation, address, dateOfBirth, sex,
     contactPersonName, contactPersonRelationship, contactPersonNumber,
-    contactPersonAddress,
-    skipLogging =  false
+    contactPersonAddress
   } = req.body;
-
-  
-  // First get the old values for logging
-  db.get('SELECT * FROM patients WHERE id = ?', [patientId], (err, oldPatient) => {
-    if (err) {
-      console.error('Error fetching patient for logging:', err);
-      return res.status(500).json({ error: err.message });
-    }
-
-    if (!oldPatient) {
-      return res.status(404).json({ error: 'Patient not found' });
-    }
-
-    // Log the patient update
-
-
 
   db.run(
     `UPDATE patients SET 
@@ -1802,162 +1700,57 @@ app.put('/patients/:id', (req, res) => {
       contactPersonName, contactPersonRelationship, contactPersonNumber,
       contactPersonAddress, patientId
     ],
-    function (updateErr) {
-        if (updateErr) {
-          console.error('Error updating patient:', updateErr);
-          return res.status(500).json({ error: updateErr.message });
-        }
-
-        if (this.changes === 0) {
-          return res.status(404).json({ error: 'Patient not found' });
-        }
-
-         // Only log if this is not a cascade update and something actually changed
-         if (!skipLogging && this.changes > 0) {
-          const patientName = `${firstName || oldPatient.firstName} ${lastName || oldPatient.lastName}`.trim();
-          
-          // Identify what changed for better logging
-          const changes = [];
-          if (firstName !== oldPatient.firstName) changes.push(`name: "${oldPatient.firstName}" → "${firstName}"`);
-          if (lastName !== oldPatient.lastName) changes.push(`surname: "${oldPatient.lastName}" → "${lastName}"`);
-          if (contactNumber !== oldPatient.contactNumber) changes.push(`contact: "${oldPatient.contactNumber}" → "${contactNumber}"`);
-          if (address !== oldPatient.address) changes.push(`address updated`);
-          if (dateOfBirth !== oldPatient.dateOfBirth) changes.push(`DOB: "${oldPatient.dateOfBirth}" → "${dateOfBirth}"`);
-          if (maritalStatus !== oldPatient.maritalStatus) changes.push(`marital status updated`);
-          if (occupation !== oldPatient.occupation) changes.push(`occupation updated`);
-          
-          const changeDescription = changes.length > 0 ? ` (${changes.join(', ')})` : '';
-          
-          // ONLY log the patient update if there are actual changes
-          if (changes.length > 0) {
-            logActivity(
-              'Patient Updated',
-              `Patient record updated for ${patientName}${changeDescription}`,
-              'patients',
-              patientId,
-              req.user?.id,
-              req.user?.username || 'system',
-              oldPatient,
-              { firstName, lastName, middleName, contactNumber, address, dateOfBirth, sex, maritalStatus, occupation },
-              req
-            );
-          }
-        }
-
-
-        res.json({ message: 'Patient updated successfully', changes: this.changes });
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Patient not found' });
       }
-    );
-  });
-})
-
-
-
+      res.json({ message: 'Patient updated successfully', changes: this.changes });
+    }
+  );
+});
 
 // Update medical information
 app.put('/medical-information/:patientId', (req, res) => {
   const patientId = req.params.patientId;
   const {
     allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-    medications, additionalNotes, bloodPressure, diabetic,
-    skipLogging = false
+    medications, additionalNotes, bloodPressure, diabetic
   } = req.body;
 
-// Get patient name for logging
-db.get('SELECT firstName, lastName FROM patients WHERE id = ?', [patientId], (err, patient) => {
-  if (err) {
-    console.error('Error fetching patient:', err);
-    return res.status(500).json({ error: err.message });
-  }
-
-  const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : `Patient ID ${patientId}`;
-// Check if medical information exists for this patient
-db.get('SELECT * FROM MedicalInformation WHERE patientId = ?', [patientId], (err, oldMedInfo) => {
-  if (err) {
-    console.error('Error fetching medical info:', err);
-    return res.status(500).json({ error: err.message });
-  }
-
-  if (oldMedInfo) {
-    // Update existing medical information
-    db.run(
-      `UPDATE MedicalInformation SET 
-        allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
-        medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
-       WHERE patientId = ?`,
-      [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
-      function (updateErr) {
-        if (updateErr) {
-          console.error('Error updating medical info:', updateErr);
-          return res.status(500).json({ error: updateErr.message });
+  // First check if medical information exists for this patient
+  db.get('SELECT id FROM MedicalInformation WHERE patientId = ?', [patientId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (row) {
+      // Update existing record
+      db.run(
+        `UPDATE MedicalInformation SET 
+          allergies = ?, bloodType = ?, bloodborneDiseases = ?, pregnancyStatus = ?,
+          medications = ?, additionalNotes = ?, bloodPressure = ?, diabetic = ?
+         WHERE patientId = ?`,
+        [allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic, patientId],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information updated successfully', changes: this.changes });
         }
-
-         // Only log if this is an explicit medical info update (not cascade)
-            if (!skipLogging && this.changes > 0) {
-              // Identify what changed
-              const changes = [];
-              if (allergies !== oldMedInfo.allergies) changes.push('allergies');
-              if (bloodType !== oldMedInfo.bloodType) changes.push('blood type');
-              if (medications !== oldMedInfo.medications) changes.push('medications');
-              if (bloodPressure !== oldMedInfo.bloodPressure) changes.push('blood pressure');
-              
-              const changeDescription = changes.length > 0 ? ` (${changes.join(', ')} updated)` : '';
-
-              logActivity(
-                'Medical Info Updated',
-                `Medical information updated for ${patientName}${changeDescription}`,
-                'MedicalInformation',
-                oldMedInfo.id,
-                req.user?.id,
-                req.user?.username || 'system',
-                oldMedInfo,
-                { allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic },
-                req
-              );
-            }
-
-
-        res.json({ message: 'Medical information updated successfully' });
-      }
-    );
-  } else {
-
-     // Create new medical information - only log if not cascade
-        db.run(
-          `INSERT INTO MedicalInformation (
-            patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
-          function (insertErr) {
-            if (insertErr) {
-              console.error('Error creating medical info:', insertErr);
-              return res.status(500).json({ error: insertErr.message });
-            }
-
-            // Only log if this is explicit creation (not cascade)
-            if (!skipLogging) {
-              logActivity(
-                'Medical Info Added',
-                `Medical information created for ${patientName}`,
-                'MedicalInformation',
-                this.lastID,
-                req.user?.id,
-                req.user?.username || 'system',
-                null,
-                { allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic },
-                req
-              );
-            }
-
-            res.json({ id: this.lastID, message: 'Medical information created successfully' });
-          }
-        );
-      }
-    });
+      );
+    } else {
+      // Create new record if none exists
+      db.run(
+        `INSERT INTO MedicalInformation (
+          patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ message: 'Medical information created successfully', id: this.lastID });
+        }
+      );
+    }
   });
 });
-
-
 
 
 //PATIENT ENDPOINTS
@@ -2114,53 +1907,23 @@ app.post('/forgot-reset', (req, res) => {
   });
 });
 
-// Also fix the POST /medical-information endpoint (around line 1800)
 app.post('/medical-information', (req, res) => {
   const {
     patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus,
     medications, additionalNotes, bloodPressure, diabetic
   } = req.body;
 
-  // Get patient name for logging
-  db.get('SELECT firstName, lastName FROM patients WHERE id = ?', [patientId], (err, patient) => {
-    if (err) {
-      console.error('Error fetching patient:', err);
-      return res.status(500).json({ error: err.message });
+  db.run(
+    `INSERT INTO MedicalInformation (
+      patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID });
     }
-
-    const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : `Patient ID ${patientId}`;
-
-    db.run(
-      `INSERT INTO MedicalInformation (
-        patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [patientId, allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic],
-      function (err) {
-        if (err) {
-          console.error('Error adding medical info:', err);
-          return res.status(500).json({ error: err.message });
-        }
-
-        // Log ONLY the medical info creation
-        logActivity(
-          'Medical Info Added',
-          `Medical information created for ${patientName}`,
-          'MedicalInformation',
-          this.lastID,
-          req.user?.id,
-          req.user?.username || 'system',
-          null,
-          { allergies, bloodType, bloodborneDiseases, pregnancyStatus, medications, additionalNotes, bloodPressure, diabetic },
-          req
-        );
-
-        res.json({ id: this.lastID });
-      }
-    );
-  });
+  );
 });
-
-
 
 
 
@@ -2499,53 +2262,6 @@ app.post('/users', requireRole('admin'), (req, res) => {
   );
 });
 
-app.post('/expenses', (req, res) => {
-  const { expense: name, amount, date, category } = req.body;
-  if (!name || !amount || !date) {
-    return res.status(400).json({ error: 'name, amount and date are required' });
-  }
-
-  const d = new Date(date);
-  const year = d.getFullYear();
-
-  db.get('SELECT MAX(seq) as maxSeq FROM expenses WHERE year = ?', [year], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    const seq = (row && row.maxSeq) ? row.maxSeq + 1 : 1;
-    const id = `${year}-${String(seq).padStart(4, '0')}`;
-    const createdAt = new Date().toISOString();
-
-    const q = `INSERT INTO expenses (id, year, seq, name, category, amount, date, createdAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    db.run(q, [id, year, seq, name, category || '', amount, date, createdAt], function(insertErr) {
-      if (insertErr) {
-        console.error('Error inserting expense:', insertErr);
-        return res.status(500).json({ error: insertErr.message });
-      }
-      // return created expense
-      res.status(201).json({
-        success: true,
-        expense: { id, year, seq, name, category: category || '', amount, date, createdAt }
-      });
-    });
-  });
-});
-
-// GET all expenses (optional query startDate/endDate)
-app.get('/expenses', (req, res) => {
-  const { startDate, endDate } = req.query;
-  let q = 'SELECT * FROM expenses';
-  const params = [];
-  if (startDate && endDate) {
-    q += ' WHERE date BETWEEN ? AND ?';
-    params.push(startDate, endDate);
-  }
-  q += ' ORDER BY date DESC, id DESC';
-  db.all(q, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
 // Update user
 app.put('/users/:id', requireRole('admin'), (req, res) => {
   const userId = req.params.id;
@@ -2775,246 +2491,4 @@ app.delete('/users/:id', requireRole('admin'), (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-});
-
-
-// LOGS PRE //
-
-// Add this after your existing table creation code (around line 200)
-console.log('Creating activity_logs table...');
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS activity_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    action TEXT NOT NULL,
-    description TEXT NOT NULL,
-    tableName TEXT,
-    recordId INTEGER,
-    userId INTEGER,
-    username TEXT,
-    oldValues TEXT,
-    newValues TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    viewStatus TEXT DEFAULT 'Unviewed',
-    ipAddress TEXT,
-    userAgent TEXT
-  )
-`, (err) => {
-  if (err) {
-    console.error('❌ Error creating activity_logs table:', err);
-  } else {
-    console.log('✅ Activity logs table created/verified');
-  }
-});
-
-// Logging utility function
-function logActivity(action, description, tableName = null, recordId = null, userId = null, username = null, oldValues = null, newValues = null, req = null) {
-  const logData = {
-    action,
-    description,
-    tableName,
-    recordId,
-    userId,
-    username,
-    oldValues: oldValues ? JSON.stringify(oldValues) : null,
-    newValues: newValues ? JSON.stringify(newValues) : null,
-    ipAddress: req ? (req.ip || req.connection?.remoteAddress || 'unknown') : null,
-    userAgent: req ? req.headers['user-agent'] : null
-  };
-
-  const insertQuery = `
-    INSERT INTO activity_logs (action, description, tableName, recordId, userId, username, oldValues, newValues, ipAddress, userAgent)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(insertQuery, [
-    logData.action,
-    logData.description,
-    logData.tableName,
-    logData.recordId,
-    logData.userId,
-    logData.username,
-    logData.oldValues,
-    logData.newValues,
-    logData.ipAddress,
-    logData.userAgent
-  ], function(err) {
-    if (err) {
-      console.error('❌ Error logging activity:', err);
-    } else {
-      console.log('📝 Activity logged:', logData.action);
-    }
-  });
-}
-
-// GET all logs with pagination and filtering
-app.get('/logs', (req, res) => {
-  const { 
-    page = 0, 
-    limit = 50, 
-    action, 
-    viewStatus, 
-    startDate, 
-    endDate,
-    username,
-    tableName 
-  } = req.query;
-
-  let whereConditions = [];
-  let queryParams = [];
-
-  // Add filters
-  if (action) {
-    whereConditions.push('action = ?');
-    queryParams.push(action);
-  }
-  
-  if (viewStatus) {
-    whereConditions.push('viewStatus = ?');
-    queryParams.push(viewStatus);
-  }
-  
-  if (startDate) {
-    whereConditions.push('date(timestamp) >= ?');
-    queryParams.push(startDate);
-  }
-  
-  if (endDate) {
-    whereConditions.push('date(timestamp) <= ?');
-    queryParams.push(endDate);
-  }
-  
-  if (username) {
-    whereConditions.push('username LIKE ?');
-    queryParams.push(`%${username}%`);
-  }
-  
-  if (tableName) {
-    whereConditions.push('tableName = ?');
-    queryParams.push(tableName);
-  }
-
-  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
-  
-  // Count total logs
-  const countQuery = `SELECT COUNT(*) as total FROM activity_logs ${whereClause}`;
-  
-  db.get(countQuery, queryParams, (err, countResult) => {
-    if (err) {
-      console.error('Error counting logs:', err);
-      return res.status(500).json({ error: 'Failed to count logs' });
-    }
-
-    // Get paginated logs
-    const offset = parseInt(page) * parseInt(limit);
-    const selectQuery = `
-      SELECT * FROM activity_logs 
-      ${whereClause}
-      ORDER BY timestamp DESC 
-      LIMIT ? OFFSET ?
-    `;
-    
-    const selectParams = [...queryParams, parseInt(limit), offset];
-
-    db.all(selectQuery, selectParams, (err, rows) => {
-      if (err) {
-        console.error('Error fetching logs:', err);
-        return res.status(500).json({ error: 'Failed to fetch logs' });
-      }
-
-      res.json({
-        logs: rows,
-        total: countResult.total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(countResult.total / parseInt(limit))
-      });
-    });
-  });
-});
-
-// GET log by ID
-app.get('/logs/:id', (req, res) => {
-  const { id } = req.params;
-  
-  db.get('SELECT * FROM activity_logs WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      console.error('Error fetching log:', err);
-      return res.status(500).json({ error: 'Failed to fetch log' });
-    }
-    
-    if (!row) {
-      return res.status(404).json({ error: 'Log not found' });
-    }
-    
-    res.json(row);
-  });
-});
-
-// UPDATE log view status
-app.put('/logs/:id', (req, res) => {
-  const { id } = req.params;
-  const { viewStatus } = req.body;
-  
-  db.run('UPDATE activity_logs SET viewStatus = ? WHERE id = ?', [viewStatus, id], function(err) {
-    if (err) {
-      console.error('Error updating log:', err);
-      return res.status(500).json({ error: 'Failed to update log' });
-    }
-    
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Log not found' });
-    }
-    
-    res.json({ message: 'Log updated successfully' });
-  });
-});
-
-// DELETE log (admin only)
-app.delete('/logs/:id', requireRole('admin'), (req, res) => {
-  const { id } = req.params;
-  
-  db.run('DELETE FROM activity_logs WHERE id = ?', [id], function(err) {
-    if (err) {
-      console.error('Error deleting log:', err);
-      return res.status(500).json({ error: 'Failed to delete log' });
-    }
-    
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Log not found' });
-    }
-    
-    res.json({ message: 'Log deleted successfully' });
-  });
-});
-
-// Get log statistics
-app.get('/logs/stats', (req, res) => {
-  const queries = {
-    totalLogs: 'SELECT COUNT(*) as count FROM activity_logs',
-    unviewedLogs: 'SELECT COUNT(*) as count FROM activity_logs WHERE viewStatus = "Unviewed"',
-    todayLogs: 'SELECT COUNT(*) as count FROM activity_logs WHERE date(timestamp) = date("now")',
-    actionBreakdown: 'SELECT action, COUNT(*) as count FROM activity_logs GROUP BY action ORDER BY count DESC',
-    recentActivity: 'SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 5'
-  };
-  
-  const stats = {};
-  let completed = 0;
-  const total = Object.keys(queries).length;
-  
-  Object.entries(queries).forEach(([key, query]) => {
-    if (key === 'actionBreakdown' || key === 'recentActivity') {
-      db.all(query, [], (err, rows) => {
-        if (!err) stats[key] = rows;
-        completed++;
-        if (completed === total) res.json(stats);
-      });
-    } else {
-      db.get(query, [], (err, row) => {
-        if (!err) stats[key] = row.count;
-        completed++;
-        if (completed === total) res.json(stats);
-      });
-    }
-  });
 });

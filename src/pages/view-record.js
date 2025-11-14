@@ -23,7 +23,6 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import { API_BASE } from '../apiConfig';
-// This should resolve to 'http://localhost:3001'
 
 
 const bloodTypes = [
@@ -36,8 +35,6 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMsg, setSnackbarMsg] = useState('');
-
-  
 
   const showSnackbar = (msg) => {
     setSnackbarMsg(msg);
@@ -73,42 +70,29 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   const [xrayFile, setXrayFile] = useState('');
 
 
-// Add these state variables at the top of your ViewRecord component (around line 25)
-const [originalPatientData, setOriginalPatientData] = useState(null);
-const [originalMedicalData, setOriginalMedicalData] = useState(null);
-const [originalToothChartData, setOriginalToothChartData] = useState({ selectedTeeth: [], toothSummaries: {} });
-
-// Tooth chart state
-const [toothChartData, setToothChartData] = useState({
-  selectedTeeth: [],
-  toothSummaries: {}
-});
+  // Tooth chart state
+  const [toothChartData, setToothChartData] = useState({
+    selectedTeeth: [],
+    toothSummaries: {}
+  });
 
  
 
   // Load tooth chart data
-const loadToothChart = async (patientId) => {
-  try {
-    const response = await fetch(`${API_BASE}/tooth-chart/${patientId}`);
-    const data = await response.json();
-    const chartData = data || { selectedTeeth: [], toothSummaries: {} };
-    setToothChartData(chartData);
-    setOriginalToothChartData(chartData); // Store original for comparison
-  } catch (error) {
-    console.error('Error loading tooth chart:', error);
-    const emptyChart = { selectedTeeth: [], toothSummaries: {} };
-    setToothChartData(emptyChart);
-    setOriginalToothChartData(emptyChart);
-  }
-};
+  const loadToothChart = async (patientId) => {
+    try {
+      const response = await fetch(`${API_BASE}/tooth-chart/${patientId}`);
+      const data = await response.json();
+      setToothChartData(data);
+    } catch (error) {
+      console.error('Error loading tooth chart:', error);
+      setToothChartData({ selectedTeeth: [], toothSummaries: {} });
+    }
+  };
 
   useEffect(() => {
     if (open) setTabIndex(0);
     setEditMode(false);
-
-     // Store original data for comparison
-  setOriginalPatientData(patient);
-  setOriginalMedicalData(medInfo);
 
     // Fill patient info
     setFirstName(patient?.firstName || '');
@@ -148,146 +132,50 @@ const loadToothChart = async (patientId) => {
 
   const handleEditClick = () => setEditMode(true);
 
+  const handleSaveClick = async () => {
+    if (!patient || !patient.id) {
+  showSnackbar('Cannot save. No patient selected.');
+      return;
+    }
+    try {
+      // Update patient info
+  await fetch(`${API_BASE}/patients/${patient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName, lastName, middleName, suffix, maritalStatus,
+          contactNumber, occupation, address, dateOfBirth, sex,
+          contactPersonName, contactPersonRelationship, contactPersonNumber, contactPersonAddress
+        })
+      });
 
-
-
-  // Replace your existing handleSaveClick function
-// Replace your entire handleSaveClick function
-const handleSaveClick = async () => {
-  console.log('🚀 Save button clicked!'); // Debug log
-  
-  if (!patient || !patient.id) {
-    showSnackbar('Cannot save. No patient selected.');
-    return;
-  }
-  
-  try {
-    console.log('📋 Checking what changed...');
-    
-    // Compare with original data
-    const patientDataChanged = (
-      firstName !== (originalPatientData?.firstName || '') ||
-      lastName !== (originalPatientData?.lastName || '') ||
-      middleName !== (originalPatientData?.middleName || '') ||
-      suffix !== (originalPatientData?.suffix || '') ||
-      maritalStatus !== (originalPatientData?.maritalStatus || '') ||
-      contactNumber !== (originalPatientData?.contactNumber || '') ||
-      occupation !== (originalPatientData?.occupation || '') ||
-      address !== (originalPatientData?.address || '') ||
-      dateOfBirth !== (originalPatientData?.dateOfBirth || '') ||
-      sex !== (originalPatientData?.sex || '') ||
-      contactPersonName !== (originalPatientData?.contactPersonName || '') ||
-      contactPersonRelationship !== (originalPatientData?.contactPersonRelationship || '') ||
-      contactPersonNumber !== (originalPatientData?.contactPersonNumber || '') ||
-      contactPersonAddress !== (originalPatientData?.contactPersonAddress || '')
-    );
-
-    const medicalDataChanged = (
-      allergies !== (originalMedicalData?.allergies || '') ||
-      bloodType !== (originalMedicalData?.bloodType || '') ||
-      bloodborneDiseases !== (originalMedicalData?.bloodborneDiseases || '') ||
-      pregnancyStatus !== (originalMedicalData?.pregnancyStatus || '') ||
-      medications !== (originalMedicalData?.medications || '') ||
-      additionalNotes !== (originalMedicalData?.additionalNotes || '') ||
-      bloodPressure !== (originalMedicalData?.bloodPressure || '') ||
-      diabetic !== (originalMedicalData?.diabetic || '')
-    );
-
- // Proper tooth chart change detection
- const toothChartChanged = (
-  JSON.stringify(toothChartData.selectedTeeth.sort()) !== JSON.stringify((originalToothChartData.selectedTeeth || []).sort()) ||
-  JSON.stringify(toothChartData.toothSummaries) !== JSON.stringify(originalToothChartData.toothSummaries || {})
-);
-
-console.log('🔍 Change Detection:', {
-  patientDataChanged,
-  medicalDataChanged,
-  toothChartChanged
-});
-
-let updateCount = 0;
-let hasAnyChanges = patientDataChanged || medicalDataChanged || toothChartChanged;
-
-if (!hasAnyChanges) {
-  showSnackbar('No changes detected.');
-  setEditMode(false);
-  return;
-}
-
-       // Only update what actually changed
-       if (patientDataChanged) {
-        console.log('📝 Updating patient data...');
-        const response = await fetch(`${API_BASE}/patients/${patient.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName, lastName, middleName, suffix, maritalStatus,
-            contactNumber, occupation, address, dateOfBirth, sex,
-            contactPersonName, contactPersonRelationship, contactPersonNumber, contactPersonAddress
-          })
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to update patient information: ${errorText}`);
-        }
-        updateCount++;
-      }
-  
-      if (medicalDataChanged) {
-        console.log('🏥 Updating medical data...');
-        const response = await fetch(`${API_BASE}/medical-information/${patient.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-            medications, additionalNotes, bloodPressure, diabetic,
-            skipLogging: patientDataChanged
-          })
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to update medical information: ${errorText}`);
-        }
-        updateCount++;
-      }
-
-
-
-  if (toothChartChanged) {
-      console.log('🦷 Updating tooth chart...');
-      const response = await fetch(`${API_BASE}/tooth-chart/${patient.id}`, {
+      // Update medical info using the patient's ID
+  await fetch(`${API_BASE}/medical-information/${patient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          allergies, bloodType, bloodborneDiseases, pregnancyStatus,
+          medications, additionalNotes, bloodPressure, diabetic
+        })
+      });
+  await fetch(`${API_BASE}/tooth-chart/${patient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          selectedTeeth: toothChartData.selectedTeeth,
-          toothSummaries: toothChartData.toothSummaries,
-          skipLogging: patientDataChanged || medicalDataChanged
+          selectedTeeth: toothChartData.selectedTeeth, // <-- fixed key
+          toothSummaries: toothChartData.toothSummaries 
         })
       });
+
+      setEditMode(false); // Exit edit mode on successful save
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update tooth chart: ${errorText}`);
-      }
-      updateCount++;
+      if (onRecordUpdated) onRecordUpdated(); // Refresh the list in the parent component
+
+    } catch (err) {
+      console.error("Save Error:", err);
+  showSnackbar('Failed to save changes. Please try again.');
     }
-
-    console.log('✅ All updates completed!');
-    setEditMode(false);
-    if (onRecordUpdated) onRecordUpdated();
-    showSnackbar(`Successfully updated ${updateCount} section${updateCount > 1 ? 's' : ''}.`);
-
-  } catch (err) {
-    console.error("💥 Save Error:", err);
-    showSnackbar(`Failed to save changes: ${err.message}`);
-  }
-};
-
- 
-
-      
+  };
 
   const handleDialogClose = () => {
     if (editMode) {

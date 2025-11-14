@@ -17,8 +17,7 @@ import {
   InputAdornment,
   Alert,
   LinearProgress,
-  Chip,
-  CircularProgress
+  Chip
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -56,8 +55,6 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
   const [nameExists, setNameExists] = useState(false);
   const [allServices, setAllServices] = useState([]);
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [packageServices, setPackageServices] = useState([]);
-const [loadingPackageServices, setLoadingPackageServices] = useState(false);
 
   const showSnackbar = (msg) => {
     setSnackbarMsg(msg);
@@ -109,143 +106,49 @@ const [loadingPackageServices, setLoadingPackageServices] = useState(false);
     return Object.keys(errors).length === 0;
   };
 
+  const handleSaveClick = async () => {
+    setSubmitAttempted(true);
+    const isValid = validateFields();
 
-  const fetchPackageDetails = async (packageId) => {
-    if (!packageId) return;
-    
-    setLoadingPackageServices(true);
+    // Check for duplicate name (case-insensitive), excluding current service
+    const duplicate = allServices.some(
+      s => s.id !== editedService.id && 
+      s.name.trim().toLowerCase() === editedService.name.trim().toLowerCase()
+    );
+    setNameExists(duplicate);
+
+    if (!isValid || duplicate) {
+      setRequiredError(true);
+      setTimeout(() => setRequiredError(false), 3000);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/packages/${packageId}`);
+      const response = await fetch(`${API_BASE}/service-table/${editedService.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...editedService,
+          price: parseFloat(editedService.price),
+          duration: parseInt(editedService.duration)
+        })
+      });
+
       if (response.ok) {
-        const data = await response.json();
-        setPackageServices(data.packageServices || []);
-        console.log('Package services loaded:', data.packageServices);
+        setIsEditing(false);
+        if (onServiceUpdated) onServiceUpdated();
+        showSnackbar('Service updated successfully!');
       } else {
-        console.error('Failed to fetch package details');
-        setPackageServices([]);
+        throw new Error('Failed to update service');
       }
-    } catch (error) {
-      console.error('Error fetching package details:', error);
-      setPackageServices([]);
+    } catch (err) {
+      console.error('Save Error:', err);
+      showSnackbar('Failed to save changes. Please try again.');
     } finally {
-      setLoadingPackageServices(false);
+      setLoading(false);
     }
   };
-
-  // Add useEffect to fetch package details when service changes
-useEffect(() => {
-  if (service && service.type === 'Package Treatment') {
-    fetchPackageDetails(service.id);
-  } else {
-    setPackageServices([]);
-  }
-}, [service]);
-
-const handleSaveClick = async () => {
-  if (!patient || !patient.id) {
-    showSnackbar('Cannot save. No patient selected.');
-    return;
-  }
-  
-  try {
-    // Determine what data has actually changed to decide which endpoint to call
-    const patientDataChanged = (
-      firstName !== patient.firstName ||
-      lastName !== patient.lastName ||
-      middleName !== patient.middleName ||
-      suffix !== patient.suffix ||
-      maritalStatus !== patient.maritalStatus ||
-      contactNumber !== patient.contactNumber ||
-      occupation !== patient.occupation ||
-      address !== patient.address ||
-      dateOfBirth !== patient.dateOfBirth ||
-      sex !== patient.sex ||
-      contactPersonName !== patient.contactPersonName ||
-      contactPersonRelationship !== patient.contactPersonRelationship ||
-      contactPersonNumber !== patient.contactPersonNumber ||
-      contactPersonAddress !== patient.contactPersonAddress
-    );
-
-    const medicalDataChanged = (
-      allergies !== (medInfo?.allergies || '') ||
-      bloodType !== (medInfo?.bloodType || '') ||
-      bloodborneDiseases !== (medInfo?.bloodborneDiseases || '') ||
-      pregnancyStatus !== (medInfo?.pregnancyStatus || '') ||
-      medications !== (medInfo?.medications || '') ||
-      additionalNotes !== (medInfo?.additionalNotes || '') ||
-      bloodPressure !== (medInfo?.bloodPressure || '') ||
-      diabetic !== (medInfo?.diabetic || '')
-    );
-
-    // Check if tooth chart data changed (you'll need to compare with original data)
-    // For now, we'll assume tooth chart might have changed if we're on the medical tab
-    const toothChartChanged = tabIndex === 1; // Only update tooth chart if on medical tab
-
-    let updateCount = 0;
-    
-    // Only update patient info if it changed - creates "Patient Updated" log
-    if (patientDataChanged) {
-      await fetch(`${API_BASE}/patients/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName, lastName, middleName, suffix, maritalStatus,
-          contactNumber, occupation, address, dateOfBirth, sex,
-          contactPersonName, contactPersonRelationship, contactPersonNumber, contactPersonAddress
-          // Don't include skipLogging - we want this logged
-        })
-      });
-      updateCount++;
-    }
-
-     // Only update medical info if it changed - creates "Medical Info Updated" log
-     if (medicalDataChanged) {
-      await fetch(`${API_BASE}/medical-information/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          allergies, bloodType, bloodborneDiseases, pregnancyStatus,
-          medications, additionalNotes, bloodPressure, diabetic,
-          // Add skipLogging only if we're doing multiple updates
-          skipLogging: patientDataChanged // Skip logging if patient data was also updated
-        })
-      });
-      updateCount++;
-    }
-
-    // Only update tooth chart if it changed - creates "Tooth Chart Updated" log
-    if (toothChartChanged && toothChartData.selectedTeeth.length >= 0) {
-      await fetch(`${API_BASE}/tooth-chart/${patient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          selectedTeeth: toothChartData.selectedTeeth,
-          toothSummaries: toothChartData.toothSummaries,
-          // Add skipLogging only if we're doing multiple updates
-          skipLogging: patientDataChanged || medicalDataChanged // Skip logging if other data was updated
-        })
-      });
-      updateCount++;
-    }
-
-    setEditMode(false); // Exit edit mode on successful save
-    
-    if (onRecordUpdated) onRecordUpdated(); // Refresh the list in the parent component
-
-    // Show appropriate success message
-    if (updateCount === 0) {
-      showSnackbar('No changes detected.');
-    } else {
-      showSnackbar(`Successfully updated ${updateCount} section${updateCount > 1 ? 's' : ''}.`);
-    }
-
-  } catch (err) {
-    console.error("Save Error:", err);
-    showSnackbar('Failed to save changes. Please try again.');
-  }
-};
-
-
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -306,29 +209,22 @@ const handleSaveClick = async () => {
 
   return (
     <>
-     <Dialog
-  open={open}
-  onClose={handleDialogClose}
-  fullWidth
-  maxWidth={false}  // Disable Material-UI's maxWidth constraints
-  TransitionComponent={Fade}
-  TransitionProps={{ timeout: 300 }}
-  sx={{
-    '& .MuiDialog-paper': {
-      borderRadius: '16px',
-      boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14), 0 9px 46px 8px rgba(0,0,0,0.12), 0 11px 15px -7px rgba(0,0,0,0.20)',
-      overflow: 'hidden',
-      width: '600px',           // Fixed width
-      maxWidth: '600px',        // Maximum width
-      minWidth: '600px',        // Minimum width  
-      margin: '16px auto',      // Center the dialog
-      '@media (max-width: 632px)': {  // For very small screens
-        width: 'calc(100vw - 32px)',
-        minWidth: 'unset',
-        maxWidth: 'unset'
-      }
-    }
-  }}
+      <Dialog
+        open={open}
+        onClose={handleDialogClose}
+        fullWidth
+        maxWidth="md"
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 300 }}
+        sx={{
+          '& .MuiDialog-paper': {
+            borderRadius: '16px',
+            boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14), 0 9px 46px 8px rgba(0,0,0,0.12), 0 11px 15px -7px rgba(0,0,0,0.20)',
+            overflow: 'hidden',
+            maxWidth: '600px',
+            margin: '16px'
+          }
+        }}
       >
         {/* Header */}
         <DialogTitle
@@ -565,7 +461,6 @@ const handleSaveClick = async () => {
               </Box>
             </Box>
 
-            
             {/* Type and Status Row */}
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
               {/* Service Type */}
@@ -701,214 +596,7 @@ const handleSaveClick = async () => {
                 )}
               </Box>
             </Box>
-
-            {/* Package Contents Section - Compact version outside main grid */}
-            {service?.type === 'Package Treatment' && (
-              <Box sx={{ mt: 4 }}>
-                <Divider sx={{ mb: 3 }} />
-                
-                <Typography variant="h6" sx={{ 
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: '600',
-                  fontSize: '16px',
-                  color: '#2148C0',
-                  mb: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1
-                }}>
-                  <ServiceIcon sx={{ fontSize: 20 }} />
-                  Package Contents
-                </Typography>
-                
-                {loadingPackageServices ? (
-                  <Box sx={{ 
-                    display: 'flex', 
-                    justifyContent: 'center', 
-                    py: 3,
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '12px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <CircularProgress size={32} sx={{ color: '#2148C0' }} />
-                  </Box>
-                ) : packageServices.length > 0 ? (
-                  <Box sx={{ 
-                    backgroundColor: '#f8fafc', 
-                    borderRadius: '12px', 
-                    border: '1px solid #e2e8f0',
-                    overflow: 'hidden',
-                    maxHeight: '250px',  // Limit height
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}>
-                    {/* Scrollable Services List */}
-                    <Box sx={{ 
-                      p: 2, 
-                      maxHeight: '160px', 
-                      overflowY: 'auto',
-                      '&::-webkit-scrollbar': { width: '6px' },
-                      '&::-webkit-scrollbar-track': { backgroundColor: '#f1f5f9' },
-                      '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: '3px' }
-                    }}>
-                      {packageServices.map((pkgService, index) => (
-                        <Box 
-                          key={index} 
-                          sx={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center',
-                            py: 1.5,
-                            px: 2,
-                            borderRadius: '8px',
-                            backgroundColor: 'white',
-                            mb: index < packageServices.length - 1 ? 1.5 : 0,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                            border: '1px solid #f1f5f9'
-                          }}
-                        >
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography sx={{ 
-                              fontFamily: 'Inter, sans-serif',
-                              fontWeight: '600',
-                              fontSize: '14px',
-                              color: '#1e293b',
-                              mb: 0.5,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              {pkgService.name}
-                            </Typography>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 2
-                            }}>
-                              <Typography sx={{ 
-                                fontFamily: 'Inter, sans-serif',
-                                fontSize: '12px',
-                                color: '#059669',
-                                fontWeight: '500'
-                              }}>
-                                ₱{pkgService.price?.toLocaleString()}
-                              </Typography>
-                              <Typography sx={{ 
-                                fontFamily: 'Inter, sans-serif',
-                                fontSize: '12px',
-                                color: '#7c3aed',
-                                fontWeight: '500'
-                              }}>
-                                {pkgService.duration}min
-                              </Typography>
-                            </Box>
-                          </Box>
-                          <Box sx={{ 
-                            backgroundColor: '#2148C0',
-                            color: 'white',
-                            px: 1.5,
-                            py: 0.5,
-                            borderRadius: '16px',
-                            minWidth: '32px',
-                            textAlign: 'center'
-                          }}>
-                            <Typography sx={{ 
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              fontFamily: 'Inter, sans-serif'
-                            }}>
-                              x{pkgService.quantity}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
-                    
-                    {/* Compact Package Totals */}
-                    <Box sx={{ 
-                      backgroundColor: '#2148C0',
-                      color: 'white',
-                      px: 3,
-                      py: 2,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <Box>
-                        <Typography sx={{ 
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '12px',
-                          opacity: 0.9,
-                          mb: 0.25
-                        }}>
-                          Total Price
-                        </Typography>
-                        <Typography sx={{ 
-                          fontFamily: 'Inter, sans-serif',
-                          fontWeight: '700',
-                          fontSize: '16px'
-                        }}>
-                          ₱{packageServices.reduce((total, s) => total + ((s.price || 0) * (s.quantity || 1)), 0).toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography sx={{ 
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '12px',
-                          opacity: 0.9,
-                          mb: 0.25
-                        }}>
-                          Services
-                        </Typography>
-                        <Typography sx={{ 
-                          fontFamily: 'Inter, sans-serif',
-                          fontWeight: '700',
-                          fontSize: '16px'
-                        }}>
-                          {packageServices.length}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: 'right' }}>
-                        <Typography sx={{ 
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '12px',
-                          opacity: 0.9,
-                          mb: 0.25
-                        }}>
-                          Duration
-                        </Typography>
-                        <Typography sx={{ 
-                          fontFamily: 'Inter, sans-serif',
-                          fontWeight: '700',
-                          fontSize: '16px'
-                        }}>
-                          {packageServices.reduce((total, s) => total + ((s.duration || 0) * (s.quantity || 1)), 0)}min
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                ) : (
-                  <Box sx={{ 
-                    backgroundColor: '#fef3cd',
-                    border: '1px solid #fbbf24',
-                    borderRadius: '12px',
-                    p: 2,
-                    textAlign: 'center'
-                  }}>
-                    <Typography sx={{ 
-                      color: '#92400e',
-                      fontStyle: 'italic',
-                      fontSize: '14px',
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: '500'
-                    }}>
-                      No services found in this package
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            )}
-          </Box>  {/* This closes the main grid */}
+          </Box>
         </DialogContent>
 
         <Divider />
