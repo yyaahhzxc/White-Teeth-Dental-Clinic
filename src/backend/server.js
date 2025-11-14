@@ -234,6 +234,22 @@ db.run(`
   }
 });
 
+// Create expenses table (primary key = year + seq in id)
+db.run(`
+  CREATE TABLE IF NOT EXISTS expenses (
+    id TEXT PRIMARY KEY,            -- format "YYYY-0001"
+    year INTEGER NOT NULL,
+    seq INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT,
+    amount REAL NOT NULL,
+    date TEXT NOT NULL,             -- ISO date string
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`, (err) => {
+  if (err) console.error('Error creating expenses table:', err);
+  else console.log('✅ Expenses table ready');
+});
 
 //TABLE CREATION FUNCTIONS
 
@@ -2481,6 +2497,53 @@ app.post('/users', requireRole('admin'), (req, res) => {
       res.json({ id: this.lastID, message: 'User created successfully' });
     }
   );
+});
+
+app.post('/expenses', (req, res) => {
+  const { expense: name, amount, date, category } = req.body;
+  if (!name || !amount || !date) {
+    return res.status(400).json({ error: 'name, amount and date are required' });
+  }
+
+  const d = new Date(date);
+  const year = d.getFullYear();
+
+  db.get('SELECT MAX(seq) as maxSeq FROM expenses WHERE year = ?', [year], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const seq = (row && row.maxSeq) ? row.maxSeq + 1 : 1;
+    const id = `${year}-${String(seq).padStart(4, '0')}`;
+    const createdAt = new Date().toISOString();
+
+    const q = `INSERT INTO expenses (id, year, seq, name, category, amount, date, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.run(q, [id, year, seq, name, category || '', amount, date, createdAt], function(insertErr) {
+      if (insertErr) {
+        console.error('Error inserting expense:', insertErr);
+        return res.status(500).json({ error: insertErr.message });
+      }
+      // return created expense
+      res.status(201).json({
+        success: true,
+        expense: { id, year, seq, name, category: category || '', amount, date, createdAt }
+      });
+    });
+  });
+});
+
+// GET all expenses (optional query startDate/endDate)
+app.get('/expenses', (req, res) => {
+  const { startDate, endDate } = req.query;
+  let q = 'SELECT * FROM expenses';
+  const params = [];
+  if (startDate && endDate) {
+    q += ' WHERE date BETWEEN ? AND ?';
+    params.push(startDate, endDate);
+  }
+  q += ' ORDER BY date DESC, id DESC';
+  db.all(q, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
 });
 
 // Update user
