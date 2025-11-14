@@ -1986,8 +1986,11 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
               </Box>
             </>
           )}
-        </Paper>
-      </Box>
+        </Box>
+      </Fade>
+    </Box>
+  </Paper>
+</Box>
       
       {/* Appointment Details Modal */}
       {statusTab !== 'history' && (
