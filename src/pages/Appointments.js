@@ -18,7 +18,13 @@ import {
   TextField,
   Autocomplete,
   CircularProgress
+  , Fade
+  , Collapse
 } from '@mui/material';
+import DataTable from '../components/DataTable';
+import SearchBar from '../components/SearchBar';
+import Pagination from '../components/Pagination';
+import FilterComponent, { FilterButton, FilterContent } from '../components/FilterComponent';
 import { 
   ChevronLeft, 
   ChevronRight,
@@ -116,16 +122,16 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
           const events = getEventsForDate(date);
           const isCurrentMonth = date.getMonth() === month;
           const isToday = date.toDateString() === new Date().toDateString();
-          
+
           return (
-            <Box key={idx} sx={{ 
-              minHeight: '120px', 
-              p: 1, 
+            <Box key={idx} sx={{
+              minHeight: '120px',
+              p: 1,
               borderBottom: '1px solid #e0e0e0',
               borderRight: idx % 7 !== 6 ? '1px solid #e0e0e0' : 'none',
               background: isCurrentMonth ? '#fff' : '#f8f9fa'
             }}>
-              <Typography sx={{ 
+              <Typography sx={{
                 fontWeight: isToday ? 700 : 400,
                 color: isToday ? '#1a73e8' : (isCurrentMonth ? '#202124' : '#5f6368'),
                 fontSize: '14px',
@@ -135,19 +141,19 @@ function MonthGrid({ appointments, currentDate, statusColors, onAppointmentClick
               </Typography>
               {events.slice(0, 3).map((event, eventIdx) => (
                 <Box key={eventIdx}
-                onClick={() => onAppointmentClick && onAppointmentClick(event)}
-                sx={{
-                  backgroundColor: statusColors[event.status] || statusColors.scheduled,
-                  color: 'white',
-                  p: 0.5,
-                  mb: 0.5,
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  cursor: onAppointmentClick ? 'pointer' : 'default'
-                }}>
+                  onClick={() => onAppointmentClick && onAppointmentClick(event)}
+                  sx={{
+                    backgroundColor: statusColors[event.status] || statusColors.scheduled,
+                    color: 'white',
+                    p: 0.5,
+                    mb: 0.5,
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    cursor: onAppointmentClick ? 'pointer' : 'default'
+                  }}>
                   {event.patientName}
                 </Box>
               ))}
@@ -340,14 +346,25 @@ const getAppointmentServiceDetails = async (appointment, services, fetchAppointm
 };
 
 
+// Render FilterComponent outside the Appointments component render is not valid.
+// Instead we mount it within the component where needed; add below Appointments export.
 function Appointments() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState('Week');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [appointments, setAppointments] = useState([]);
+  const [statusTab, setStatusTab] = useState('scheduled');
   const [loading, setLoading] = useState(false);
   const [appointmentServiceDetails, setAppointmentServiceDetails] = useState([]);
 const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
+  // Filter states for History table
+  const [showFilterBox, setShowFilterBox] = useState(false);
+  const [activeFilters, setActiveFilters] = useState([{ category: '', type: '' }]);
+  const [categoryFilteredAppointments, setCategoryFilteredAppointments] = useState([]);
+  // History table state
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   
   // Modal states
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -364,6 +381,17 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
 
   // Services state
   const [services, setServices] = useState([]);
+
+  // -- History placeholders (easy to replace with backend data later)
+  // To use these placeholders set `window.__USE_HISTORY_PLACEHOLDERS__ = true` from devtools
+  // or replace `HISTORY_PLACEHOLDERS` with your backend response when ready.
+  const HISTORY_PLACEHOLDERS = [
+    { id: 'ph-1', appointmentDate: new Date().toISOString(), patientName: 'Juan Dela Cruz', timeStart: '09:00', timeEnd: '10:00', procedure: 'Cleaning', comments: 'Follow-up in 6 months' },
+    { id: 'ph-2', appointmentDate: new Date().toISOString(), patientName: 'Maria Clara', timeStart: '10:30', timeEnd: '11:00', procedure: 'Filling', comments: 'N/A' },
+    { id: 'ph-3', appointmentDate: new Date().toISOString(), patientName: 'John Doe', timeStart: '11:30', timeEnd: '12:00', procedure: 'Extraction', comments: 'Patient had pain' },
+    { id: 'ph-4', appointmentDate: new Date().toISOString(), patientName: 'Jane Roe', timeStart: '13:00', timeEnd: '13:30', procedure: 'Consultation', comments: 'Prescribed meds' },
+    { id: 'ph-5', appointmentDate: new Date().toISOString(), patientName: 'Mark Smith', timeStart: '14:00', timeEnd: '14:45', procedure: 'Root Canal', comments: 'Needs follow-up' },
+  ];
   
   // Visit log modal state
   const [visitLogModalOpen, setVisitLogModalOpen] = useState(false);
@@ -971,6 +999,13 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     { value: 'cancelled', label: 'Cancelled', color: '#ea4335' }
   ];
 
+  // Filter categories for appointments (used by FilterComponent)
+  const filterCategories = [
+    { label: 'Status', value: 'status', types: ['scheduled', 'done', 'cancelled'] },
+    { label: 'Service', value: 'service', types: [] },
+    { label: 'Date Range', value: 'dateRange', types: ['Last 7 days', 'Last 30 days', 'Last 90 days'] },
+  ];
+
   const timeSlots = [
     '7 AM', '8 AM', '9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM', '8 PM', '9 PM', '10 PM'
   ];
@@ -1045,7 +1080,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     const targetDateStr = `${year}-${month}-${day}`;
     
     const slotAppointments = appointments.filter(apt => {
- 
+
       const aptDateStr = apt.appointmentDate.split('T')[0];
       if (aptDateStr !== targetDateStr) return false;
       
@@ -1056,8 +1091,9 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
       
       return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
     });
-    
-    return slotAppointments;
+    // filter by statusTab (scheduled vs history)
+    const filtered = slotAppointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled');
+    return filtered;
   };
 
   const calculateCurrentTimePosition = () => {
@@ -1082,6 +1118,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
   return (
     <Box sx={{ bgcolor: '#2148c0', minHeight: '100vh' }}>
       <Header />
+      {/* history title removed - table will occupy full container */}
       <Box sx={{ 
         display: 'flex',
         justifyContent: 'center',
@@ -1093,339 +1130,648 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           elevation={0}
           sx={{ 
             p: 2,
-            backgroundColor: 'white',
-            borderRadius: '20px',
-            boxShadow: '0px 60px 120px 0px rgba(38,51,77,0.05)',
+            backgroundColor: statusTab === 'history' ? 'transparent' : 'white',
+            borderRadius: statusTab === 'history' ? 0 : '20px',
+            boxShadow: statusTab === 'history' ? 'none' : '0px 60px 120px 0px rgba(38,51,77,0.05)',
             width: '100%',
             maxWidth: 'calc(100vw - 32px)',
-            height: 'calc(100vh - 140px)',
+            height: statusTab === 'history' ? 'auto' : 'calc(100vh - 140px)',
+            position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden'
+            overflow: statusTab === 'history' ? 'visible' : 'hidden'
           }}
         >
           {/* Calendar Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, px: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Button 
-                variant="outlined" 
-                onClick={goToToday}
-                sx={{ 
-                  borderColor: '#dadce0', 
-                  color: '#3c4043',
-                  textTransform: 'none',
-                  boxShadow: 'none',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  fontFamily: 'Inter, sans-serif',
-                  px: 3,
-                  py: 0.5,
-                  borderRadius: '4px',
-                  '&:hover': {
-                    bgcolor: '#f8f9fa',
-                    borderColor: '#dadce0'
-                  }
-                }}
-              >
-                Today
-              </Button>
-              <IconButton 
-                onClick={() => calendarView === 'Week' ? navigateWeek(-1) : navigateMonth(-1)} 
-                disabled={loading}
-                sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}
-              >
-                <ChevronLeft />
-              </IconButton>
-              <IconButton 
-                onClick={() => calendarView === 'Week' ? navigateWeek(1) : navigateMonth(1)} 
-                disabled={loading}
-                sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}
-              >
-                <ChevronRight />
-              </IconButton>
-              <Typography variant="h6" sx={{ color: '#70757a', fontSize: '22px', fontWeight: '400', fontFamily: 'Inter, sans-serif', ml: 1 }}>
-                {calendarView === 'Week' ? formatWeekRange(weekDates) : formatMonthYear(currentDate)}
-                {loading && <Typography component="span" sx={{ ml: 1, fontSize: '14px', color: '#999' }}>Loading...</Typography>}
-              </Typography>
+              {statusTab !== 'history' && (
+                <>
+                  <Button 
+                    variant="outlined" 
+                    onClick={goToToday}
+                    sx={{ 
+                      borderColor: '#dadce0', 
+                      color: '#3c4043',
+                      textTransform: 'none',
+                      boxShadow: 'none',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      fontFamily: 'Inter, sans-serif',
+                      px: 3,
+                      py: 0.5,
+                      borderRadius: '4px',
+                      '&:hover': {
+                        bgcolor: '#f8f9fa',
+                        borderColor: '#dadce0'
+                      }
+                    }}
+                  >
+                    Today
+                  </Button>
+                  <IconButton 
+                    onClick={() => calendarView === 'Week' ? navigateWeek(-1) : navigateMonth(-1)} 
+                    disabled={loading}
+                    sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}
+                  >
+                    <ChevronLeft />
+                  </IconButton>
+                  <IconButton 
+                    onClick={() => calendarView === 'Week' ? navigateWeek(1) : navigateMonth(1)} 
+                    disabled={loading}
+                    sx={{ color: '#5f6368', borderRadius: '50%', width: 40, height: 40 }}
+                  >
+                    <ChevronRight />
+                  </IconButton>
+                  <Typography variant="h6" sx={{ color: '#70757a', fontSize: '22px', fontWeight: '400', fontFamily: 'Inter, sans-serif', ml: 1 }}>
+                    {calendarView === 'Week' ? formatWeekRange(weekDates) : formatMonthYear(currentDate)}
+                    {loading && <Typography component="span" sx={{ ml: 1, fontSize: '14px', color: '#999' }}>Loading...</Typography>}
+                  </Typography>
+                </>
+              )}
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <FormControl variant="outlined" size="small">
-                <Select
-                  value={calendarView}
-                  onChange={(e) => setCalendarView(e.target.value)}
-                  IconComponent={ArrowDropDown}
-                  sx={{ 
-                    minWidth: 120,
-                    borderRadius: '4px',
-                    color: '#3c4043',
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    '.MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#dadce0',
+              {statusTab !== 'history' && (
+                <>
+                  <FormControl variant="outlined" size="small">
+                    <Select
+                      value={calendarView}
+                      onChange={(e) => setCalendarView(e.target.value)}
+                      IconComponent={ArrowDropDown}
+                      sx={{ 
+                        minWidth: 120,
+                        borderRadius: '4px',
+                        color: '#3c4043',
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        '.MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#dadce0',
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#1a73e8',
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#dadce0',
+                        }
+                      }}
+                    >
+                      <MenuItem value="Week">Week</MenuItem>
+                      <MenuItem value="Month">Month</MenuItem>
+                    </Select>
+                  </FormControl>
+                  {Object.entries(statusColors).filter(([status]) => 
+                    !['canceled', 'completed'].includes(status)
+                  ).map(([status, color]) => (
+                    <Box key={status} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Circle sx={{ color, fontSize: 16 }} />
+                      <Typography variant="caption" sx={{ textTransform: 'capitalize', color: '#3c4043', fontWeight: 500, fontFamily: 'Inter, sans-serif', fontSize: '13px' }}>
+                        {status}
+                      </Typography>
+                    </Box>
+                  ))}
+                </>
+              )}
+
+              {/* Fade toggle always present in the right slot so transitions cross between buttons */}
+              <Box sx={{ position: 'relative', top: 20, width: 120, display: 'flex', alignItems: 'center', ml: 1 }}>
+                
+                <Fade in={statusTab !== 'history'} timeout={180} unmountOnExit>
+                  <Box sx={{ position: 'absolute', right: 0 }} />
+                </Fade>
+              </Box>
+            </Box>
+
+            {/* Upper-right History button (absolute) */}
+            {statusTab !== 'history' && (
+              <Box sx={{ position: 'absolute', top: 12, right: 16, zIndex: 1200 }}>
+                <Button
+                  onClick={() => setStatusTab('history')}
+                  variant="contained"
+                  size="small"
+                  aria-label="View History"
+                  sx={{
+                    backgroundColor: '#4A69BD',
+                    color: 'white',
+                    border: '1px solid #4A69BD',
+                    borderRadius: '10px',
+                    height: '38px',
+                    px: 2,
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    fontSize: '16px',
+                    fontFamily: 'DM Sans, sans-serif',
+                    minWidth: 99,
+                    boxShadow: 1,
+                    '&:hover': {
+                      backgroundColor: '#2148c0',
+                      border: '1px solid #2148c0',
                     },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#1a73e8',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#dadce0',
-                    }
                   }}
                 >
-                  <MenuItem value="Week">Week</MenuItem>
-                  <MenuItem value="Month">Month</MenuItem>
-                </Select>
-              </FormControl>
-              
-              {Object.entries(statusColors).filter(([status]) => 
-                !['canceled', 'completed'].includes(status)
-              ).map(([status, color]) => (
-                <Box key={status} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Circle sx={{ color, fontSize: 16 }} />
-                  <Typography variant="caption" sx={{ textTransform: 'capitalize', color: '#3c4043', fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px' }}>
-                    {status}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
+                  History
+                </Button>
+              </Box>
+            )}
           </Box>
 
-          {/* Render Calendar View */}
-          {calendarView === 'Month' ? (
-  <MonthGrid 
-    appointments={appointments}
-    currentDate={currentDate}
-    statusColors={statusColors}
-    onAppointmentClick={handleAppointmentClick}
-  />
-          ) : (
-            <>
-              {/* Day Headers */}
-              <Box sx={{ display: 'flex', position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                <Box sx={{ width: '80px', height: '80px', flexShrink: 0, backgroundColor: 'white' }} />
-                {weekDates.map((date, dayIndex) => (
-                  <Box key={dayIndex} sx={{ 
-                    flex: 1, 
-                    height: '80px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: 0,
-                    flexShrink: 0,
-                    backgroundColor: 'white'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {date.toDateString() === new Date().toDateString() ? (
-                        <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: '#1a73e8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Typography sx={{ color: 'white', fontWeight: 700, fontSize: '20px', fontFamily: 'Inter, sans-serif' }}>{date.getDate()}</Typography>
-                        </Box>
-                      ) : (
-                        <Typography sx={{ fontWeight: 700, fontFamily: 'Inter, sans-serif', fontSize: '28px', color: '#3c4043' }}>{date.getDate()}</Typography>
-                      )}
-                    </Box>
-                    <Typography variant="body2" sx={{ color: '#70757a', fontFamily: 'Inter, sans-serif', fontSize: '12px', mt: 0.5, fontWeight: '600' }}>
-                      {dayNames[dayIndex]}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
+          {/* Render Calendar / History with transition */}
+          <Box sx={{ position: 'relative' }}>
+            <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
+              <Box>
+                {/* History mode: use the shared DataTable layout used across the app */}
+                {(() => {
+                  // History is currently disconnected from the calendar.
+                  // Use placeholders here so the history table is easy to replace with backend data later.
+                  const sourceAppointments = HISTORY_PLACEHOLDERS;
+                  const historyAppointments = [...sourceAppointments].sort((a, b) => {
+                    const da = new Date(a.appointmentDate || 0);
+                    const db = new Date(b.appointmentDate || 0);
+                    if (db - da !== 0) return db - da;
+                    const ta = a.timeStart || a.time || '00:00';
+                    const tb = b.timeStart || b.time || '00:00';
+                    return tb.localeCompare(ta);
+                  });
 
-              {/* Calendar Grid */}
-              <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex' }}>
-                  {/* Time Column */}
-                  <Box sx={{ width: '80px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-                    <Box sx={{ height: '20px', flexShrink: 0 }} />
-                    {timeSlots.map((timeSlot, idx) => (
-                      <Box key={timeSlot} sx={{ height: '80px', position: 'relative', flexShrink: 0 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: '#70757a',
-                            fontWeight: '400',
-                            fontFamily: 'Inter, sans-serif',
-                            fontSize: '10px',
-                            position: 'absolute',
-                            left: 8,
-                            top: 0,
-                            transform: 'translateY(-50%)',
-                            backgroundColor: 'white',
-                            px: '6px',
-                            height: '16px',
+                  const normalizedSearch = (search || '').toLowerCase().trim();
+                  const filtered = normalizedSearch
+                    ? historyAppointments.filter(apt => {
+                        const dateStr = apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : '';
+                        return (
+                          dateStr.toLowerCase().includes(normalizedSearch) ||
+                          (apt.patientName || '').toLowerCase().includes(normalizedSearch) ||
+                          (apt.procedure || '').toLowerCase().includes(normalizedSearch) ||
+                          (apt.comments || '').toLowerCase().includes(normalizedSearch)
+                        );
+                      })
+                    : historyAppointments;
+
+                  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+                  const visible = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+
+                  return (
+                    <DataTable
+                      topContent={
+                        <>
+                          <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            borderRadius: '2px',
-                            zIndex: 3
-                          }}
-                        >
-                          {timeSlot}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
+                            width: '100%',
+                            px: 3,
+                            pt: 3,
+                            pb: 2,
+                            gap: 2,
+                            boxSizing: 'border-box',
+                          }}>
+                            <SearchBar
+                              value={search}
+                              onChange={(v) => { setSearch(v); setPage(0); }}
+                              placeholder="Search by date/patient/service/notes"
+                              searchFields={["appointmentDate", "patientName", "procedure", "comments"]}
+                              data={HISTORY_PLACEHOLDERS}
+                            />
 
-                  {/* Day Columns */}
-                  <Box sx={{ flex: 1, display: 'flex', minHeight: '1280px' }}>
-                    {weekDates.map((date, dayIndex) => (
-                      <Box key={dayIndex} sx={{ 
-                        flex: 1, 
-                        borderLeft: '1px solid #e0e0e0',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        position: 'relative',
-                        minHeight: '100%'
-                      }}>
-                        <Box sx={{ flex: 1, position: 'relative', minHeight: '1280px' }}>
-                          <Box sx={{ height: '20px', flexShrink: 0 }} />
-                          {timeSlots.map((timeSlot, timeIndex) => (
-                            <Box key={timeSlot} sx={{ height: '80px', p: 0, position: 'relative', flexShrink: 0 }}>
-                              <Box sx={{ position: 'absolute', top: 0, left: '-24px', right: '12px', height: '1px', bgcolor: '#e0e0e0', zIndex: 1 }} />
-                            </Box>
-                          ))}
-
-                          {/* Render appointments for the whole day column with minute-precision positioning */}
-                          {(() => {
-                            const DAY_START_HOUR = 7; // matches the timeSlots start
-                            const SLOT_HEIGHT = 80; // px per hour slot
-                            const PIXELS_PER_MINUTE = SLOT_HEIGHT / 60; // px per minute
-                            const TOP_OFFSET = 20; // px top spacer present in column
-
-                            // get all appointments for this day
-                            const appointmentsForDay = appointments.filter(apt => {
-                              const aptDateStr = apt.appointmentDate.split('T')[0];
-                              const currentDisplayDate = weekDates[dayIndex];
-                              const year = currentDisplayDate.getFullYear();
-                              const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
-                              const day = String(currentDisplayDate.getDate()).padStart(2, '0');
-                              const targetDateStr = `${year}-${month}-${day}`;
-                              return aptDateStr === targetDateStr;
-                            });
-
-                            const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-                            const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
-                            return appointmentsForDay.map((appointment) => {
-                              // compute start minutes from DAY_START_HOUR
-                              const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
-                              const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
-
-                              // compute duration in minutes
-                              let durationMinutes = 0;
-                              if (appointment.timeEnd) {
-                                const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
-                                const startTotal = startHour * 60 + (startMin || 0);
-                                const endTotal = endHour * 60 + (endMin || 0);
-                                durationMinutes = Math.max(1, endTotal - startTotal);
-                              } else if (appointment.duration) {
-                                // appointment.duration may be in hours (e.g., 1.5)
-                                durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
-                              } else {
-                                durationMinutes = 60; // fallback to 1 hour
-                              }
-
-                              const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
-                              const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE); // min height
-
-                              // Determine if appointment is ongoing (current time intersects start..end)
-                              // Only consider it ongoing if this column represents today
-                              let isOngoing = false;
-                              if (isTodayColumn) {
-                                if (appointment.timeStart && appointment.timeEnd) {
-                                  const [sH, sM] = appointment.timeStart.split(':').map(Number);
-                                  const [eH, eM] = appointment.timeEnd.split(':').map(Number);
-                                  const startTotal = sH * 60 + (sM || 0);
-                                  const endTotal = eH * 60 + (eM || 0);
-                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
-                                } else if (appointment.duration) {
-                                  // fallback: treat appointments with duration and no explicit end
-                                  const startTotal = (startHour * 60) + (startMin || 0);
-                                  const endTotal = startTotal + durationMinutes;
-                                  isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
-                                }
-                              }
-
-                              // Use 'ongoing' color when intersecting current time
-                              const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
-
-                              return (
-                                <Paper
-                                  key={appointment.id}
-                                  elevation={0}
-                                  onClick={() => handleAppointmentClick(appointment)}
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                              <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                              {statusTab === 'history' && (
+                                <Button
+                                  onClick={() => setStatusTab('scheduled')}
+                                  variant="contained"
+                                  onKeyDown={() => {}}
+                                  size="small"
+                                  aria-label="Back to Calendar"
                                   sx={{
-                                    p: '8px 12px',
-                                    backgroundColor: bgColor,
+                                    ml: 1,
+                                    backgroundColor: '#4A69BD',
                                     color: 'white',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    height: `${Math.max(24, Math.round(heightPx))}px`,
-                                    overflow: 'hidden',
-                                    position: 'absolute',
-                                    left: '6px',
-                                    right: '6px',
-                                    top: `${Math.round(topPx)}px`,
-                                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                                    zIndex: 20,
-                                    transition: 'transform 0.2s, box-shadow 0.2s',
+                                    border: '1px solid #4A69BD',
+                                    borderRadius: '10px',
+                                    height: '38px',
+                                    px: 2,
+                                    textTransform: 'none',
+                                    fontWeight: 500,
+                                    fontSize: '16px',
+                                    fontFamily: 'DM Sans, sans-serif',
+                                    minWidth: 99,
+                                    boxShadow: 1,
                                     '&:hover': {
-                                      transform: 'translateY(-2px)',
-                                      boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
-                                    }
+                                      backgroundColor: '#2148c0',
+                                      border: '1px solid #2148c0',
+                                    },
                                   }}
                                 >
-                                  <Typography sx={{ fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '18px' }}>
-                                    {appointment.patientName}
-                                  </Typography>
-                                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', lineHeight: '16px', opacity: 0.9 }}>
-                                    {appointment.procedure}
-                                  </Typography>
-                                </Paper>
-                              );
-                            });
-                          })()}
-                          
-                          {/* FIXED: Current Time Indicator */}
-                          {date.toDateString() === new Date().toDateString() && timeIndicatorPosition !== null && (
-                            <Box sx={{
-                              position: 'absolute',
-                              top: `${timeIndicatorPosition + 20}px`,
-                              left: 0,
-                              right: 0,
-                              height: '2px',
-                              bgcolor: '#ea4335',
-                              zIndex: 1001,
-                              display: 'flex',
-                              alignItems: 'center',
-                              pointerEvents: 'none'
-                            }}>
-                              <Box sx={{
-                                position: 'absolute',
-                                left: '-6px',
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                bgcolor: '#ea4335'
-                              }}/>
-                              <Box sx={{
-                                width: '100%',
-                                height: '2px',
-                                bgcolor: '#ea4335'
-                              }}/>
+                                  Calendar
+                                </Button>
+                              )}
                             </Box>
-                          )}
+                          </Box>
+
+                          <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
+                            <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
+                          </Collapse>
+                        </>
+                      }
+                      tableHeader={
+                        <Box sx={{ px: 3, pt: 3, pb: 3 }}>
+                          <Box sx={{ display: 'flex', px: 2, alignItems: 'center' }}>
+                            <Box sx={{ flex: 1.5, px: 2 }}>
+                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Date</Typography>
+                            </Box>
+                            <Box sx={{ flex: 2, px: 2 }}>
+                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Patient</Typography>
+                            </Box>
+                            <Box sx={{ flex: 1, px: 2 }}>
+                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Time</Typography>
+                            </Box>
+                            <Box sx={{ flex: 2, px: 2 }}>
+                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Service</Typography>
+                            </Box>
+                            <Box sx={{ flex: 3.5, px: 2 }}>
+                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Notes</Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      }
+                      tableRows={
+                        <Box sx={{
+                          px: 3,
+                          flex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          minHeight: 0,
+                          height: '100%',
+                          maxHeight: '402px',
+                          overflow: 'auto',
+                          boxSizing: 'border-box',
+                          '&::-webkit-scrollbar': {
+                            width: '6px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: '#f1f1f1',
+                            borderRadius: '3px',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: '#c1c1c1',
+                            borderRadius: '3px',
+                            '&:hover': {
+                              background: '#a8a8a8',
+                            },
+                          },
+                        }}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
+                            {visible.length > 0 ? visible.map((apt) => (
+                              <Box 
+                                key={apt.id} 
+                                sx={{ 
+                                  display: 'flex', 
+                                  px: 2, 
+                                  py: 0.875,
+                                  alignItems: 'center',
+                                  backgroundColor: '#f9fafc',
+                                  borderRadius: '10px',
+                                  height: 60,
+                                  '&:hover': { 
+                                    backgroundColor: '#f0f4f8',
+                                    cursor: 'pointer'
+                                  }
+                                }}
+                                onClick={() => handleAppointmentClick(apt)}
+                              >
+                                <Box sx={{ flex: '1.5', textAlign: 'left' }}>
+                                  <Typography sx={{
+                                    fontFamily: 'Roboto, sans-serif',
+                                    fontWeight: 400,
+                                    fontSize: '15px',
+                                    color: '#6d6b80',
+                                    lineHeight: '22px',
+                                    letterSpacing: '0.5px',
+                                  }}>{apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : ''}</Typography>
+                                </Box>
+
+                                <Box sx={{ flex: '2', textAlign: 'left' }}>
+                                  <Typography sx={{
+                                    fontFamily: 'Roboto, sans-serif',
+                                    fontWeight: 400,
+                                    fontSize: '15px',
+                                    color: '#6d6b80',
+                                    lineHeight: '22px',
+                                    letterSpacing: '0.5px',
+                                  }}>{apt.patientName}</Typography>
+                                </Box>
+
+                                <Box sx={{ flex: '1', textAlign: 'center' }}>
+                                  <Typography sx={{
+                                    fontFamily: 'Roboto, sans-serif',
+                                    fontWeight: 400,
+                                    fontSize: '15px',
+                                    color: '#6d6b80',
+                                    lineHeight: '22px',
+                                    letterSpacing: '0.5px',
+                                  }}>{apt.timeStart ? `${apt.timeStart}${apt.timeEnd ? ' - ' + apt.timeEnd : ''}` : (apt.time || '')}</Typography>
+                                </Box>
+
+                                <Box sx={{ flex: '2', textAlign: 'left' }}>
+                                  <Typography sx={{
+                                    fontFamily: 'Roboto, sans-serif',
+                                    fontWeight: 400,
+                                    fontSize: '15px',
+                                    color: '#6d6b80',
+                                    lineHeight: '22px',
+                                    letterSpacing: '0.5px',
+                                  }}>{apt.procedure}</Typography>
+                                </Box>
+
+                                <Box sx={{ flex: '3.5', textAlign: 'left' }}>
+                                  <Typography sx={{
+                                    fontFamily: 'Roboto, sans-serif',
+                                    fontWeight: 400,
+                                    fontSize: '15px',
+                                    color: '#6d6b80',
+                                    lineHeight: '22px',
+                                    letterSpacing: '0.5px',
+                                    whiteSpace: 'normal',
+                                    wordBreak: 'break-word',
+                                  }}>{apt.comments || ''}</Typography>
+                                </Box>
+                              </Box>
+                            )) : (
+                              <Box 
+                                sx={{
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  py: 4,
+                                  backgroundColor: '#f9fafc',
+                                  borderRadius: '10px',
+                                }}
+                              >
+                                <Typography sx={{
+                                  fontFamily: 'Roboto, sans-serif',
+                                  fontWeight: 400,
+                                  fontSize: '16px',
+                                  color: '#6d6b80',
+                                }}>No history records</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      }
+                      pagination={
+                        <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
+                          <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(r) => { setRowsPerPage(r); setPage(0); }} />
+                        </Box>
+                      }
+                      grayMinHeight={showFilterBox ? '440px' : '560px'}
+                      whiteMinHeight={showFilterBox ? '720px' : '620px'}
+                    />
+                  );
+                })()}
+              </Box>
+            </Fade>
+
+            <Fade in={statusTab !== 'history'} timeout={300} unmountOnExit>
+              <Box>
+                {calendarView === 'Month' ? (
+                  <MonthGrid 
+                    appointments={appointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled')}
+                    currentDate={currentDate}
+                    statusColors={statusColors}
+                    onAppointmentClick={handleAppointmentClick}
+                  />
+                ) : (
+                  <>
+                    {/* Day Headers */}
+                    <Box sx={{ display: 'flex', position: 'sticky', top: 0, zIndex: 1000, backgroundColor: 'white' }}>
+                      <Box sx={{ width: '80px', height: '80px', flexShrink: 0, backgroundColor: 'white' }} />
+                      {weekDates.map((date, dayIndex) => (
+                        <Box key={dayIndex} sx={{ 
+                          flex: 1, 
+                          height: '80px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 0,
+                          flexShrink: 0,
+                          backgroundColor: 'white'
+                        }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {date.toDateString() === new Date().toDateString() ? (
+                              <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: '#1a73e8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Typography sx={{ color: 'white', fontWeight: 700, fontSize: '20px', fontFamily: 'Inter, sans-serif' }}>{date.getDate()}</Typography>
+                              </Box>
+                            ) : (
+                              <Typography sx={{ fontWeight: 700, fontFamily: 'Inter, sans-serif', fontSize: '28px', color: '#3c4043' }}>{date.getDate()}</Typography>
+                            )}
+                          </Box>
+                          <Typography variant="body2" sx={{ color: '#70757a', fontFamily: 'Inter, sans-serif', fontSize: '12px', mt: 0.5, fontWeight: '600' }}>
+                            {dayNames[dayIndex]}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+
+                    {/* Calendar Grid */}
+                    <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                      <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', maxHeight: statusTab !== 'history' ? 'calc(100vh - 260px)' : 'none' }}>
+                        {/* Time Column */}
+                        <Box sx={{ width: '80px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+                          <Box sx={{ height: '20px', flexShrink: 0 }} />
+                          {timeSlots.map((timeSlot, idx) => (
+                            <Box key={timeSlot} sx={{ height: '80px', position: 'relative', flexShrink: 0 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: '#70757a',
+                                  fontWeight: '400',
+                                  fontFamily: 'Inter, sans-serif',
+                                  fontSize: '10px',
+                                  position: 'absolute',
+                                  left: 8,
+                                  top: 0,
+                                  transform: 'translateY(-50%)',
+                                  backgroundColor: 'white',
+                                  px: '6px',
+                                  height: '16px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  borderRadius: '2px',
+                                  zIndex: 3
+                                }}
+                              >
+                                {timeSlot}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+
+                        {/* Day Columns */}
+                        <Box sx={{ flex: 1, display: 'flex', minHeight: '1280px' }}>
+                          {weekDates.map((date, dayIndex) => (
+                            <Box key={dayIndex} sx={{ 
+                              flex: 1, 
+                              borderLeft: '1px solid #e0e0e0',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              position: 'relative',
+                              minHeight: '100%'
+                            }}>
+                              <Box sx={{ flex: 1, position: 'relative', minHeight: '1280px' }}>
+                                <Box sx={{ height: '20px', flexShrink: 0 }} />
+                                {timeSlots.map((timeSlot, timeIndex) => (
+                                  <Box key={timeSlot} sx={{ height: '80px', p: 0, position: 'relative', flexShrink: 0 }}>
+                                    <Box sx={{ position: 'absolute', top: 0, left: '-24px', right: '12px', height: '1px', bgcolor: '#e0e0e0', zIndex: 1 }} />
+                                  </Box>
+                                ))}
+
+                                {/* Render appointments for the whole day column with minute-precision positioning */}
+                                {(() => {
+                                  const DAY_START_HOUR = 7; // matches the timeSlots start
+                                  const SLOT_HEIGHT = 80; // px per hour slot
+                                  const PIXELS_PER_MINUTE = SLOT_HEIGHT / 60; // px per minute
+                                  const TOP_OFFSET = 20; // px top spacer present in column
+
+                                  // get all appointments for this day
+                                  const appointmentsForDay = appointments.filter(apt => {
+                                    const aptDateStr = apt.appointmentDate.split('T')[0];
+                                    const currentDisplayDate = weekDates[dayIndex];
+                                    const year = currentDisplayDate.getFullYear();
+                                    const month = String(currentDisplayDate.getMonth() + 1).padStart(2, '0');
+                                    const day = String(currentDisplayDate.getDate()).padStart(2, '0');
+                                    const targetDateStr = `${year}-${month}-${day}`;
+                                    return aptDateStr === targetDateStr;
+                                  });
+                                  // apply statusTab filter (scheduled vs history)
+                                  const filteredAppointmentsForDay = appointmentsForDay.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled');
+
+                                  const nowTotalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                                  const isTodayColumn = weekDates[dayIndex].toDateString() === new Date().toDateString();
+                                  return filteredAppointmentsForDay.map((appointment) => {
+                                    // compute start minutes from DAY_START_HOUR
+                                    const [startHour, startMin] = appointment.timeStart ? appointment.timeStart.split(':').map(Number) : [DAY_START_HOUR, 0];
+                                    const startMinutesFromDayStart = (startHour - DAY_START_HOUR) * 60 + (startMin || 0);
+
+                                    // compute duration in minutes
+                                    let durationMinutes = 0;
+                                    if (appointment.timeEnd) {
+                                      const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
+                                      const startTotal = startHour * 60 + (startMin || 0);
+                                      const endTotal = endHour * 60 + (endMin || 0);
+                                      durationMinutes = Math.max(1, endTotal - startTotal);
+                                    } else if (appointment.duration) {
+                                      // appointment.duration may be in hours (e.g., 1.5)
+                                      durationMinutes = Math.max(1, Math.round(appointment.duration * 60));
+                                    } else {
+                                      durationMinutes = 60; // fallback to 1 hour
+                                    }
+
+                                    const topPx = TOP_OFFSET + (startMinutesFromDayStart * PIXELS_PER_MINUTE);
+                                    const heightPx = Math.max(24, durationMinutes * PIXELS_PER_MINUTE); // min height
+
+                                    // Determine if appointment is ongoing (current time intersects start..end)
+                                    // Only consider it ongoing if this column represents today
+                                    let isOngoing = false;
+                                    if (isTodayColumn) {
+                                      if (appointment.timeStart && appointment.timeEnd) {
+                                        const [sH, sM] = appointment.timeStart.split(':').map(Number);
+                                        const [eH, eM] = appointment.timeEnd.split(':').map(Number);
+                                        const startTotal = sH * 60 + (sM || 0);
+                                        const endTotal = eH * 60 + (eM || 0);
+                                        isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                      } else if (appointment.duration) {
+                                        // fallback: treat appointments with duration and no explicit end
+                                        const startTotal = (startHour * 60) + (startMin || 0);
+                                        const endTotal = startTotal + durationMinutes;
+                                        isOngoing = nowTotalMinutes >= startTotal && nowTotalMinutes < endTotal;
+                                      }
+                                    }
+
+                                    // Use 'ongoing' color when intersecting current time
+                                    const bgColor = isOngoing ? statusColors.ongoing : (statusColors[appointment.status] || statusColors.scheduled);
+
+                                    return (
+                                      <Paper
+                                        key={appointment.id}
+                                        elevation={0}
+                                        onClick={() => handleAppointmentClick(appointment)}
+                                        sx={{
+                                          p: '8px 12px',
+                                          backgroundColor: bgColor,
+                                          color: 'white',
+                                          borderRadius: '8px',
+                                          cursor: 'pointer',
+                                          height: `${Math.max(24, Math.round(heightPx))}px`,
+                                          overflow: 'hidden',
+                                          position: 'absolute',
+                                          left: '6px',
+                                          right: '6px',
+                                          top: `${Math.round(topPx)}px`,
+                                          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                                          zIndex: 20,
+                                          transition: 'transform 0.2s, box-shadow 0.2s',
+                                          '&:hover': {
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: '0 4px 8px 0 rgba(0, 0, 0, 0.2)'
+                                          }
+                                        }}
+                                      >
+                                        <Typography sx={{ fontWeight: '500', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '18px' }}>
+                                          {appointment.patientName}
+                                        </Typography>
+                                        <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', lineHeight: '16px', opacity: 0.9 }}>
+                                          {appointment.procedure}
+                                        </Typography>
+                                      </Paper>
+                                    );
+                                  });
+                                })()}
+
+                                {/* FIXED: Current Time Indicator */}
+                                {date.toDateString() === new Date().toDateString() && timeIndicatorPosition !== null && (
+                                  <Box sx={{
+                                    position: 'absolute',
+                                    top: `${timeIndicatorPosition + 20}px`,
+                                    left: 0,
+                                    right: 0,
+                                    height: '2px',
+                                    bgcolor: '#ea4335',
+                                    zIndex: 1001,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    pointerEvents: 'none'
+                                  }}>
+                                    <Box sx={{
+                                      position: 'absolute',
+                                      left: '-6px',
+                                      width: '12px',
+                                      height: '12px',
+                                      borderRadius: '50%',
+                                      bgcolor: '#ea4335'
+                                    }}/>
+                                    <Box sx={{
+                                      width: '100%',
+                                      height: '2px',
+                                      bgcolor: '#ea4335'
+                                    }}/>
+                                  </Box>
+                                )}
+                              </Box>
+                            </Box>
+                          ))}
                         </Box>
                       </Box>
-                    ))}
-                  </Box>
-                </Box>
+                    </Box>
+                  </>
+                )}
               </Box>
-            </>
-          )}
+            </Fade>
+          </Box>
         </Paper>
       </Box>
       
       {/* Appointment Details Modal */}
+      {statusTab !== 'history' && (
       <Dialog 
         open={modalOpen} 
         onClose={handleCloseModal}
@@ -2205,7 +2551,8 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
             Close
           </Button>
         </DialogActions>
-      </Dialog>
+  </Dialog>
+  )}
       
       {/* Success/Error Snackbars */}
       <Snackbar 
@@ -2231,8 +2578,19 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
       </Snackbar>
       
       <QuickActionButton />
+      {/* FilterComponent for data filtering logic */}
+      <FilterComponent
+        filterCategories={filterCategories}
+        data={appointments}
+        onFilteredData={setCategoryFilteredAppointments}
+        activeFilters={activeFilters}
+        showFilterBox={showFilterBox}
+      />
     </Box>
   );
 }
+
+// Keep FilterComponent at bottom to perform filtering logic
+// It will update `categoryFilteredAppointments` when filters apply
 
 export default Appointments
