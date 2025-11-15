@@ -530,10 +530,11 @@ function SalesDashboard() {
       >
         <Typography
           variant="h3"
+          className="no-scale-sales-title"
           sx={{
             color: 'white',
             fontWeight: 800,
-            fontSize: '39.14px',
+            fontSize: '2.45rem',
             fontFamily: 'Inter, sans-serif',
           }}
         >
@@ -602,6 +603,7 @@ function SalesDashboard() {
                               textTransform: 'none',
                               fontWeight: 500,
                               fontSize: '16px',
+                              fontSize: '1rem',
                               fontFamily: 'DM Sans, sans-serif',
                               minWidth: 99,
                               boxShadow: 1,
@@ -847,7 +849,7 @@ function SalesDashboard() {
                 <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{period === 'Daily' ? 'Daily Expenses' : period === 'Monthly' ? 'Monthly Expenses' : 'Yearly Expenses'}</Typography>
               </Paper>
               <Box sx={{ mb: 2 }}>
-                <Button fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '115px', backgroundColor: '#0056b3', fontSize: '24px', color: 'white', py: 1.5 }}>Add Expense</Button>
+                <Button className="no-scale" fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '7.1875rem', backgroundColor: '#0056b3', fontSize: '1.5rem', color: 'white', py: 1.5 }}>Add Expense</Button>
               </Box>
               <Paper elevation={3} sx={{ p: 2, pt: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>

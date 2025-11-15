@@ -1,10 +1,119 @@
-import React, { useState } from 'react'; // Single import with useState
-import { Box, Typography } from '@mui/material';
+import React, { useState, useEffect } from 'react'; // Single import with useState
+import { Box, Typography, Button } from '@mui/material';
 import Header from '../components/header';
 
 export default function Settings() {
   // Move useState hooks INSIDE the component
-  const [textSize, setTextSize] = useState(3);
+  // initialize from localStorage when available
+  const [textSize, setTextSize] = useState(() => {
+    try {
+      const v = Number(window.localStorage.getItem('appTextSizeLevel'));
+      return v && !Number.isNaN(v) ? v : 3;
+    } catch (e) {
+      return 3;
+    }
+  });
+
+  // Apply text size to the root element and persist to localStorage
+  useEffect(() => {
+    try {
+      const sizeMap = {
+        1: 13,
+        2: 14.5,
+        3: 16,
+        4: 18,
+        5: 20,
+      };
+      const px = sizeMap[textSize] || 16;
+      // set root font-size (affects rem-based sizing)
+      document.documentElement.style.fontSize = `${px}px`;
+      // also expose variables for components that can use them
+      document.documentElement.style.setProperty('--app-ui-font', `${px}px`);
+      const scale = px / 16;
+      document.documentElement.style.setProperty('--app-ui-scale', String(scale));
+
+      // persist selection
+      window.localStorage.setItem('appTextSizeLevel', String(textSize));
+
+      // inject or update a global stylesheet that maps table/calendar selectors
+      const styleId = 'app-text-size-overrides';
+      const existing = document.getElementById(styleId);
+      const css = `
+        /* Force the selected font size everywhere in the app.
+           This overrides component-level px sizes so ALL visible text
+           follows the selected value ("ALL" typography as requested).
+        */
+
+        /* Root and app container */
+        html, body, #root, #app {
+          font-size: var(--app-ui-font) !important;
+        }
+
+
+        /* Common MUI classes and controls */
+        .MuiTypography-root, .MuiTypography-body1, .MuiTypography-body2,
+        .MuiTypography-h1, .MuiTypography-h2, .MuiTypography-h3,
+        .MuiTypography-h4, .MuiTypography-h5, .MuiTypography-h6,
+        .MuiButton-root, .MuiInputBase-root, .MuiInputBase-input,
+        .MuiTableCell-root, .MuiListItemText-primary, .MuiChip-label,
+        .MuiCardContent-root, .MuiDialogContent-root, .MuiFormLabel-root,
+        /* standard elements commonly used for text */
+        input, textarea, select, label, button, a, p, span, div {
+          font-size: var(--app-ui-font) !important;
+        }
+
+        /* Tables, data tables and calendar containers */
+        table, .MuiTable-root, .data-table, .table-area, .TableArea, .tableContainer,
+        .react-calendar, .rbc-calendar, .appointments-calendar, .appointments-root, .calendar-root {
+          font-size: var(--app-ui-font) !important;
+        }
+
+        /* SVG text nodes */
+        svg text { font-size: var(--app-ui-font) !important; }
+
+        /* Accessibility: ensure focus outlines remain visible */
+        :focus { outline-color: #1976d2 !important; }
+
+        /* Elements opted-out from scaling (Sales metric boxes, Add Expense button, etc.) */
+        .no-scale, .no-scale * {
+          /* Use a stable base font size so these boxes do not change */
+          font-size: 16px !important;
+          line-height: 1.2 !important;
+          transform: none !important;
+        }
+
+        /* Prevent headings from becoming unreadably small while still allowing scaling */
+        h1, h2, h3, .page-title, .settings-heading, .MuiTypography-h3, .MuiTypography-h4 {
+          font-size: clamp(1.25rem, calc(1.6rem * var(--app-ui-scale, 1)), 2.4rem) !important;
+          line-height: 1.15 !important;
+        }
+
+        /* Targeted stable titles (explicitly keep these at their designed sizes) */
+        .no-scale-sales-title {
+          font-size: 2.45rem !important;
+          line-height: 1.05 !important;
+        }
+
+        .no-scale-header-brand {
+          font-size: 1rem !important;
+          font-weight: 600 !important;
+          line-height: 1.05 !important;
+        }
+      `;
+      if (existing) {
+        if (existing.innerHTML !== css) existing.innerHTML = css;
+      } else {
+        const s = document.createElement('style');
+        s.id = styleId;
+        s.innerHTML = css;
+        document.head.appendChild(s);
+      }
+    } catch (err) {
+      // ignore storage errors
+      // eslint-disable-next-line no-console
+      console.warn('Could not persist text size', err);
+    }
+  }, [textSize]);
   const [background, setBackground] = useState("Light");
   const [dateFormat, setDateFormat] = useState("MM/DD/YYYY");
   const [timeFormat, setTimeFormat] = useState("1:00 PM");
@@ -165,6 +274,15 @@ export default function Settings() {
                     aria-valuetext={`Text size level ${textSize}`}
                   />
                   <span style={{ color: "#999", fontWeight: "700" }} aria-hidden="true">Aa</span>
+                  <Button variant="outlined" size="small" onClick={() => setTextSize(3)} aria-label="Reset text size" sx={{ ml: 1 }}>Reset</Button>
+                </div>
+              </div>
+
+              {/* Live preview for accessibility */}
+              <div className="setting-row" aria-live="polite">
+                <div className="slider-label-left">Preview</div>
+                <div style={{ minWidth: 220, textAlign: 'right', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
+                  <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>The quick brown fox jumps over the lazy dog.</Typography>
                 </div>
               </div>
 
