@@ -855,6 +855,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
       ).join(', ');
       
       const requestData = {
+        patientId: selectedAppointment.patientId,
         appointmentDate: editedAppointment.appointmentDate,
         timeStart: editedAppointment.timeStart,
         timeEnd: editedAppointment.timeEnd,
