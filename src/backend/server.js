@@ -103,6 +103,9 @@ db.run(`
 
 
 
+
+
+
 function migratePackagesToSeparateTable() {
   console.log('🔄 Starting package migration...');
   
@@ -407,35 +410,26 @@ app.get('/appointments/date-range', (req, res) => {
   const { startDate, endDate } = req.query;
 
   const selectQuery = `
-    SELECT
-      a.*,
-      p.firstName || ' ' || p.lastName AS patientName,
+  SELECT 
+    a.id, a.patientId, a.appointmentDate, a.timeStart, a.timeEnd, a.status, a.comments,
+    p.firstName || ' ' || p.lastName AS patientName,
+    (
+      SELECT GROUP_CONCAT(
+        COALESCE(pkg.name, s.name) || 
+        CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END ||
+        CASE WHEN pkg.id IS NOT NULL THEN ' 📦' ELSE '' END,
+        ', '
+      )
+      FROM appointment_services aps
+      LEFT JOIN services s ON aps.serviceId = s.id
+      LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+      WHERE aps.appointmentId = a.id
+    ) AS serviceNames
+  FROM appointments a
+  LEFT JOIN patients p ON a.patientId = p.id
+  WHERE a.appointmentDate BETWEEN ? AND ?
+`;
 
-      (
-        SELECT GROUP_CONCAT(serviceName || ' (x' || quantity || ')', ', ')
-        FROM (
-          -- Direct services
-          SELECT s.name AS serviceName, aps.quantity
-          FROM appointment_services aps
-          JOIN services s ON aps.serviceId = s.id
-          WHERE aps.appointmentId = a.id
-
-          UNION ALL
-
-          -- Package-expanded services
-          SELECT s2.name AS serviceName, (ps.quantity * aps2.quantity)
-          FROM appointment_services aps2
-          JOIN package_services ps ON aps2.serviceId = ps.packageId
-          JOIN services s2 ON ps.serviceId = s2.id
-          WHERE aps2.appointmentId = a.id
-        )
-      ) AS serviceNames
-
-    FROM appointments a
-    LEFT JOIN patients p ON p.id = a.patientId
-    WHERE a.appointmentDate BETWEEN ? AND ?
-    ORDER BY a.appointmentDate, a.timeStart
-  `;
 
   db.all(selectQuery, [startDate, endDate], (err, rows) => {
     if (err) return res.status(500).json({ error: "Failed range query." });
@@ -445,45 +439,41 @@ app.get('/appointments/date-range', (req, res) => {
 
 
 
+// REPLACE GET /appointments endpoint (around line 160):
 app.get('/appointments', (req, res) => {
   const selectQuery = `
     SELECT 
-      a.*,
+      a.id, a.patientId, a.appointmentDate, a.timeStart, a.timeEnd, a.status, a.comments,
       p.firstName || ' ' || p.lastName AS patientName,
-
       (
-        SELECT GROUP_CONCAT(serviceName || ' (x' || quantity || ')', ', ')
-        FROM (
-          -- Normal services
-          SELECT s.name AS serviceName, aps.quantity
-          FROM appointment_services aps
-          JOIN services s ON aps.serviceId = s.id
-          WHERE aps.appointmentId = a.id
-
-          UNION ALL
-
-          -- Expanded package services
-          SELECT s2.name AS serviceName, (ps.quantity * aps2.quantity)
-          FROM appointment_services aps2
-          JOIN package_services ps ON aps2.serviceId = ps.packageId
-          JOIN services s2 ON ps.serviceId = s2.id
-          WHERE aps2.appointmentId = a.id
+        SELECT GROUP_CONCAT(
+          COALESCE(pkg.name, s.name) || 
+          CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END ||
+          CASE WHEN pkg.id IS NOT NULL THEN ' 📦' ELSE '' END,
+          ', '
         )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
       ) AS serviceNames
-
     FROM appointments a
     LEFT JOIN patients p ON p.id = a.patientId
     ORDER BY a.appointmentDate DESC, a.timeStart ASC
   `;
 
   db.all(selectQuery, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: "Failed to retrieve appointments." });
+    if (err) {
+      console.error('Error fetching appointments:', err);
+      return res.status(500).json({ error: 'Failed to fetch appointments' });
+    }
     res.json(rows);
   });
 });
 
 
-// GET appointment by ID
+
+// REPLACE your GET /appointments/:id endpoint completely:
 app.get('/appointments/:id', (req, res) => {
   const { id } = req.params;
 
@@ -492,73 +482,65 @@ app.get('/appointments/:id', (req, res) => {
       a.*,
       p.firstName || ' ' || p.lastName AS patientName,
 
-      -- Return expanded service names
+      -- **CRITICAL FIX: Don't expand packages, just show what's in appointment_services**
       (
-        SELECT GROUP_CONCAT(serviceName || ' (x' || quantity || ')', ', ')
-        FROM (
-          -- Normal services
-          SELECT 
-            s.name AS serviceName, 
-            aps.quantity AS quantity
-          FROM appointment_services aps
-          JOIN services s ON aps.serviceId = s.id
-          WHERE aps.appointmentId = a.id
-
-          UNION ALL
-
-          -- Package-expanded services
-          SELECT 
-            s2.name AS serviceName,
-            (ps.quantity * aps2.quantity) AS quantity
-          FROM appointment_services aps2
-          JOIN package_services ps ON aps2.serviceId = ps.packageId
-          JOIN services s2 ON ps.serviceId = s2.id
-          WHERE aps2.appointmentId = a.id
+        SELECT GROUP_CONCAT(
+          CASE 
+            WHEN pkg.id IS NOT NULL THEN pkg.name || ' 📦 (x' || aps.quantity || ')'
+            ELSE s.name || ' (x' || aps.quantity || ')'
+          END,
+          ', '
         )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
       ) AS serviceNames,
 
-      -- Return serviceIds with expanded services
+      -- **CRITICAL FIX: Return service IDs with source type prefix**
       (
-        SELECT GROUP_CONCAT(serviceId || ':' || quantity)
-        FROM (
-          -- Normal services
-          SELECT aps.serviceId AS serviceId, aps.quantity AS quantity
-          FROM appointment_services aps
-          WHERE aps.appointmentId = a.id
-
-          UNION ALL
-
-          -- Expand package contents
-          SELECT 
-            ps.serviceId AS serviceId,
-            (ps.quantity * aps2.quantity) AS quantity
-          FROM appointment_services aps2
-          JOIN package_services ps ON aps2.serviceId = ps.packageId
-          WHERE aps2.appointmentId = a.id
+        SELECT GROUP_CONCAT(
+          CASE 
+            WHEN pkg.id IS NOT NULL THEN 'pkg-' || aps.serviceId || ':' || aps.quantity
+            ELSE 'svc-' || aps.serviceId || ':' || aps.quantity
+          END
         )
+        FROM appointment_services aps
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
       ) AS serviceIds
 
     FROM appointments a
-    LEFT JOIN patients p ON p.id = a.patientId
+    LEFT JOIN patients p ON a.patientId = p.id
     WHERE a.id = ?
   `;
 
   db.get(selectQuery, [id], (err, row) => {
     if (err || !row) {
+      console.error('Error fetching appointment:', err);
       return res.status(500).json({ error: "Failed to fetch appointment." });
     }
+    
+    console.log(`✅ Fetched appointment ${id}:`, row);
     res.json(row);
   });
 });
 
 
-// POST 
+
+
+
+
+
+// FIND AND COMPLETELY REPLACE POST /appointments (search for "app.post('/appointments'")
+// It should be somewhere after your GET /appointments endpoints (after line 400)
+
 app.post('/appointments', (req, res) => {
   const {
     patientId,
     serviceId,
     serviceIds,
-    serviceQuantities, // New field with quantity data from add-appointment.js
+    serviceQuantities,
     appointmentDate,
     timeStart,
     timeEnd,
@@ -568,180 +550,340 @@ app.post('/appointments', (req, res) => {
 
   console.log('=== POST APPOINTMENT DEBUG ===');
   console.log('Request body:', req.body);
-  console.log('Primary serviceId:', serviceId);
-  console.log('Service quantities:', serviceQuantities);
+  console.log('serviceQuantities:', serviceQuantities);
 
   // Validate required fields
-  if (!patientId) {
-    return res.status(400).json({ error: 'Missing required field: patientId' });
-  }
-  if (!serviceId) {
-    return res.status(400).json({ error: 'Missing required field: serviceId' });
-  }
+  if (!patientId) return res.status(400).json({ error: 'Missing required field: patientId' });
+  if (!serviceId) return res.status(400).json({ error: 'Missing required field: serviceId' });
   if (!appointmentDate || !timeStart || !timeEnd) {
     return res.status(400).json({ error: 'Missing required fields: appointmentDate, timeStart, timeEnd' });
   }
 
-  // Insert appointment first
-  const insertQuery = `
-    INSERT INTO appointments (patientId, serviceId, appointmentDate, timeStart, timeEnd, comments, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+  // **CHECK FOR CONFLICTS FIRST**
+  const conflictQuery = `
+    SELECT 
+      a.*,
+      p.firstName,
+      p.lastName,
+      COALESCE(p.firstName || ' ' || p.lastName, 'Unknown Patient') as patientName
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    WHERE a.appointmentDate = ?
+      AND a.status != 'cancelled'
+      AND (
+        (a.timeStart < ? AND a.timeEnd > ?) OR
+        (a.timeStart >= ? AND a.timeStart < ?) OR
+        (a.timeEnd > ? AND a.timeEnd <= ?)
+      )
   `;
 
-  console.log('Inserting appointment with data:', {
-    patientId,
-    serviceId,
+  db.all(conflictQuery, [
     appointmentDate,
-    timeStart,
-    timeEnd,
-    comments: comments || '',
-    status
-  });
-
-  db.run(insertQuery, [
-    patientId,
-    serviceId,
-    appointmentDate,
-    timeStart,
-    timeEnd,
-    comments || '',
-    status
-  ], function (err) {
+    timeEnd, timeStart,
+    timeStart, timeEnd,
+    timeStart, timeEnd
+  ], (err, conflicts) => {
     if (err) {
-      console.error('❌ Error creating appointment:', err);
-      return res.status(500).json({ error: 'Failed to create appointment', details: err.message });
+      console.error('❌ Error checking conflicts:', err);
+      return res.status(500).json({ error: 'Failed to check conflicts' });
     }
 
-    const appointmentId = this.lastID;
-    console.log('✅ Appointment created with ID:', appointmentId);
-
-    // Handle services with quantities
-    let servicesToInsert = [];
-    
-    // Priority 1: Use serviceQuantities from add-appointment.js (preferred format)
-    if (serviceQuantities && Array.isArray(serviceQuantities)) {
-      servicesToInsert = serviceQuantities.map(item => ({
-        id: item.serviceId,
-        quantity: item.quantity || 1
-      }));
-      console.log('✅ Using serviceQuantities format:', servicesToInsert);
-    }
-    // Priority 2: Fallback to serviceIds array 
-    else if (Array.isArray(serviceIds) && serviceIds.length > 0) {
-      servicesToInsert = serviceIds.map(serviceData => {
-        if (typeof serviceData === 'object' && serviceData.id) {
-          return {
-            id: serviceData.id,
-            quantity: serviceData.quantity || 1
-          };
-        } else {
-          return {
-            id: parseInt(serviceData),
-            quantity: 1
-          };
+    if (conflicts.length > 0) {
+      const conflict = conflicts[0];
+      const conflictingPatient = conflict.patientName || 
+                                `${conflict.firstName || ''} ${conflict.lastName || ''}`.trim() || 
+                                'Unknown Patient';
+      
+      console.log('⚠️ Appointment conflict detected with:', conflictingPatient);
+      return res.status(409).json({ 
+        error: `Time slot conflicts with existing appointment for ${conflictingPatient}`,
+        conflict: {
+          patientName: conflictingPatient,
+          timeStart: conflicts[0].timeStart,
+          timeEnd: conflicts[0].timeEnd
         }
       });
-      console.log('✅ Using serviceIds format:', servicesToInsert);
-    }
-    // Priority 3: Final fallback - use primary serviceId
-    else if (serviceId) {
-      servicesToInsert = [{
-        id: parseInt(serviceId),
-        quantity: 1
-      }];
-      console.log('✅ Using primary serviceId fallback:', servicesToInsert);
     }
 
-    if (servicesToInsert.length === 0) {
-      console.log('⚠️ No valid services to insert into junction table');
-      return returnCreatedAppointment(appointmentId);
-    }
+    // No conflicts, proceed with insertion
+    const insertQuery = `
+      INSERT INTO appointments (patientId, serviceId, appointmentDate, timeStart, timeEnd, comments, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
 
-    // Insert each service into the junction table with quantities
-    let servicesProcessed = 0;
-    let errors = [];
+    // Extract first numeric ID for legacy serviceId column
+    const legacyServiceId = serviceQuantities && serviceQuantities.length > 0 
+      ? parseInt(String(serviceQuantities[0].serviceId).replace(/^(svc-|pkg-)/, ''))
+      : parseInt(String(serviceId).replace(/^(svc-|pkg-)/, ''));
 
-    servicesToInsert.forEach((serviceData, index) => {
-      console.log(`📝 Inserting service ${index + 1}/${servicesToInsert.length}:`, serviceData);
+    db.run(insertQuery, [
+      patientId,
+      legacyServiceId,
+      appointmentDate,
+      timeStart,
+      timeEnd,
+      comments || '',
+      status
+    ], function (err) {
+      if (err) {
+        console.error('❌ Error creating appointment:', err);
+        return res.status(500).json({ error: 'Failed to create appointment', details: err.message });
+      }
+
+      const appointmentId = this.lastID;
+      console.log('✅ Appointment created with ID:', appointmentId);
+
+      // **CRITICAL FIX: Parse services and validate their types in database**
+      let servicesToProcess = [];
       
-      const serviceId = serviceData.id;
-      const quantity = serviceData.quantity || 1;
+      if (serviceQuantities && Array.isArray(serviceQuantities) && serviceQuantities.length > 0) {
+        servicesToProcess = serviceQuantities.map(item => {
+          const serviceIdStr = String(item.serviceId);
+          const numericId = parseInt(serviceIdStr.replace(/^(svc-|pkg-)/, ''));
+          
+          return {
+            id: numericId,
+            quantity: parseInt(item.quantity) || 1,
+            originalId: item.serviceId,
+            needsValidation: true
+          };
+        });
+        console.log('✅ Using serviceQuantities:', servicesToProcess);
+      } else if (Array.isArray(serviceIds) && serviceIds.length > 0) {
+        servicesToProcess = serviceIds.map(sid => {
+          const serviceIdStr = String(sid);
+          const numericId = parseInt(serviceIdStr.replace(/^(svc-|pkg-)/, ''));
+          
+          return {
+            id: numericId,
+            quantity: 1,
+            originalId: sid,
+            needsValidation: true
+          };
+        });
+        console.log('⚠️ Using serviceIds fallback:', servicesToProcess);
+      } else {
+        const serviceIdStr = String(serviceId);
+        const numericId = parseInt(serviceIdStr.replace(/^(svc-|pkg-)/, ''));
+        
+        servicesToProcess = [{ 
+          id: numericId, 
+          quantity: 1,
+          originalId: serviceId,
+          needsValidation: true
+        }];
+        console.log('⚠️ Using single service fallback:', servicesToProcess);
+      }
+
+      // **CRITICAL: Validate each service in the database to determine its table**
+      validateServicesAndInsert(appointmentId, servicesToProcess);
+    });
+  });
+
+  // **NEW FUNCTION: Validate services in database and insert**
+  function validateServicesAndInsert(appointmentId, servicesToProcess) {
+    let processedCount = 0;
+    const validatedServices = [];
+    const errors = [];
+
+    servicesToProcess.forEach(serviceData => {
+      // Check if this ID exists in services table
+      db.get('SELECT id, name FROM services WHERE id = ?', [serviceData.id], (svcErr, svcRow) => {
+        if (svcErr) {
+          console.error(`❌ Error checking services table for ID ${serviceData.id}:`, svcErr);
+          errors.push({ serviceId: serviceData.id, error: 'Database error' });
+          checkIfComplete();
+          return;
+        }
+
+        if (svcRow) {
+          // Found in services table - it's a service
+          console.log(`✅ Found SERVICE ID ${serviceData.id} in services table: ${svcRow.name}`);
+          validatedServices.push({
+            ...serviceData,
+            isPackage: false,
+            name: svcRow.name,
+            tableName: 'services'
+          });
+          checkIfComplete();
+        } else {
+          // Not in services, check packages table
+          db.get('SELECT id, name FROM packages WHERE id = ?', [serviceData.id], (pkgErr, pkgRow) => {
+            if (pkgErr) {
+              console.error(`❌ Error checking packages table for ID ${serviceData.id}:`, pkgErr);
+              errors.push({ serviceId: serviceData.id, error: 'Database error' });
+              checkIfComplete();
+              return;
+            }
+
+            if (pkgRow) {
+              // Found in packages table - it's a package
+              console.log(`✅ Found PACKAGE ID ${serviceData.id} in packages table: ${pkgRow.name}`);
+              validatedServices.push({
+                ...serviceData,
+                isPackage: true,
+                name: pkgRow.name,
+                tableName: 'packages'
+              });
+            } else {
+              // Not found in either table
+              console.error(`❌ ID ${serviceData.id} not found in services OR packages table`);
+              errors.push({ serviceId: serviceData.id, error: 'Service/Package not found' });
+            }
+            checkIfComplete();
+          });
+        }
+      });
+    });
+
+    function checkIfComplete() {
+      processedCount++;
       
+      if (processedCount === servicesToProcess.length) {
+        // All services validated
+        if (errors.length > 0) {
+          console.warn('⚠️ Some services failed validation:', errors);
+        }
+
+        if (validatedServices.length === 0) {
+          console.error('❌ No valid services to insert');
+          return res.status(400).json({ 
+            error: 'No valid services found',
+            details: errors
+          });
+        }
+
+        // Remove duplicates by type+id
+        const uniqueMap = new Map();
+        validatedServices.forEach(service => {
+          const key = `${service.isPackage ? 'pkg' : 'svc'}-${service.id}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, service);
+          } else {
+            const existing = uniqueMap.get(key);
+            existing.quantity += service.quantity;
+          }
+        });
+
+        const uniqueServices = Array.from(uniqueMap.values());
+        console.log(`📊 Services after deduplication: ${uniqueServices.length} unique services`);
+        console.log('📊 Unique services:', uniqueServices);
+
+        // Insert all validated services
+        insertValidatedServices(appointmentId, uniqueServices);
+      }
+    }
+  }
+
+  function insertValidatedServices(appointmentId, validatedServices) {
+    let insertedCount = 0;
+    const insertErrors = [];
+
+    validatedServices.forEach(serviceData => {
       const junctionQuery = 'INSERT INTO appointment_services (appointmentId, serviceId, quantity) VALUES (?, ?, ?)';
       
-      db.run(junctionQuery, [appointmentId, serviceId, quantity], function(junctionErr) {
-        servicesProcessed++;
-        
+      console.log(`📝 Inserting ${serviceData.isPackage ? 'PACKAGE' : 'SERVICE'}: ID=${serviceData.id} (${serviceData.name}), Quantity=${serviceData.quantity}, Table=${serviceData.tableName}`);
+      
+      db.run(junctionQuery, [appointmentId, serviceData.id, serviceData.quantity], function(junctionErr) {
+        insertedCount++;
+
         if (junctionErr) {
-          console.error(`❌ Error inserting service ${serviceId} with quantity ${quantity}:`, junctionErr);
-          errors.push(junctionErr);
+          console.error(`❌ Error inserting ${serviceData.tableName} ${serviceData.id}:`, junctionErr);
+          insertErrors.push({ serviceId: serviceData.id, error: junctionErr.message });
         } else {
-          console.log(`✅ Service ${serviceId} (qty: ${quantity}) inserted with row ID:`, this.lastID);
+          console.log(`✅ ${serviceData.isPackage ? 'Package' : 'Service'} ${serviceData.id} (${serviceData.name}) inserted into appointment_services`);
         }
-        
-        if (servicesProcessed === servicesToInsert.length) {
-          if (errors.length > 0) {
-            console.error('⚠️ Some services failed to insert:', errors);
+
+        // Check if all inserts completed
+        if (insertedCount === validatedServices.length) {
+          if (insertErrors.length > 0) {
+            console.warn('⚠️ Some services failed to insert:', insertErrors);
           }
-          console.log('✅ All services processed, returning appointment');
+          
+          console.log(`✅ Successfully inserted ${validatedServices.length - insertErrors.length}/${validatedServices.length} services`);
           returnCreatedAppointment(appointmentId);
         }
       });
     });
-  });
+  }
 
+  // Return created appointment function
   function returnCreatedAppointment(appointmentId) {
-    console.log('📤 Fetching created appointment with services for ID:', appointmentId);
+    console.log('📤 Fetching created appointment for ID:', appointmentId);
     
-    // Updated query to include quantities in the display
     const selectQuery = `
       SELECT 
         a.*,
-        p.firstName || ' ' || p.lastName as patientName,
+        COALESCE(p.firstName || ' ' || p.lastName, 'Unknown Patient') as patientName,
         p.firstName,
         p.lastName,
-        s_primary.name as primaryServiceName,
-        s_primary.duration as primaryServiceDuration,
-        s_primary.price as primaryServicePrice,
+        
         (
-          SELECT GROUP_CONCAT(s_multi.name || ' (x' || as_junction.quantity || ')', ', ')
-          FROM appointment_services as_junction 
-          JOIN services s_multi ON as_junction.serviceId = s_multi.id
-          WHERE as_junction.appointmentId = a.id
-        ) as junctionServiceNames,
+          SELECT GROUP_CONCAT(serviceName || ' (x' || qty || ')', ', ')
+          FROM (
+            SELECT s.name as serviceName, aps.quantity as qty
+            FROM appointment_services aps
+            JOIN services s ON aps.serviceId = s.id
+            WHERE aps.appointmentId = a.id
+            
+            UNION ALL
+            
+            SELECT pkg.name || ' 📦' as serviceName, aps2.quantity as qty
+            FROM appointment_services aps2
+            JOIN packages pkg ON aps2.serviceId = pkg.id
+            WHERE aps2.appointmentId = a.id
+          )
+        ) as serviceNames,
+        
         (
-          SELECT GROUP_CONCAT(s_multi.id || ':' || as_junction.quantity)
-          FROM appointment_services as_junction 
-          JOIN services s_multi ON as_junction.serviceId = s_multi.id
-          WHERE as_junction.appointmentId = a.id
-        ) as junctionServiceIds,
-        (
-          SELECT SUM(s_multi.price * as_junction.quantity)
-          FROM appointment_services as_junction 
-          JOIN services s_multi ON as_junction.serviceId = s_multi.id
-          WHERE as_junction.appointmentId = a.id
-        ) as junctionTotalPrice,
-        (
-          SELECT SUM(s_multi.duration * as_junction.quantity)
-          FROM appointment_services as_junction 
-          JOIN services s_multi ON as_junction.serviceId = s_multi.id
-          WHERE as_junction.appointmentId = a.id
-        ) as junctionTotalDuration,
-        (
-          SELECT COUNT(*)
-          FROM appointment_services 
+          SELECT GROUP_CONCAT(serviceId || ':' || quantity)
+          FROM appointment_services
           WHERE appointmentId = a.id
-        ) as junctionServiceCount
+        ) as serviceIds,
+        
+        (
+          SELECT SUM(price * qty)
+          FROM (
+            SELECT s.price, aps.quantity as qty
+            FROM appointment_services aps
+            JOIN services s ON aps.serviceId = s.id
+            WHERE aps.appointmentId = a.id
+            
+            UNION ALL
+            
+            SELECT pkg.price, aps2.quantity as qty
+            FROM appointment_services aps2
+            JOIN packages pkg ON aps2.serviceId = pkg.id
+            WHERE aps2.appointmentId = a.id
+          )
+        ) as totalPrice,
+        
+        (
+          SELECT SUM(duration * qty)
+          FROM (
+            SELECT s.duration, aps.quantity as qty
+            FROM appointment_services aps
+            JOIN services s ON aps.serviceId = s.id
+            WHERE aps.appointmentId = a.id
+            
+            UNION ALL
+            
+            SELECT pkg.duration, aps2.quantity as qty
+            FROM appointment_services aps2
+            JOIN packages pkg ON aps2.serviceId = pkg.id
+            WHERE aps2.appointmentId = a.id
+          )
+        ) as totalDuration
+        
       FROM appointments a
       LEFT JOIN patients p ON a.patientId = p.id
-      LEFT JOIN services s_primary ON a.serviceId = s_primary.id
       WHERE a.id = ?
     `;
     
     db.get(selectQuery, [appointmentId], (selectErr, row) => {
       if (selectErr) {
         console.error('❌ Error fetching created appointment:', selectErr);
-        return res.status(500).json({ error: 'Appointment created but failed to fetch details' });
+        return res.status(500).json({ error: 'Appointment created but failed to retrieve details' });
       }
       
       if (!row) {
@@ -749,69 +891,38 @@ app.post('/appointments', (req, res) => {
         return res.status(500).json({ error: 'Appointment created but not found' });
       }
       
-      // Process the result to determine which services to use
-      const hasJunctionServices = row.junctionServiceCount > 0;
-      
-      let finalServiceNames, finalServiceIds, finalTotalPrice, finalTotalDuration;
-      
-      if (hasJunctionServices) {
-        finalServiceNames = row.junctionServiceNames;
-        finalServiceIds = row.junctionServiceIds;
-        finalTotalPrice = row.junctionTotalPrice;
-        finalTotalDuration = row.junctionTotalDuration;
-      } else {
-        finalServiceNames = row.primaryServiceName;
-        finalServiceIds = row.serviceId;
-        finalTotalPrice = row.primaryServicePrice;
-        finalTotalDuration = row.primaryServiceDuration;
-      }
-      
       const processedRow = {
         ...row,
-        serviceName: finalServiceNames,
-        procedure: finalServiceNames,
-        serviceIds: finalServiceIds,
-        serviceNames: finalServiceNames,
-        totalPrice: finalTotalPrice,
-        totalDuration: finalTotalDuration,
-        hasMultipleServices: hasJunctionServices && finalServiceNames && finalServiceNames.includes(',')
+        serviceName: row.serviceNames,
+        procedure: row.serviceNames,
+        hasMultipleServices: row.serviceNames && row.serviceNames.includes(',')
       };
 
+      logActivity(
+        'Appointment Created',
+        `New appointment created for ${row.patientName} on ${appointmentDate} (${row.serviceNames})`,
+        'appointments',
+        appointmentId,
+        req.user?.id,
+        req.user?.username || 'system',
+        null,
+        {
+          patientName: row.patientName,
+          appointmentDate,
+          timeStart,
+          timeEnd,
+          serviceName: row.serviceNames,
+          status,
+          totalPrice: row.totalPrice,
+          totalDuration: row.totalDuration
+        },
+        req
+      );
       
-    // ADD THIS: Log the appointment creation
-    logActivity(
-      'Appointment Created',
-      `New appointment created for ${row.patientName} on ${appointmentDate} (${finalServiceNames})`,
-      'appointments',
-      appointmentId,
-      req.user?.id,
-      req.user?.username || 'system',
-      null,
-      {
-        patientName: row.patientName,
-        appointmentDate,
-        timeStart,
-        timeEnd,
-        serviceName: finalServiceNames,
-        status,
-        totalPrice: finalTotalPrice,
-        totalDuration: finalTotalDuration
-      },
-      req
-    );
-    console.log('✅ Appointment created and logged successfully');
-    res.json({ 
-      message: 'Appointment created successfully', 
-      appointment: processedRow 
-    });
-
-      
-      console.log('✅ Returning created appointment:', {
+      console.log('✅ Appointment created successfully:', {
         id: processedRow.id,
-        serviceNames: processedRow.serviceNames,
-        serviceIds: processedRow.serviceIds,
-        totalPrice: processedRow.totalPrice,
-        hasMultiple: processedRow.hasMultipleServices
+        services: processedRow.serviceNames,
+        totalPrice: processedRow.totalPrice
       });
       
       res.status(201).json({
@@ -824,70 +935,108 @@ app.post('/appointments', (req, res) => {
   }
 });
 
+
+
+
+
 app.get('/appointment-services', (req, res) => {
-  console.log('🔄 GET /appointment-services - Fetching services for appointments');
+  console.log('🔄 GET /appointment-services - Fetching combined list for dropdown');
   
-  // Query to get both services and packages with unique identifiers
+  // This query intelligently combines services and packages, prioritizing package data
+  // for any ID that exists in both tables. This prevents the 'stub service' from
+  // overwriting the real package data.
   const query = `
-    SELECT 
-      'service' as source_type,
-      'svc_' || id as unique_id,
-      id as original_id,
-      name,
-      description,
-      price,
-      duration,
-      CASE 
-        WHEN type IS NULL OR type = '' THEN 'Single Treatment'
-        ELSE type 
-      END as type,
-      status
-    FROM services 
-    WHERE (type != 'Package Treatment' OR type IS NULL) 
-      AND status = 'Active'
-    
-    UNION ALL
-    
-    SELECT 
-      'package' as source_type,
-      'pkg_' || id as unique_id,
-      id as original_id,
-      name,
-      description,
-      price,
-      duration,
-      'Package Treatment' as type,
-      status
-    FROM packages 
-    WHERE status = 'Active'
-    
-    ORDER BY name ASC
+    SELECT
+      COALESCE(p.id, s.id) as id,
+      COALESCE(p.name, s.name) as name,
+      COALESCE(p.description, s.description) as description,
+      COALESCE(p.price, s.price) as price,
+      COALESCE(p.duration, s.duration) as duration,
+      COALESCE(p.status, s.status) as status,
+      CASE
+        WHEN p.id IS NOT NULL THEN 'package'
+        ELSE 'service'
+      END as source_type,
+      CASE
+        WHEN p.id IS NOT NULL THEN 'Package Treatment'
+        WHEN s.type IS NULL OR s.type = '' THEN 'Single Treatment'
+        ELSE s.type
+      END as type
+    FROM services s
+    LEFT JOIN packages p ON s.id = p.id
+    WHERE s.status = 'Active'
+    ORDER BY name ASC;
   `;
 
   db.all(query, [], (err, rows) => {
     if (err) {
-      console.error('❌ Error fetching appointment services:', err);
-      return res.status(500).json({ error: err.message });
+      console.error('❌ SQL Error fetching combined services/packages:', err);
+      return res.status(500).json({ error: 'Failed to fetch services and packages' });
     }
-
-    const formattedServices = rows.map(row => ({
-      id: row.unique_id, // Use unique ID to prevent conflicts
-      originalId: row.original_id, // Keep original ID for database operations
-      name: row.name,
-      description: row.description || '',
-      price: parseFloat(row.price) || 0,
-      duration: parseInt(row.duration) || 0,
-      type: row.type,
-      status: row.status,
-      isPackage: row.source_type === 'package',
-      sourceType: row.source_type
-    }));
-
-    console.log(`✅ Fetched ${formattedServices.length} appointment services (${formattedServices.filter(s => s.isPackage).length} packages)`);
-    res.json(formattedServices);
+    console.log(`✅ Returning ${rows.length} total items for dropdown.`);
+    res.json(rows);
   });
 });
 
+
+
+
+
+
+// **** ADD THIS ENTIRE NEW ENDPOINT BLOCK HERE ****
+// GET details for all services/packages linked to a specific appointment
+app.get('/appointment-services/:appointmentId', (req, res) => {
+  const { appointmentId } = req.params;
+  console.log(`🔄 GET /appointment-services/${appointmentId} - Fetching details for a single appointment.`);
+
+  if (!appointmentId) {
+    return res.status(400).json({ error: 'Appointment ID is required' });
+  }
+
+  const query = `
+    SELECT
+      aps.quantity,
+      -- Use COALESCE to pick the correct ID, name, price, etc. from either packages or services
+      COALESCE(pkg.id, s.id) as id,
+      COALESCE(pkg.name, s.name) as name,
+      COALESCE(pkg.price, s.price) as price,
+      COALESCE(pkg.duration, s.duration) as duration,
+      COALESCE(pkg.description, s.description) as description,
+      -- Determine the source type based on whether a package was found
+      CASE 
+        WHEN pkg.id IS NOT NULL THEN 'package'
+        ELSE 'service'
+      END as source_type,
+      -- Carry over the original type for consistency
+      COALESCE(
+        CASE WHEN pkg.id IS NOT NULL THEN 'Package Treatment' ELSE NULL END, 
+        s.type, 
+        'Single Treatment'
+      ) as type,
+      COALESCE(pkg.status, s.status) as status
+    FROM 
+      appointment_services aps
+    LEFT JOIN 
+      services s ON aps.serviceId = s.id
+    LEFT JOIN 
+      packages pkg ON aps.serviceId = pkg.id
+    WHERE 
+      aps.appointmentId = ?
+  `;
+
+  db.all(query, [appointmentId], (err, rows) => {
+    if (err) {
+      console.error(`❌ SQL Error fetching details for appointment ${appointmentId}:`, err);
+      return res.status(500).json({ error: 'Failed to fetch appointment service details.' });
+    }
+    if (!rows) {
+      // This is not an error, it just means the appointment has no services linked
+      return res.json([]);
+    }
+    console.log(`✅ Found ${rows.length} service/package items for appointment ${appointmentId}.`);
+    res.json(rows);
+  });
+});
 
 
 app.get('/debug/appointment-services/:appointmentId', (req, res) => {
@@ -964,6 +1113,9 @@ app.get('/debug/table-schema/:tableName', (req, res) => {
 
 // Replace your existing PUT appointments endpoint with this updated version
 // PUT appointments endpoint (replace your existing one around line 800-1200)
+/// FIND AND COMPLETELY REPLACE app.put('/appointments/:id', ...) 
+// Should be around line 1050-1200
+
 app.put('/appointments/:id', (req, res) => {
   const { id } = req.params;
   const {
@@ -972,162 +1124,132 @@ app.put('/appointments/:id', (req, res) => {
     timeEnd,
     comments,
     status,
-    serviceIds // [{ id, quantity, isPackage }]
+    serviceIds // Expects an array like ["pkg-7:1", "svc-1:1"]
   } = req.body;
 
-  console.log("=== PUT APPOINTMENT (FIXED) ===");
-  console.log("Incoming serviceIds:", serviceIds);
+  console.log('=== PUT /appointments/:id START ===');
+  console.log('ID:', id);
+  console.log('Incoming serviceIds:', serviceIds);
 
-  if (!id) {
-    return res.status(400).json({ error: "Missing appointment ID" });
+  if (!id) return res.status(400).json({ error: 'Missing appointment ID' });
+  if (!appointmentDate || !timeStart || !timeEnd) {
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // UPDATE MAIN APPOINTMENT
-  const updateQuery = `
-    UPDATE appointments
-    SET appointmentDate=?, timeStart=?, timeEnd=?, comments=?, status=?
-    WHERE id=?
-  `;
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
 
-  db.run(updateQuery, [
-    appointmentDate,
-    timeStart,
-    timeEnd,
-    comments || "",
-    status || "Scheduled",
-    id
-  ], function (err) {
-    if (err) {
-      console.error("❌ Appointment update failed:", err);
-      return res.status(500).json({ error: "Failed to update appointment." });
-    }
-
-    console.log("✅ Main appointment updated.");
-
-    // CLEAN OLD JUNCTION ROWS
-    db.run("DELETE FROM appointment_services WHERE appointmentId=?", [id], (err) => {
+    // 1. Update the main appointment details
+    const updateSql = `
+      UPDATE appointments
+      SET appointmentDate=?, timeStart=?, timeEnd=?, comments=?, status=?, updatedAt=CURRENT_TIMESTAMP
+      WHERE id=?
+    `;
+    db.run(updateSql, [appointmentDate, timeStart, timeEnd, comments || '', status || 'scheduled', id], function (err) {
       if (err) {
-        console.error("❌ Failed to wipe old junction rows:", err);
-        return res.status(500).json({ error: "Failed to clear previous services." });
+        console.error('❌ Failed updating main appointment:', err);
+        db.run('ROLLBACK');
+        return res.status(500).json({ error: 'Failed to update appointment' });
       }
+      console.log('✅ Main appointment row updated.');
 
-      console.log("🧹 Old services removed.");
-
-      if (!serviceIds || !Array.isArray(serviceIds) || serviceIds.length === 0) {
-        console.log("⚠️ No new services supplied.");
-        return returnUpdatedAppointment();
-      }
-
-      let tasksRemaining = 0;
-      let errors = [];
-
-      // Helper to insert one row
-      const insertServiceRow = (serviceId, quantity) => {
-        tasksRemaining++;
-        db.run(
-          "INSERT INTO appointment_services (appointmentId, serviceId, quantity) VALUES (?, ?, ?)",
-          [id, serviceId, quantity],
-          (err) => {
-            tasksRemaining--;
-            if (err) {
-              console.error("❌ Failed inserting service:", err);
-              errors.push(err);
-            }
-            if (tasksRemaining === 0) finishInsertion();
-          }
-        );
-      };
-
-      // Helper to finish
-      const finishInsertion = () => {
-        if (errors.length > 0) {
-          return res.status(500).json({ error: "Some services failed to insert." });
+      // 2. Clear all existing service/package links for this appointment
+      db.run('DELETE FROM appointment_services WHERE appointmentId = ?', [id], (delErr) => {
+        if (delErr) {
+          console.error('❌ Failed clearing old services:', delErr);
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: 'Failed to reset appointment services' });
         }
-        return returnUpdatedAppointment();
-      };
+        console.log('🧹 Old appointment_services links cleared.');
 
-      // Loop through each selected item
-      serviceIds.forEach((item) => {
-        const { id: rawId, quantity, isPackage } = item;
-        const baseQty = quantity || 1;
-        const realServiceId = parseInt(rawId); // ensure clean ID
-
-        if (isPackage) {
-          // Expand package → package_services
-          console.log(`📦 Expanding package ID ${realServiceId}`);
-
-          tasksRemaining++;
-          db.all(
-            "SELECT serviceId, quantity FROM package_services WHERE packageId=?",
-            [realServiceId],
-            (err, pkgRows) => {
-              tasksRemaining--;
-
-              if (err) {
-                console.error("❌ Error fetching package contents:", err);
-                errors.push(err);
-                if (tasksRemaining === 0) finishInsertion();
-                return;
-              }
-
-              if (!pkgRows || pkgRows.length === 0) {
-                console.log("⚠️ Package has no inner services. Inserting package itself.");
-                insertServiceRow(realServiceId, baseQty);
-                return;
-              }
-
-              pkgRows.forEach((row) => {
-                const expandedQty = row.quantity * baseQty;
-                console.log(`➡️ Insert service ${row.serviceId} (qty: ${expandedQty})`);
-                insertServiceRow(row.serviceId, expandedQty);
-              });
-
-              if (tasksRemaining === 0) finishInsertion();
-            }
-          );
-        } else {
-          console.log(`➕ Inserting regular service ${realServiceId} x ${baseQty}`);
-          insertServiceRow(realServiceId, baseQty);
+        if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
+          db.run('COMMIT');
+          return returnUpdatedAppointment(id, res);
         }
+
+        // 3. Insert the new service/package links
+        const insertStmt = db.prepare('INSERT INTO appointment_services (appointmentId, serviceId, quantity) VALUES (?, ?, ?)');
+        const parsedServices = serviceIds.map(s => {
+          const match = String(s).match(/^(pkg|svc)-(\d+):(\d+)$/);
+          if (!match) return null;
+          return { id: parseInt(match[2], 10), quantity: parseInt(match[3], 10) };
+        }).filter(Boolean);
+
+        if (parsedServices.length === 0) {
+          db.run('COMMIT');
+          return returnUpdatedAppointment(id, res);
+        }
+
+        let completedInserts = 0;
+        parsedServices.forEach(item => {
+          insertStmt.run([id, item.id, item.quantity], (insErr) => {
+            if (insErr) {
+              console.error(`❌ Insert error for serviceId ${item.id}:`, insErr);
+              db.run('ROLLBACK');
+              // Finalize statement before returning response
+              insertStmt.finalize();
+              // Only send one response
+              if (!res.headersSent) {
+                return res.status(500).json({ error: `Failed to link service ID ${item.id}. A foreign key constraint might have failed.` });
+              }
+              return;
+            }
+            completedInserts++;
+            if (completedInserts === parsedServices.length) {
+              insertStmt.finalize();
+              db.run('COMMIT');
+              console.log(`✅ ${parsedServices.length} new links created.`);
+              returnUpdatedAppointment(id, res);
+            }
+          });
+        });
       });
     });
   });
-
-  // RETURN UPDATED APPOINTMENT (WITH PACKAGE EXPANSION)
-  function returnUpdatedAppointment() {
-    console.log("📥 Fetching updated appointment...");
-
-    const selectQuery = `
-      SELECT 
-        a.*,
-        p.firstName || ' ' || p.lastName AS patientName,
-        (
-          SELECT GROUP_CONCAT(s.name || ' (x' || aps.quantity || ')', ', ')
-          FROM appointment_services aps
-          JOIN services s ON aps.serviceId = s.id
-          WHERE aps.appointmentId = a.id
-        ) AS serviceNames,
-        (
-          SELECT GROUP_CONCAT(aps.serviceId || ':' || aps.quantity)
-          FROM appointment_services aps
-          WHERE aps.appointmentId = a.id
-        ) AS serviceIds
-      FROM appointments a
-      LEFT JOIN patients p ON p.id = a.patientId
-      WHERE a.id = ?
-    `;
-
-    db.get(selectQuery, [id], (err, row) => {
-      if (err || !row) {
-        console.error("❌ Failed returning updated appointment:", err);
-        return res.status(500).json({ error: "Failed returning updated appointment." });
-      }
-
-      console.log("✅ Returning updated appointment:", row);
-      res.json(row);
-    });
-  }
 });
+
+// This is the helper function that MUST be defined OUTSIDE the app.put block.
+// Make sure it's not a nested function.
+function returnUpdatedAppointment(appointmentId, res) {
+  console.log(`📥 Fetching final updated record for appointment ID: ${appointmentId}`);
+  const selectQuery = `
+    SELECT 
+      a.id, a.patientId, a.appointmentDate, a.timeStart, a.timeEnd, a.status, a.comments,
+      p.firstName || ' ' || p.lastName AS patientName,
+      (
+        SELECT GROUP_CONCAT(
+          COALESCE(pkg.name, s.name) || 
+          CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END ||
+          CASE WHEN pkg.id IS NOT NULL THEN ' 📦' ELSE '' END,
+          ', '
+        )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) AS serviceNames
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    WHERE a.id = ?
+  `;
+
+  db.get(selectQuery, [appointmentId], (err, row) => {
+    if (err) {
+      console.error('❌ Final fetch error:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to retrieve updated appointment' });
+      return;
+    }
+    if (!row) {
+      if (!res.headersSent) res.status(404).json({ error: 'Appointment not found after update' });
+      return;
+    }
+    console.log('✅ Returning updated appointment to client:', row);
+    if (!res.headersSent) res.json(row);
+  });
+}
+
+
+
 
 
 //APPOINTMENTS AYAW SAG HILABTI//
@@ -1305,200 +1427,194 @@ app.get('/service-table', (req, res) => {
   });
 });
 
-
-
-
-app.put('/packages/:id', (req, res) => {
-  const packageId = parseInt(req.params.id);
-  const { name, description, price, duration, status, services } = req.body;
+// Add this endpoint after your GET /service-table endpoint (around line 960)
+app.put('/service-table/:id', (req, res) => {
+  const serviceId = parseInt(req.params.id);
+  const { name, description, price, duration, type, status } = req.body;
   
-  console.log(`📦 PUT /packages/${packageId} - Updating package`);
+  console.log(`📝 PUT /service-table/${serviceId} - Updating service`);
   console.log('Request body:', req.body);
   
-  if (!packageId || packageId < 1) {
-    return res.status(400).json({ error: 'Invalid package ID' });
+  if (!serviceId || serviceId < 1) {
+    return res.status(400).json({ error: 'Invalid service ID' });
   }
 
-  // Get current package for logging
-  getPackageWithServices(packageId, (getErr, oldPackage) => {
-    if (getErr) {
-      console.error('Error getting old package:', getErr);
-      return res.status(500).json({ error: getErr.message });
+  // Get old values for logging
+  db.get('SELECT * FROM services WHERE id = ?', [serviceId], (err, oldService) => {
+    if (err) {
+      console.error('Error fetching old service:', err);
+      return res.status(500).json({ error: err.message });
     }
     
-    if (!oldPackage) {
-      console.log(`Package ${packageId} not found`);
-      return res.status(404).json({ error: 'Package not found' });
+    if (!oldService) {
+      return res.status(404).json({ error: 'Service not found' });
     }
 
     // Build update query dynamically
     const fields = [];
     const values = [];
     
-    if (name !== undefined) { fields.push('name = ?'); values.push(name.trim()); }
-    if (description !== undefined) { fields.push('description = ?'); values.push(description); }
-    if (price !== undefined) { fields.push('price = ?'); values.push(parseFloat(price) || 0); }
-    if (duration !== undefined) { fields.push('duration = ?'); values.push(parseInt(duration) || 0); }
-    if (status !== undefined) { fields.push('status = ?'); values.push(status); }
-    
-    fields.push('updatedAt = ?');
-    values.push(new Date().toISOString());
-    values.push(packageId);
+    if (name !== undefined) {
+      fields.push('name = ?');
+      values.push(name.trim());
+    }
+    if (description !== undefined) {
+      fields.push('description = ?');
+      values.push(description);
+    }
+    if (price !== undefined) {
+      fields.push('price = ?');
+      values.push(parseFloat(price) || 0);
+    }
+    if (duration !== undefined) {
+      fields.push('duration = ?');
+      values.push(parseInt(duration) || 0);
+    }
+    if (type !== undefined) {
+      fields.push('type = ?');
+      values.push(type);
+    }
+    if (status !== undefined) {
+      fields.push('status = ?');
+      values.push(status);
+    }
 
-    const updateQuery = `UPDATE packages SET ${fields.join(', ')} WHERE id = ?`;
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(serviceId);
+
+    const updateQuery = `UPDATE services SET ${fields.join(', ')} WHERE id = ?`;
     
     console.log('Update query:', updateQuery);
     console.log('Update values:', values);
 
     db.run(updateQuery, values, function(err) {
       if (err) {
-        console.error('Error updating package:', err);
+        console.error('Error updating service:', err);
         return res.status(500).json({ error: err.message });
       }
 
       if (this.changes === 0) {
-        console.log('No changes made to package');
-        return res.status(404).json({ error: 'Package not found or no changes made' });
+        return res.status(404).json({ error: 'Service not found or no changes made' });
       }
 
-      console.log(`✅ Package ${packageId} updated successfully`);
+      // Log the activity
+      logActivity(
+        'Service Updated',
+        `Service "${name || oldService.name}" updated`,
+        'services',
+        serviceId,
+        null,
+        'system',
+        oldService,
+        { name, description, price, duration, type, status }
+      );
 
-      // Return the updated package
-      getPackageWithServices(packageId, (finalErr, updatedPackage) => {
-        if (finalErr) {
-          console.error('Error fetching updated package:', finalErr);
-          return res.status(500).json({ error: 'Package updated but failed to fetch updated data' });
-        }
-        
-        console.log('Returning updated package:', updatedPackage.name);
-        res.json({
-          success: true,
-          message: 'Package updated successfully',
-          package: updatedPackage
-        });
+      console.log(`✅ Service ${serviceId} updated successfully`);
+      res.json({ 
+        success: true, 
+        message: 'Service updated successfully',
+        changes: this.changes 
       });
     });
   });
 });
 
-// POST /packages - Create new package with services
-app.post('/packages', (req, res) => {
-  const { 
-    name, 
-    description = '', 
-    price = 0, 
-    duration = 0, 
-    status = 'Active', 
-    services = [] 
-  } = req.body;
+
+// Add this AFTER your GET /service-table endpoint (around line 1035)
+app.post('/service-table', (req, res) => {
+  const { name, description, price, duration, type, status } = req.body;
   
-  console.log('📦 POST /packages - Creating package:', { 
-    name, 
-    servicesCount: services.length,
-    services: services
-  });
+  console.log('📝 POST /service-table - Creating new service');
+  console.log('Request body:', req.body);
   
-  if (!name || name.trim().length === 0) {
-    return res.status(400).json({ error: 'Package name is required' });
+  // Validate required fields
+  if (!name || !description || !price || !duration || !type || !status) {
+    return res.status(400).json({ 
+      error: 'Missing required fields',
+      required: ['name', 'description', 'price', 'duration', 'type', 'status']
+    });
   }
 
-  if (!Array.isArray(services) || services.length === 0) {
-    return res.status(400).json({ error: 'Package must contain at least one service' });
-  }
-
-  // Validate that all services exist
-  const serviceIds = services.map(s => parseInt(s.serviceId)).filter(id => !isNaN(id));
-  if (serviceIds.length === 0) {
-    return res.status(400).json({ error: 'No valid services provided' });
-  }
-
-  const placeholders = serviceIds.map(() => '?').join(',');
-  const checkServicesQuery = `SELECT id FROM services WHERE id IN (${placeholders})`;
-
-  db.all(checkServicesQuery, serviceIds, (err, existingServices) => {
-    if (err) {
-      console.error('❌ Error checking services:', err);
-      return res.status(500).json({ error: err.message });
-    }
-
-    const existingServiceIds = existingServices.map(s => s.id);
-    const missingServices = serviceIds.filter(id => !existingServiceIds.includes(id));
-
-    if (missingServices.length > 0) {
-      return res.status(400).json({ 
-        error: `Services not found: ${missingServices.join(', ')}` 
-      });
-    }
-
-    // Create the package
-    const now = new Date().toISOString();
-    const insertQuery = `
-      INSERT INTO packages (name, description, price, duration, status, createdAt, updatedAt) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    db.run(insertQuery, [name.trim(), description, price, duration, status, now, now], function(err) {
+  // Check for duplicate service name (case-insensitive)
+  db.get(
+    'SELECT id FROM services WHERE LOWER(name) = LOWER(?)', 
+    [name.trim()], 
+    (err, existing) => {
       if (err) {
-        console.error('❌ Error creating package:', err);
+        console.error('❌ Error checking for duplicates:', err);
         return res.status(500).json({ error: err.message });
       }
 
-      const newPackageId = this.lastID;
-      console.log(`✅ Package created with ID: ${newPackageId}`);
+      if (existing) {
+        console.log('⚠️ Service name already exists');
+        return res.status(409).json({ error: 'A service with this name already exists' });
+      }
 
-      // Add services to package
-      const insertServiceQuery = `
-        INSERT INTO package_services (packageId, serviceId, quantity, createdAt) 
-        VALUES (?, ?, ?, ?)
+      // Insert the new service
+      const insertQuery = `
+        INSERT INTO services (name, description, price, duration, type, status) 
+        VALUES (?, ?, ?, ?, ?, ?)
       `;
-      
-      db.serialize(() => {
-        const stmt = db.prepare(insertServiceQuery);
-        
-        services.forEach(service => {
-          const serviceId = parseInt(service.serviceId);
-          const quantity = parseInt(service.quantity) || 1;
-          
-          if (serviceId && serviceId > 0) {
-            stmt.run(newPackageId, serviceId, quantity, now);
+
+      db.run(
+        insertQuery,
+        [
+          name.trim(),
+          description.trim(),
+          parseFloat(price),
+          parseInt(duration),
+          type,
+          status
+        ],
+        function(insertErr) {
+          if (insertErr) {
+            console.error('❌ Error creating service:', insertErr);
+            return res.status(500).json({ error: insertErr.message });
           }
-        });
-        
-        stmt.finalize((finalErr) => {
-          if (finalErr) {
-            console.error('❌ Error adding services to package:', finalErr);
-          }
-          
-          // Return the complete package
-          getPackageWithServices(newPackageId, (gErr, newPackage) => {
-            if (gErr) {
-              console.error('❌ Error fetching created package:', gErr);
-              return res.status(500).json({ error: gErr.message });
+
+          const newServiceId = this.lastID;
+          console.log(`✅ Service created with ID: ${newServiceId}`);
+
+          // Log the activity
+          logActivity(
+            'Service Created',
+            `New service "${name}" created`,
+            'services',
+            newServiceId,
+            req.user?.id,
+            req.user?.username || 'system',
+            null,
+            { name, description, price, duration, type, status },
+            req
+          );
+
+          // Return the created service
+          db.get('SELECT * FROM services WHERE id = ?', [newServiceId], (selectErr, newService) => {
+            if (selectErr) {
+              console.error('❌ Error fetching created service:', selectErr);
+              return res.status(500).json({ error: 'Service created but failed to retrieve' });
             }
-            
-            // Log activity
-            if (typeof logActivity === 'function') {
-              logActivity(
-                'Package Created',
-                `Package "${name}" created with ${newPackage.packageServices.length} services`,
-                'packages',
-                newPackageId,
-                req.user?.id,
-                req.user?.username || 'system',
-                null,
-                { name, description, price, duration, status, services },
-                req
-              );
-            }
-            
-            console.log(`✅ Package created successfully with ${newPackage.packageServices.length} services`);
-            res.status(201).json(newPackage);
+
+            res.status(201).json({
+              success: true,
+              message: 'Service created successfully',
+              service: newService,
+              id: newServiceId
+            });
           });
-        });
-      });
-    });
-  });
+        }
+      );
+    }
+  );
 });
+
+
+
+
+
 
 // PUT /packages/:id - Update package and its services
 app.put('/packages/:id', (req, res) => {
@@ -1794,7 +1910,7 @@ app.get('/packages/:id/services', (req, res) => {
 
 
 
-// ADD this endpoint after your existing service endpoints (around line 2600):
+// Find and REPLACE your GET /services-and-packages endpoint (around line 1260):
 app.get('/services-and-packages', (req, res) => {
   console.log('🔄 GET /services-and-packages - Fetching combined data');
   
@@ -1829,66 +1945,48 @@ app.get('/services-and-packages', (req, res) => {
     db.all(packagesQuery, [], (packErr, packages) => {
       if (packErr) {
         console.error('❌ Error fetching packages:', packErr);
-        return res.json({
-          services: services || [],
-          packages: [],
-          all: services || []
-        });
+        return res.json({ services, packages: [], all: services });
       }
 
       console.log(`✅ Fetched ${packages.length} packages`);
 
-      // Format packages with calculated totals
-      let processedPackages = 0;
-      const formattedPackages = [];
+      // Format packages WITHOUT expanding services
+      const formattedPackages = packages.map(pkg => ({
+        // FIXED: Use unique ID with 'pkg-' prefix
+        id: `pkg-${pkg.id}`,
+        originalId: pkg.id,
+        name: pkg.name,
+        description: pkg.description || '',
+        price: parseFloat(pkg.price) || 0,
+        duration: parseInt(pkg.duration) || 0,
+        type: 'Package Treatment',
+        status: pkg.status || 'Active',
+        isPackage: true,
+        sourceType: 'package'
+      }));
 
-      if (packages.length === 0) {
-        // No packages, return services only
-        const formattedServices = (services || []).map(service => ({
-          ...service,
-          type: service.type || 'Single Treatment'
-        }));
+      // Format regular services
+      const formattedServices = services.map(svc => ({
+        id: `svc-${svc.id}`,
+        originalId: svc.id,
+        name: svc.name,
+        description: svc.description || '',
+        price: parseFloat(svc.price) || 0,
+        duration: parseInt(svc.duration) || 0,
+        type: svc.type || 'Single Treatment',
+        status: svc.status || 'Active',
+        isPackage: false,
+        sourceType: 'service'
+      }));
 
-        return res.json({
-          services: formattedServices,
-          packages: [],
-          all: formattedServices
-        });
-      }
+      const allItems = [...formattedServices, ...formattedPackages];
 
-      packages.forEach(pkg => {
-        getPackageWithServices(pkg.id, (pkgErr, fullPackage) => {
-          processedPackages++;
-          
-          if (pkgErr) {
-            console.error(`❌ Error processing package ${pkg.id}:`, pkgErr);
-          } else if (fullPackage) {
-            formattedPackages.push({
-              ...fullPackage,
-              type: 'Package Treatment'
-            });
-          }
+      console.log(`✅ Returning ${allItems.length} total items (${formattedServices.length} services + ${formattedPackages.length} packages)`);
 
-          if (processedPackages === packages.length) {
-            // All packages processed
-            const formattedServices = (services || []).map(service => ({
-              ...service,
-              type: service.type || 'Single Treatment'
-            }));
-
-            // Combine all items
-            const allItems = [...formattedServices, ...formattedPackages];
-            allItems.sort((a, b) => a.name.localeCompare(b.name));
-
-            console.log(`✅ Combined ${allItems.length} total items (${formattedServices.length} services + ${formattedPackages.length} packages)`);
-
-            res.json({
-              services: formattedServices,
-              packages: formattedPackages,
-              all: allItems
-            });
-          }
-        });
+      res.json({
+        services: formattedServices,
+        packages: formattedPackages,
+        all: allItems
       });
     });
   });
@@ -3672,5 +3770,546 @@ app.get('/logs/stats', (req, res) => {
         if (completed === total) res.json(stats);
       });
     }
+  });
+});
+
+
+
+
+
+//FIXED POST API FOR PACKAGE
+
+// Replace your POST /packages endpoint (around line 2430) with this COMPLETE version:
+
+app.post('/packages', (req, res) => {
+  const { name, description, price, duration, status, services } = req.body;
+  
+  console.log('📦 POST /packages - Creating new package');
+  console.log('Request body:', req.body);
+  
+  // Validate required fields
+  if (!name || !description || !status) {
+    return res.status(400).json({ 
+      error: 'Missing required fields',
+      required: ['name', 'description', 'status']
+    });
+  }
+
+  if (!services || !Array.isArray(services) || services.length === 0) {
+    return res.status(400).json({ 
+      error: 'Package must contain at least one service'
+    });
+  }
+
+  // Check for duplicate package name (case-insensitive)
+  db.get(
+    'SELECT id FROM packages WHERE LOWER(name) = LOWER(?)', 
+    [name.trim()], 
+    (err, existing) => {
+      if (err) {
+        console.error('❌ Error checking for duplicates:', err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (existing) {
+        console.log('⚠️ Package name already exists');
+        return res.status(409).json({ error: 'A package with this name already exists' });
+      }
+
+      // Calculate totals if not provided
+      const finalPrice = price || 0;
+      const finalDuration = duration || 0;
+
+      // Insert the new package
+      const insertPackageQuery = `
+        INSERT INTO packages (name, description, price, duration, status) 
+        VALUES (?, ?, ?, ?, ?)
+      `;
+
+      db.run(
+        insertPackageQuery,
+        [name.trim(), description.trim(), finalPrice, finalDuration, status],
+        function(insertErr) {
+          if (insertErr) {
+            console.error('❌ Error creating package:', insertErr);
+            return res.status(500).json({ error: insertErr.message });
+          }
+
+          const newPackageId = this.lastID;
+          console.log(`✅ Package created with ID: ${newPackageId}`);
+
+          // Insert package services into junction table
+          const insertServiceQuery = `
+            INSERT INTO package_services (packageId, serviceId, quantity) 
+            VALUES (?, ?, ?)
+          `;
+
+          let servicesProcessed = 0;
+          const errors = [];
+
+          services.forEach((service) => {
+            db.run(
+              insertServiceQuery,
+              [newPackageId, service.serviceId, service.quantity || 1],
+              (serviceErr) => {
+                servicesProcessed++;
+
+                if (serviceErr) {
+                  console.error(`❌ Error adding service ${service.serviceId}:`, serviceErr);
+                  errors.push({ serviceId: service.serviceId, error: serviceErr.message });
+                } else {
+                  console.log(`✅ Service ${service.serviceId} added to package (qty: ${service.quantity})`);
+                }
+
+                // When all services are processed
+                if (servicesProcessed === services.length) {
+                  if (errors.length > 0) {
+                    console.warn('⚠️ Some services failed to add:', errors);
+                  }
+
+                  // Log the activity
+                  logActivity(
+                    'Package Created',
+                    `New package "${name}" created with ${services.length} services`,
+                    'packages',
+                    newPackageId,
+                    req.user?.id,
+                    req.user?.username || 'system',
+                    null,
+                    { name, description, price: finalPrice, duration: finalDuration, status, servicesCount: services.length },
+                    req
+                  );
+
+                  // Fetch and return the complete package
+                  fetchCompletePackage(newPackageId, res);
+                }
+              }
+            );
+          });
+        }
+      );
+    }
+  );
+});
+
+// Helper function to fetch complete package details
+function fetchCompletePackage(packageId, res) {
+  const query = `
+    SELECT 
+      p.*,
+      GROUP_CONCAT(s.id || ':' || ps.quantity) as serviceIds,
+      GROUP_CONCAT(s.name) as serviceNames,
+      COUNT(DISTINCT ps.serviceId) as serviceCount
+    FROM packages p
+    LEFT JOIN package_services ps ON p.id = ps.packageId
+    LEFT JOIN services s ON ps.serviceId = s.id
+    WHERE p.id = ?
+    GROUP BY p.id
+  `;
+
+  db.get(query, [packageId], (err, packageData) => {
+    if (err) {
+      console.error('❌ Error fetching created package:', err);
+      return res.status(500).json({ error: 'Package created but failed to retrieve details' });
+    }
+
+    if (!packageData) {
+      return res.status(404).json({ error: 'Package created but not found' });
+    }
+
+    console.log('✅ Package created successfully:', packageData);
+
+    res.status(201).json({
+      success: true,
+      message: 'Package created successfully',
+      package: packageData,
+      id: packageId
+    });
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// Add this after your existing visit_logs endpoints (around line 1400)
+
+// GET patient details for logging appointment
+app.get('/patients/:id/for-logging', (req, res) => {
+  const { id } = req.params;
+  
+  console.log(`📋 GET /patients/${id}/for-logging - Fetching patient details for appointment logging`);
+  
+  const query = `
+    SELECT 
+      p.*,
+      mi.allergies,
+      mi.bloodType,
+      mi.bloodborneDiseases,
+      mi.pregnancyStatus,
+      mi.medications,
+      mi.additionalNotes,
+      mi.bloodPressure,
+      mi.diabetic
+    FROM patients p
+    LEFT JOIN MedicalInformation mi ON p.id = mi.patientId
+    WHERE p.id = ?
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching patient:', err);
+      return res.status(500).json({ error: 'Failed to fetch patient details' });
+    }
+    
+    if (!row) {
+      console.log('❌ Patient not found');
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    console.log('✅ Patient details fetched:', row);
+    res.json(row);
+  });
+});
+
+app.get('/tooth-chart/:patientId/for-logging', (req, res) => {
+  const { patientId } = req.params;
+  
+  console.log(`🦷 GET /tooth-chart/${patientId}/for-logging - Fetching tooth chart for logging`);
+  
+  db.get(
+    'SELECT * FROM tooth_charts WHERE patientId = ?',
+    [patientId],
+    (err, row) => {
+      if (err) {
+        console.error('❌ Error fetching tooth chart:', err);
+        return res.status(500).json({ error: 'Failed to fetch tooth chart' });
+      }
+      
+      if (!row) {
+        console.log('📝 No tooth chart found, returning empty data');
+        return res.json({
+          selectedTeeth: [],
+          toothSummaries: {},
+          xrayFiles: []
+        });
+      }
+      
+      // Parse JSON strings with error handling
+      let selectedTeeth = [];
+      let toothSummaries = {};
+      
+      try {
+        selectedTeeth = row.selectedTeeth ? JSON.parse(row.selectedTeeth) : [];
+      } catch (parseErr) {
+        console.error('⚠️ Error parsing selectedTeeth:', parseErr);
+        selectedTeeth = [];
+      }
+      
+      try {
+        toothSummaries = row.toothSummaries ? JSON.parse(row.toothSummaries) : {};
+      } catch (parseErr) {
+        console.error('⚠️ Error parsing toothSummaries:', parseErr);
+        toothSummaries = {};
+      }
+      
+      const parsedData = {
+        id: row.id,
+        patientId: row.patientId,
+        selectedTeeth: selectedTeeth,
+        toothSummaries: toothSummaries,
+        xrayFiles: [],
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
+      };
+      
+      console.log('✅ Tooth chart fetched successfully');
+      console.log('Selected teeth count:', selectedTeeth.length);
+      console.log('Tooth summaries count:', Object.keys(toothSummaries).length);
+      
+      res.json(parsedData);
+    }
+  );
+});
+
+// POST complete appointment log (visit log + billing)
+app.post('/appointments/:id/log', (req, res) => {
+  const appointmentId = req.params.id;
+  const {
+    visitLog,
+    teethData,
+    skipLogging = false
+  } = req.body;
+  
+  console.log('📝 POST /appointments/:id/log - Logging appointment');
+  console.log('Appointment ID:', appointmentId);
+  console.log('Request body:', req.body);
+  console.log('Visit Log:', visitLog);
+  console.log('Teeth Data:', teethData);
+  
+  // Validate required data
+  if (!visitLog) {
+    return res.status(400).json({ error: 'Visit log data is required' });
+  }
+
+  if (!visitLog.date || !visitLog.timeStart || !visitLog.timeEnd || !visitLog.attendingDentist) {
+    return res.status(400).json({ error: 'Missing required visit log fields' });
+  }
+  
+  // First, get appointment and patient details
+  const appointmentQuery = `
+    SELECT 
+      a.*,
+      p.firstName,
+      p.lastName,
+      p.id as patientId,
+      (
+        SELECT GROUP_CONCAT(
+          COALESCE(pkg.name, s.name) || 
+          CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END,
+          ', '
+        )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) AS serviceNames,
+      (
+        SELECT SUM(COALESCE(pkg.price, s.price, 0) * aps.quantity)
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) AS totalAmount
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    WHERE a.id = ?
+  `;
+  
+  db.get(appointmentQuery, [appointmentId], (err, appointment) => {
+    if (err) {
+      console.error('❌ Error fetching appointment:', err);
+      return res.status(500).json({ error: 'Failed to fetch appointment details' });
+    }
+    
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    console.log('✅ Appointment found:', appointment);
+    
+    // Convert time formats from 12h to 24h for database storage
+    const convertTo24Hour = (time12) => {
+      if (!time12) return '';
+      const [time, modifier] = time12.split(' ');
+      let [hours, minutes] = time.split(':');
+      if (hours === '12') {
+        hours = '00';
+      }
+      if (modifier === 'PM') {
+        hours = parseInt(hours, 10) + 12;
+      }
+      return `${String(hours).padStart(2, '0')}:${minutes}`;
+    };
+    
+    const timeStart = visitLog.timeStart && (visitLog.timeStart.includes('AM') || visitLog.timeStart.includes('PM'))
+      ? convertTo24Hour(visitLog.timeStart) 
+      : visitLog.timeStart;
+      
+    const timeEnd = visitLog.timeEnd && (visitLog.timeEnd.includes('AM') || visitLog.timeEnd.includes('PM'))
+      ? convertTo24Hour(visitLog.timeEnd)
+      : visitLog.timeEnd;
+    
+    // Convert date format
+    let visitDate;
+    if (visitLog.date.includes('/')) {
+      // MM/DD/YYYY to YYYY-MM-DD
+      const dateParts = visitLog.date.split('/');
+      visitDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+    } else {
+      // Already in YYYY-MM-DD format
+      visitDate = visitLog.date;
+    }
+    
+    console.log('📅 Processed dates and times:', {
+      visitDate,
+      timeStart,
+      timeEnd
+    });
+    
+    // Insert visit log
+    const visitLogQuery = `
+      INSERT INTO visit_logs (
+        patientId, appointmentId, visitDate, timeStart, timeEnd,
+        attendingDentist, concern, proceduresDone, progressNotes, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.run(visitLogQuery, [
+      appointment.patientId,
+      appointmentId,
+      visitDate,
+      timeStart,
+      timeEnd,
+      visitLog.attendingDentist,
+      visitLog.concern || '',
+      visitLog.proceduresDone || '',
+      visitLog.progressNotes || '',
+      visitLog.notes || ''
+    ], function(visitErr) {
+      if (visitErr) {
+        console.error('❌ Error creating visit log:', visitErr);
+        return res.status(500).json({ error: 'Failed to create visit log' });
+      }
+      
+      const visitLogId = this.lastID;
+      console.log('✅ Visit log created with ID:', visitLogId);
+      
+      // Update appointment status to 'done'
+      db.run(
+        'UPDATE appointments SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+        ['done', appointmentId],
+        (updateErr) => {
+          if (updateErr) {
+            console.error('❌ Error updating appointment status:', updateErr);
+            return res.status(500).json({ error: 'Failed to update appointment status' });
+          }
+          
+          console.log('✅ Appointment status updated to done');
+          
+          // Update tooth chart if provided
+          if (teethData && (teethData.selectedTeeth?.length > 0 || Object.keys(teethData.toothSummaries || {}).length > 0)) {
+            const toothChartUpdate = `
+              INSERT OR REPLACE INTO tooth_charts (patientId, selectedTeeth, toothSummaries, updatedAt)
+              VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            `;
+            
+            db.run(toothChartUpdate, [
+              appointment.patientId,
+              JSON.stringify(teethData.selectedTeeth || []),
+              JSON.stringify(teethData.toothSummaries || {})
+            ], (toothErr) => {
+              if (toothErr) {
+                console.error('⚠️ Error updating tooth chart:', toothErr);
+                // Don't fail the whole operation if tooth chart update fails
+              } else {
+                console.log('✅ Tooth chart updated');
+              }
+            });
+          }
+          
+          // Log the activity if not skipped
+          if (!skipLogging) {
+            logActivity(
+              'Appointment Logged',
+              `Visit log created for ${appointment.firstName} ${appointment.lastName} - ${appointment.serviceNames}`,
+              'appointments',
+              appointmentId,
+              null,
+              visitLog.attendingDentist
+            );
+          }
+          
+          // Return success with created IDs and billing info
+          res.json({
+            success: true,
+            visitLogId,
+            appointmentId,
+            billing: {
+              patientId: appointment.patientId,
+              patientName: `${appointment.firstName} ${appointment.lastName}`,
+              service: appointment.serviceNames,
+              totalAmount: appointment.totalAmount || 0,
+              date: visitDate
+            }
+          });
+        }
+      );
+    });
+  });
+});
+
+
+
+
+
+
+// GET visit log by appointment ID
+app.get('/appointments/:id/visit-log', (req, res) => {
+  const { id } = req.params;
+  
+  console.log(`📋 GET /appointments/${id}/visit-log - Fetching visit log`);
+  
+  const query = `
+    SELECT 
+      vl.*,
+      p.firstName || ' ' || p.lastName as patientName
+    FROM visit_logs vl
+    LEFT JOIN patients p ON vl.patientId = p.id
+    WHERE vl.appointmentId = ?
+    ORDER BY vl.createdAt DESC
+    LIMIT 1
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching visit log:', err);
+      return res.status(500).json({ error: 'Failed to fetch visit log' });
+    }
+    
+    if (!row) {
+      return res.json(null);
+    }
+    
+    console.log('✅ Visit log fetched');
+    res.json(row);
+  });
+});
+
+// Add this endpoint after your existing visit_logs endpoints (around line 1450)
+
+// GET all visit logs for history view
+app.get('/visit-logs/history', (req, res) => {
+  console.log('📋 GET /visit-logs/history - Fetching all visit logs for history');
+  
+  const query = `
+    SELECT 
+      vl.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      a.appointmentDate,
+      a.timeStart,
+      a.timeEnd,
+      (
+        SELECT GROUP_CONCAT(
+          COALESCE(pkg.name, s.name),
+          ', '
+        )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) as serviceNames
+    FROM visit_logs vl
+    LEFT JOIN patients p ON vl.patientId = p.id
+    LEFT JOIN appointments a ON vl.appointmentId = a.id
+    WHERE a.status = 'done'
+    ORDER BY vl.visitDate DESC, vl.timeStart DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching visit logs:', err);
+      return res.status(500).json({ error: 'Failed to fetch visit logs' });
+    }
+    
+    console.log(`✅ Fetched ${rows.length} visit logs`);
+    res.json(rows);
   });
 });

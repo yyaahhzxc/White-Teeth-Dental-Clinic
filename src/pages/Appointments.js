@@ -22,6 +22,7 @@ import {
   , Fade
   , Collapse
 } from '@mui/material';
+import { format, startOfWeek, endOfWeek, addDays, addMonths, subMonths, startOfMonth, endOfMonth, getDay, getDate, getMonth, getYear, isSameDay, isSameMonth } from 'date-fns';
 import DataTable from '../components/DataTable';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
@@ -44,15 +45,20 @@ import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import LogAppointment from './LogAppointment';
 import BillingAppointmentSummary from './BillingAppointmentSummary';
-import { API_BASE } from '../apiConfig';
+const API_BASE = 'http://localhost:3001';
 
 
 // Add this utility function at the top of Appointments.js after your imports
 const normalizeDateFromStorage = (dateString) => {
-  if (!dateString) return new Date();
-  // Parse date in local timezone to avoid UTC conversion issues
-  const date = new Date(dateString + 'T00:00:00');
-  return date;
+  // If the date string is missing, return the current date to prevent a crash.
+  if (!dateString) {
+    return new Date();
+  }
+  // Handles both 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm:ss.sssZ' formats
+  const datePart = dateString.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  // Create date in local timezone to avoid UTC conversion issues
+  return new Date(year, month - 1, day);
 };
 
 function parseLocalDate(dateStr) {
@@ -189,166 +195,6 @@ const fetchPackageDetails = async (serviceId) => {
 };
 
 
-const getAppointmentServiceDetails = async (appointment, services, fetchAppointmentDetailsFn) => {
-  console.log('=== GETTING APPOINTMENT SERVICE DETAILS ===');
-  console.log('Appointment:', appointment);
-  console.log('Available services:', services.length);
-  
-  let allServiceDetails = [];
-
-   // First, fetch the full appointment details to get all services
-  const appointmentDetails = await fetchAppointmentDetailsFn(appointment.id);
-  console.log('Full appointment details:', appointmentDetails);
-  
-  if (appointmentDetails && appointmentDetails.serviceIds) {
-    let serviceIds = [];
-    let quantities = [];
-    
-    // Parse service IDs and quantities
-    if (appointmentDetails.serviceIds.includes(':')) {
-      // New format: "id1:qty1,id2:qty2"
-      const serviceEntries = appointmentDetails.serviceIds.split(',');
-      serviceIds = serviceEntries.map(entry => {
-        const [id, qty] = entry.split(':');
-        quantities.push(parseInt(qty) || 1);
-        return parseInt(id.trim());
-      });
-    } else if (appointmentDetails.serviceIds.includes(',')) {
-      // Old format: just IDs
-      serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
-      quantities = new Array(serviceIds.length).fill(1);
-    } else {
-      // Single service
-      serviceIds = [parseInt(appointmentDetails.serviceIds)];
-      quantities = [1];
-    }
-    
-    console.log('Parsed service IDs:', serviceIds);
-    console.log('Parsed quantities:', quantities);
-    
-    // For each service, check if it's a package and expand it
-    for (let i = 0; i < serviceIds.length; i++) {
-      const serviceId = serviceIds[i];
-      const quantity = quantities[i];
-      
-      // Find the service in our services list
-      const service = services.find(s => s.id === serviceId);
-      console.log('Found service:', service);
-      
-      if (service && service.type === 'Package Treatment') {
-        console.log('Service is a package, fetching package details...');
-        // It's a package, get the package contents
-        const packageServices = await fetchPackageDetails(serviceId);
-        
-        if (packageServices && packageServices.length > 0) {
-          // Add package header
-          allServiceDetails.push({
-            type: 'package-header',
-            id: serviceId,
-            name: service.name,
-            quantity: quantity,
-            isPackage: true
-          });
-          
-          // Add each service in the package
-          packageServices.forEach(pkgService => {
-            allServiceDetails.push({
-              type: 'package-service',
-              id: pkgService.serviceId,
-              name: pkgService.name,
-              price: pkgService.price,
-              duration: pkgService.duration,
-              quantity: pkgService.quantity * quantity, // Multiply by package quantity
-              parentPackage: service.name,
-              isPackageService: true
-            });
-          });
-        } else {
-          // Package has no services, show as regular service
-          allServiceDetails.push({
-            type: 'service',
-            id: serviceId,
-            name: service.name,
-            price: service.price || 0,
-            duration: service.duration || 0,
-            quantity: quantity,
-            isPackage: false
-          });
-        }
-      } else {
-        // Regular service
-        allServiceDetails.push({
-          type: 'service',
-          id: serviceId,
-          name: service ? service.name : 'Unknown Service',
-          price: service ? service.price || 0 : 0,
-          duration: service ? service.duration || 0 : 0,
-          quantity: quantity,
-          isPackage: false
-        });
-      }
-    }
-  } else {
-    // Fallback to single service
-    const service = services.find(s => s.id === appointment.serviceId);
-    if (service) {
-      if (service.type === 'Package Treatment') {
-        console.log('Single service is a package, fetching package details...');
-        const packageServices = await fetchPackageDetails(service.id);
-        
-        if (packageServices && packageServices.length > 0) {
-          // Add package header
-          allServiceDetails.push({
-            type: 'package-header',
-            id: service.id,
-            name: service.name,
-            quantity: 1,
-            isPackage: true
-          });
-          
-          // Add each service in the package
-          packageServices.forEach(pkgService => {
-            allServiceDetails.push({
-              type: 'package-service',
-              id: pkgService.serviceId,
-              name: pkgService.name,
-              price: pkgService.price,
-              duration: pkgService.duration,
-              quantity: pkgService.quantity,
-              parentPackage: service.name,
-              isPackageService: true
-            });
-          });
-        } else {
-          allServiceDetails.push({
-            type: 'service',
-            id: service.id,
-            name: service.name,
-            price: service.price || 0,
-            duration: service.duration || 0,
-            quantity: 1,
-            isPackage: false
-          });
-        }
-      } else {
-        allServiceDetails.push({
-          type: 'service',
-          id: service.id,
-          name: service.name,
-          price: service.price || 0,
-          duration: service.duration || 0,
-          quantity: 1,
-          isPackage: false
-        });
-      }
-    }
-  }
-  
-  console.log('Final service details:', allServiceDetails);
-  return allServiceDetails;
-};
-
-
 // Render FilterComponent outside the Appointments component render is not valid.
 // Instead we mount it within the component where needed; add below Appointments export.
 function Appointments() {
@@ -370,6 +216,9 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [historyAppointments, setHistoryAppointments] = useState([]);
+const [loadingHistory, setLoadingHistory] = useState(false);
+
   
   // Modal states
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -550,91 +399,124 @@ useEffect(() => {
 }, [calendarView]); // Make sure calendarView is in dependencies
   
   // Add the refreshAppointments function (around line 200)
-  const refreshAppointments = () => {
+  const refreshAppointments = async () => {
+    console.log('🔄 Refreshing appointments for current view:', calendarView);
     if (calendarView === 'Week') {
-      fetchAppointmentsForWeek();
+      await fetchAppointmentsForWeek();
     } else if (calendarView === 'Month') {
-      fetchAppointmentsForMonth();
+      await fetchAppointmentsForMonth();
     }
-  };
+    console.log('✅ Appointments refreshed');
+  };  
   
 
-  // Function to fetch appointments for week
+  // REPLACE the fetchAppointmentsForWeek function (around line 375)
   const fetchAppointmentsForWeek = async () => {
     setLoading(true);
+    const start = startOfWeek(currentDate);
+    const end = endOfWeek(currentDate);
+    const startDate = format(start, 'yyyy-MM-dd');
+    const endDate = format(end, 'yyyy-MM-dd');
+
+    console.log('Fetching appointments for week:', { startDate, endDate });
+
     try {
-      const weekDates = getWeekDates(currentDate);
-      // Format dates consistently as YYYY-MM-DD in local timezone
-      const startYear = weekDates[0].getFullYear();
-      const startMonth = String(weekDates[0].getMonth() + 1).padStart(2, '0');
-      const startDay = String(weekDates[0].getDate()).padStart(2, '0');
-      const startDate = `${startYear}-${startMonth}-${startDay}`;
-      
-      const endYear = weekDates[6].getFullYear();
-      const endMonth = String(weekDates[6].getMonth() + 1).padStart(2, '0');
-      const endDay = String(weekDates[6].getDate()).padStart(2, '0');
-      const endDate = `${endYear}-${endMonth}-${endDay}`;
-  
-      console.log('Fetching appointments for week:', { startDate, endDate });
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Raw appointment data:', data);
+      if (!response.ok) throw new Error('Failed to fetch appointments');
+      const data = await response.json();
+      console.log('Raw appointment data:', data);
+
+      // CRITICAL FIX: This is the full transformation logic with added safety checks.
+      const transformed = data.map(apt => {
+        // Safely handle missing dates to prevent crashes.
+        if (!apt.appointmentDate) {
+          console.warn('Skipping appointment with null date:', apt.id);
+          return null; 
+        }
+        const aptDate = normalizeDateFromStorage(apt.appointmentDate);
         
-        const transformedAppointments = data.map(apt => {
-          const aptDateStr = apt.appointmentDate.split('T')[0];
-          const apptDate = parseLocalDate(aptDateStr);
-          const dayIndex = apptDate.getDay();
-  
-          // Calculate actual duration based on start and end times
-          let calculatedDuration = 1; // Default to 1 hour
-          
-          if (apt.timeStart && apt.timeEnd) {
-            const [startHour, startMin] = apt.timeStart.split(':').map(Number);
-            const [endHour, endMin] = apt.timeEnd.split(':').map(Number);
-            
-            const startMinutes = startHour * 60 + startMin;
-            const endMinutes = endHour * 60 + endMin;
-            
-            const durationMinutes = endMinutes - startMinutes;
-            // Convert to hours and round to nearest 0.5 hour for better display
-            calculatedDuration = Math.max(0.5, Math.round((durationMinutes / 60) * 2) / 2);
-          }
-          
-          const transformed = {
-            id: apt.id,
-            patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-            procedure: apt.serviceNames || apt.serviceName || 'No Service',
-            time: apt.timeStart,
-            day: dayIndex,
-            status: apt.status ? apt.status.toLowerCase() : 'scheduled',
-            duration: calculatedDuration,
-            appointmentDate: apt.appointmentDate,
-            timeStart: apt.timeStart,
-            timeEnd: apt.timeEnd,
-            comments: apt.comments,
-            patientId: apt.patientId,
-            serviceId: apt.serviceId
-          };
-          
-          console.log('Transformed appointment:', transformed);
-          return transformed;
-        });
-        
-        console.log('All transformed appointments:', transformedAppointments);
-        setAppointments(transformedAppointments);
-      } else {
-        console.error('Failed to fetch appointments:', response.status, response.statusText);
-        setAppointments([]);
-      }
+        // This creates the full object your calendar component expects.
+        const transformedApt = {
+          id: apt.id,
+          patientName: apt.patientName,
+          procedure: apt.serviceNames || 'No services listed', // Fallback for procedure
+          time: apt.timeStart || '00:00', // Fallback for time
+          day: getDay(aptDate),
+          date: aptDate,
+          status: apt.status,
+          comments: apt.comments,
+          timeEnd: apt.timeEnd,
+          patientId: apt.patientId,
+          serviceNames: apt.serviceNames,
+          // Ensure all original properties are preserved as well
+          ...apt 
+        };
+        console.log('Transformed appointment:', transformedApt);
+        return transformedApt;
+      }).filter(Boolean); // Filter out any null appointments that were skipped
+
+      console.log('All transformed appointments:', transformed);
+      setAppointments(transformed);
     } catch (error) {
       console.error('Error fetching appointments:', error);
-      setAppointments([]);
+      setAppointments([]); // Clear appointments on error to prevent stale data
     } finally {
       setLoading(false);
     }
   };
+
+
+
+// Add function to fetch history appointments (around line 450)
+const fetchHistoryAppointments = async () => {
+  setLoadingHistory(true);
+  try {
+    console.log('🔄 Fetching history appointments...');
+    const response = await fetch(`${API_BASE}/visit-logs/history`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch history');
+    }
+    
+    const data = await response.json();
+    console.log('✅ History data received:', data);
+    
+    // Transform the data to match the expected format
+    const transformed = data.map(log => ({
+      id: log.id,
+      appointmentId: log.appointmentId,
+      appointmentDate: log.visitDate,
+      patientName: log.patientName,
+      timeStart: log.timeStart,
+      timeEnd: log.timeEnd,
+      procedure: log.serviceNames || 'No services listed',
+      comments: log.notes || log.progressNotes || '',
+      concern: log.concern || '',
+      attendingDentist: log.attendingDentist || '',
+      proceduresDone: log.proceduresDone || '',
+      progressNotes: log.progressNotes || '',
+      status: 'done'
+    }));
+    
+    setHistoryAppointments(transformed);
+  } catch (error) {
+    console.error('❌ Error fetching history:', error);
+    setHistoryAppointments([]);
+  } finally {
+    setLoadingHistory(false);
+  }
+};
+
+
+
+
+
+
+
+
+
+
+  
 
  // Update the fetchAppointmentsForMonth function similarly (around line 290)
  const fetchAppointmentsForMonth = async () => {
@@ -686,194 +568,54 @@ useEffect(() => {
   }
 }, [modalOpen]);
 
-  // Handle edit mode toggle
-  const handleEditClick = async () => {
-  try {
-    console.log('=== EDIT CLICK START ===');
-    console.log('Selected appointment:', selectedAppointment);
-    console.log('Services type:', typeof services);
-    console.log('Services is array:', Array.isArray(services));
-    console.log('Services count:', services?.length);
-    
-    // FIX: Ensure services is an array
-    if (!Array.isArray(services)) {
-      console.error('❌ Services is not an array, type:', typeof services);
-      setUpdateError('Services data is invalid. Please refresh the page.');
-      await fetchServices(); // Try to reload services
-      return;
-    }
-    
-    // Prevent edit mode if services aren't loaded
-    if (!services || services.length === 0) {
-      console.error('❌ Cannot edit: Services not loaded');
-      setUpdateError('Services not loaded. Please try again.');
-      await fetchServices(); // Try to reload services
-      return;
-    }
-    
-      
-      // Set edit mode immediately to prevent UI issues
-      setEditMode(true);
-      setEditedAppointment({ ...selectedAppointment });
-      
-      let foundServices = [];
-      
-      try {
-        // Fetch appointment details
-        console.log('Fetching appointment details...');
-        const appointmentDetails = await fetchAppointmentDetails(selectedAppointment.id);
-        
-        if (!appointmentDetails) {
-          console.warn('⚠️ No appointment details returned, using fallback');
-          // Fallback to single service
-          if (selectedAppointment.serviceId) {
-            const service = services.find(s => s.id === selectedAppointment.serviceId);
-            if (service) {
-              foundServices = [{ service, quantity: 1 }];
-            }
-          }
-          setEditedServices(foundServices);
-          setServiceInputValue('');
-          return;
-        }
-        
-        console.log('✅ Appointment details fetched:', appointmentDetails);
-        
-        // Check if we have multiple services
-        const hasMultipleServices = appointmentDetails.serviceNames && 
-                                    appointmentDetails.serviceNames.includes(',');
-        
-        if (hasMultipleServices) {
-          console.log('✅ Multiple services detected');
-          
-          const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
-          let serviceIds = [];
-          let quantities = [];
-          
-          // Parse service IDs and quantities
-          if (appointmentDetails.serviceIds) {
-            if (appointmentDetails.serviceIds.includes(':')) {
-              // Format: "id1:qty1,id2:qty2"
-              const serviceEntries = appointmentDetails.serviceIds.split(',');
-              serviceIds = serviceEntries.map(entry => {
-                const [id, qty] = entry.split(':');
-                const parsedQty = parseInt(qty) || 1;
-                quantities.push(parsedQty);
-                return parseInt(id.trim());
-              });
-            } else if (appointmentDetails.serviceIds.includes(',')) {
-              // Format: "id1,id2,id3"
-              serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
-              quantities = new Array(serviceIds.length).fill(1);
-            } else {
-              // Single ID
-              serviceIds = [parseInt(appointmentDetails.serviceIds)];
-              quantities = [1];
-            }
-          }
-          
-          console.log('Parsed service IDs:', serviceIds);
-          console.log('Parsed quantities:', quantities);
-          console.log('Parsed service names:', serviceNames);
-          
-          // Map services with quantities
-          foundServices = serviceNames.map((name, index) => {
-            let service = null;
-            
-            // Try to find by ID first
-            if (serviceIds[index]) {
-              service = services.find(s => s.id === serviceIds[index]);
-            }
-            
-            // If not found by ID, try by name
-            if (!service) {
-              // Remove quantity indicator from name if present (e.g., "Service (x2)")
-              const cleanName = name.replace(/\s*\(x\d+\)\s*/g, '').trim();
-              service = services.find(s => s.name === cleanName || s.name === name);
-            }
-            
-            // If still not found, create placeholder
-            if (!service) {
-              console.warn(`⚠️ Service not found: ${name} (ID: ${serviceIds[index]})`);
-              service = {
-                id: serviceIds[index] || `placeholder_${index}`,
-                name: name,
-                price: 0,
-                duration: 60,
-                status: 'Active',
-                type: 'Single Treatment'
-              };
-            }
-            
-            return {
-              service: service,
-              quantity: quantities[index] || 1
-            };
-          }).filter(Boolean); // Remove any null/undefined entries
-          
-        } else {
-          // Single service
-          console.log('Single service detected');
-          
-          if (selectedAppointment.serviceId) {
-            const service = services.find(s => s.id === selectedAppointment.serviceId);
-            
-            if (service) {
-              foundServices = [{ service, quantity: 1 }];
-            } else {
-              // Try by name
-              const serviceByName = services.find(s => 
-                s.name === selectedAppointment.procedure
-              );
-              
-              if (serviceByName) {
-                foundServices = [{ service: serviceByName, quantity: 1 }];
-              } else {
-                // Create placeholder
-                foundServices = [{
-                  service: {
-                    id: selectedAppointment.serviceId,
-                    name: selectedAppointment.procedure || 'Unknown Service',
-                    price: 0,
-                    duration: 60,
-                    status: 'Active',
-                    type: 'Single Treatment'
-                  },
-                  quantity: 1
-                }];
-              }
-            }
-          }
-        }
-        
-        console.log('✅ Final found services:', foundServices);
-        
-      } catch (fetchError) {
-        console.error('❌ Error fetching appointment details:', fetchError);
-        setUpdateError('Failed to load appointment details: ' + fetchError.message);
-        
-        // Fallback: Use current appointment data
-        if (selectedAppointment.serviceId) {
-          const service = services.find(s => s.id === selectedAppointment.serviceId);
-          if (service) {
-            foundServices = [{ service, quantity: 1 }];
-          }
-        }
-      }
-      
-      // Always set the services, even if empty
-      setEditedServices(foundServices);
-      setServiceInputValue('');
-      
-      console.log('=== EDIT CLICK COMPLETE ===');
-      
-    } catch (error) {
-      console.error('❌ Critical error in handleEditClick:', error);
-      setUpdateError('Failed to enter edit mode: ' + error.message);
-      setEditMode(false); // Disable edit mode on critical error
-    }
-  };
+ // REPLACE handleEditClick (around line 490):
+ const handleEditClick = async () => {
+  if (!selectedAppointment) return;
   
+  console.log("=== EDIT CLICK START ===");
+  setEditMode(true);
+  setEditedAppointment({ ...selectedAppointment });
+
+  try {
+    // Fetch the detailed service/package list for the appointment being edited
+    const response = await fetch(`${API_BASE}/appointment-services/${selectedAppointment.id}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch service details: ${response.statusText}`);
+    }
+    const serviceDetails = await response.json();
+    console.log("Current service details:", serviceDetails);
+
+    // CRITICAL FIX: Standardize the data structure into { quantity, service } format.
+    // This ensures that services loaded from an existing appointment have the exact same
+    // shape as services added via the Autocomplete dropdown.
+    const formattedServices = serviceDetails.map(detail => ({
+      quantity: detail.quantity,
+      service: {
+        id: detail.id,
+        name: detail.name,
+        price: detail.price,
+        duration: detail.duration,
+        source_type: detail.source_type, // 'service' or 'package'
+        // Ensure all other necessary fields are present for rendering
+        description: detail.description || '',
+        type: detail.type || '',
+        status: detail.status || 'Active',
+      }
+    }));
+    
+    setEditedServices(formattedServices);
+    console.log("✅ Loaded services for editing:", formattedServices);
+
+  } catch (error) {
+    console.error("❌ Error preparing for edit:", error);
+    setUpdateError("Could not load service details for editing. Please try again.");
+    // Fallback to an empty list on error to prevent a crash
+    setEditedServices([]);
+  }
+  console.log("=== EDIT CLICK COMPLETE ===");
+};
+
+
 
   // Add this helper function (same as before)
 const updateServiceQuantity = (serviceId, newQuantity) => {
@@ -891,130 +633,113 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
   }
 };
 
-  // Add this function to fetch appointment details with multiple services
-  const fetchAppointmentDetails = async (appointmentId) => {
-    try {
-      console.log('🔍 Fetching details for appointment ID:', appointmentId);
-      
-      const response = await fetch(`http://localhost:3001/appointments/${appointmentId}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      console.log('📦 Raw server response:', data);
-      
-      // Ensure we have the required fields with defaults
-      const result = {
-        id: data.id || appointmentId,
-        appointmentDate: data.appointmentDate || '',
-        timeStart: data.timeStart || '',
-        timeEnd: data.timeEnd || '',
-        comments: data.comments || '',
-        status: data.status || 'scheduled',
-        serviceIds: data.serviceIds || '',
-        serviceNames: data.serviceNames || '',
-        patientName: data.patientName || '',
-        patientId: data.patientId || null
-      };
-      
-      console.log('✅ Processed appointment details:', result);
-      return result;
-      
-    } catch (error) {
-      console.error('❌ Error in fetchAppointmentDetails:', error);
-      // Return null instead of throwing to prevent crashes
-      return null;
+  // REPLACE your fetchAppointmentDetails function (around line 737):
+const fetchAppointmentDetails = async (appointmentId) => {
+  try {
+    console.log('🔍 Fetching details for appointment ID:', appointmentId);
+    
+    const response = await fetch(`http://localhost:3001/appointments/${appointmentId}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    
+    const data = await response.json();
+    console.log('📦 Raw server response:', data);
+    
+    // **FIX: Don't re-parse serviceIds, just return raw data**
+    const result = {
+      id: data.id || appointmentId,
+      appointmentDate: data.appointmentDate || '',
+      timeStart: data.timeStart || '',
+      timeEnd: data.timeEnd || '',
+      comments: data.comments || '',
+      status: data.status || 'scheduled',
+      serviceIds: data.serviceIds || '', // Keep as-is from server
+      serviceNames: data.serviceNames || '',
+      patientName: data.patientName || '',
+      patientId: data.patientId || null
+    };
+    
+    console.log('✅ Processed appointment details:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Error in fetchAppointmentDetails:', error);
+    return null;
+  }
+};
 
 
-  const handleSaveClick = async () => {
-    if (!editedAppointment) return;
+ // This is the corrected handleSaveClick function.
+// It replaces the old one that had the bad comment.
+const handleSaveClick = async () => {
+  if (!editedAppointment) {
+    console.error("Save clicked, but no appointment is being edited.");
+    return;
+  }
+  setUpdating(true);
+  setUpdateError(null);
+
+  const processedServiceIds = editedServices.map(item => {
+    const serviceData = item.service; 
+    const isPackage = serviceData.source_type === 'package';
+    const prefix = isPackage ? 'pkg-' : 'svc-';
+    const numericId = String(serviceData.id).replace(/^(svc-|pkg-)/, '');
     
-    setUpdating(true);
-    setUpdateError(null);
+    console.log(`Processing service: ${serviceData.name}, isPackage: ${isPackage}, prefix: ${prefix}, id: ${numericId}`);
     
-    try {
-      const totalPrice = editedServices.reduce((total, item) => 
-        total + (parseFloat(item.service.price) * item.quantity), 0
-      );
-      
-      const totalDuration = editedServices.reduce((total, item) => 
-        total + (parseInt(item.service.duration) * item.quantity), 0
-      );
-      
-      const serviceNames = editedServices.map(item => 
-        `${item.service.name}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
-      ).join(', ');
-      
-      // Process service IDs to handle unique IDs from appointment-services endpoint
-      const processedServiceIds = editedServices.map(item => {
-        const service = item.service;
-        let actualId;
-        
-        // Extract original ID from unique ID format
-        if (service.id && typeof service.id === 'string') {
-          if (service.id.startsWith('pkg_')) {
-            actualId = service.originalId || parseInt(service.id.replace('pkg_', ''));
-          } else if (service.id.startsWith('svc_')) {
-            actualId = service.originalId || parseInt(service.id.replace('svc_', ''));
-          } else {
-            actualId = service.originalId || service.id;
-          }
-        } else {
-          actualId = service.originalId || service.id;
-        }
-        
-        return {
-          id: actualId,
-          quantity: item.quantity,
-          isPackage: service.isPackage || false,
-          sourceType: service.sourceType || 'service',
-          name: service.name
-        };
-      });
-      
-      const requestData = {
-        patientId: selectedAppointment.patientId,
-        appointmentDate: editedAppointment.appointmentDate,
-        timeStart: editedAppointment.timeStart,
-        timeEnd: editedAppointment.timeEnd,
-        comments: editedAppointment.comments,
-        status: editedAppointment.status,
-        serviceId: processedServiceIds.length > 0 ? processedServiceIds[0].id : selectedAppointment.serviceId,
-        serviceName: processedServiceIds.length > 0 ? processedServiceIds[0].name : selectedAppointment.procedure,
-        serviceIds: processedServiceIds,
-        serviceNames: serviceNames,
-        totalPrice: totalPrice,
-        totalDuration: totalDuration
-      };
-      
-      console.log('=== SAVE DEBUG ===');
-      console.log('Processed service IDs:', processedServiceIds);
-      
-      const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData),
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update appointment');
-      }
-  
-      setUpdateSuccess(true);
-      refreshAppointments();
-      setEditMode(false);
-    } catch (error) {
-      console.error('Error updating appointment:', error);
-      setUpdateError(error.message);
-    } finally {
-      setUpdating(false);
-    }
+    return `${prefix}${numericId}:${item.quantity}`;
+  });
+
+  const requestData = {
+    appointmentDate: format(normalizeDateFromStorage(editedAppointment.appointmentDate), 'yyyy-MM-dd'),
+    timeStart: editedAppointment.timeStart,
+    timeEnd: editedAppointment.timeEnd,
+    comments: editedAppointment.comments,
+    status: editedAppointment.status,
+    serviceIds: processedServiceIds
   };
+
+  console.log('🔄 PUT update URL:', `${API_BASE}/appointments/${editedAppointment.id}`);
+  console.log('🔄 PUT payload:', requestData);
+
+  try {
+    const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || `Failed to update appointment (Status: ${response.status})`);
+    }
+
+    console.log('✅ Appointment updated:', result);
+    setSuccessMessage('Appointment updated successfully!');
+    setUpdateSuccess(true);
+
+    // CRITICAL FIX: Refresh appointments BEFORE closing modal
+    await refreshAppointments();
+
+    // Then close modal after a short delay
+    setTimeout(() => {
+      handleCloseModal();
+    }, 1500);
+
+  } catch (error) {
+    console.error('❌ Update failed:', error);
+    setUpdateError(error.message);
+  } finally {
+    setUpdating(false);
+  }
+};
+
+
+
+
+
+
 
 
   // Handle input changes
@@ -1025,63 +750,132 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     }));
   };
 
-  // Handle appointment click - UPDATED VERSION
-  const handleAppointmentClick = async (appointment) => {
-    console.log('=== APPOINTMENT CLICK DEBUG ===');
-    console.log('Clicked appointment:', appointment);
+ // REPLACE handleAppointmentClick completely (around line 870):
+const handleAppointmentClick = async (appointment) => {
+  console.log('=== APPOINTMENT CLICK DEBUG ===');
+  console.log('Clicked appointment:', appointment);
+  
+  const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
+  let appointmentCopy = { ...appointment };
+  
+  if (appointment.appointmentDate && appointment.status !== 'done' && appointment.status !== 'cancelled') {
+    const aptDateStr = appointment.appointmentDate.split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = aptDateStr === todayStr;
     
-    // When opening the modal, if the appointment is currently ongoing, reflect that in the selectedAppointment's status
-    // BUT: only if the status is not already 'done' or 'cancelled'
-    const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
-    let appointmentCopy = { ...appointment };
+    if (isToday && appointment.timeStart && appointment.timeEnd) {
+      const [startHour, startMin] = appointment.timeStart.split(':').map(Number);
+      const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
+      const startTotal = startHour * 60 + startMin;
+      const endTotal = endHour * 60 + endMin;
+      
+      if (nowTotal >= startTotal && nowTotal < endTotal) {
+        appointmentCopy.status = 'ongoing';
+      }
+    }
+  }
+  
+  if (services.length === 0) {
+    console.log('⚠️ Services not loaded, fetching...');
+    await fetchServices();
+  }
+  
+  console.log('Services available:', services.length);
+  
+  setLoadingServiceDetails(true);
+  try {
+    const details = await fetchAppointmentDetails(appointmentCopy.id);
+    console.log('📦 Fetched appointment details:', details);
     
-    if (appointment.appointmentDate && appointment.status !== 'done' && appointment.status !== 'cancelled') {
-      const aptDateStr = appointment.appointmentDate.split('T')[0];
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (aptDateStr === todayStr && appointment.timeStart && appointment.timeEnd) {
-        const [sH, sM] = appointment.timeStart.split(':').map(Number);
-        const [eH, eM] = appointment.timeEnd.split(':').map(Number);
-        const startTotal = sH * 60 + (sM || 0);
-        const endTotal = eH * 60 + (eM || 0);
-        if (nowTotal >= startTotal && nowTotal < endTotal) {
-          appointmentCopy.status = 'ongoing';
+    if (details && details.serviceIds) {
+      // **CRITICAL FIX: Parse serviceIds correctly with prefixes**
+      const serviceEntries = details.serviceIds.split(',');
+      console.log('Service entries from backend:', serviceEntries);
+      
+      const parsedServices = serviceEntries.map((entry, index) => {
+        const [idWithPrefix, qty] = entry.split(':');
+        const quantity = parseInt(qty) || 1;
+        
+        console.log(`Parsing entry ${index}:`, { idWithPrefix, quantity });
+        
+        // **Extract the prefix to determine type**
+        const isPackage = idWithPrefix.startsWith('pkg-');
+        const isSingleService = idWithPrefix.startsWith('svc-');
+        
+        // Remove prefix to get numeric ID
+        const numericId = parseInt(idWithPrefix.replace(/^(pkg-|svc-)/, ''));
+        
+        console.log(`Entry details:`, { isPackage, isSingleService, numericId });
+        
+        // Find in services list (services list has prefixes like 'pkg-1' or 'svc-1')
+        const service = services.find(s => {
+          // Compare with the original ID format from services list
+          if (isPackage && s.id === `pkg-${numericId}`) return true;
+          if (isSingleService && s.id === `svc-${numericId}`) return true;
+          return false;
+        });
+        
+        if (!service) {
+          console.warn(`⚠️ Service not found for: ${idWithPrefix}`);
+          return null;
+        }
+        
+        console.log(`✅ Found service:`, service.name, service.type);
+        
+        return {
+          serviceId: service.id, // Use prefixed ID from services list
+          originalId: numericId,
+          name: service.name,
+          description: service.description || '',
+          price: service.price || 0,
+          duration: service.duration || 0,
+          type: service.type || 'Single Treatment',
+          status: service.status || 'Active',
+          quantity: quantity,
+          isPackage: isPackage
+        };
+      }).filter(Boolean);
+      
+      console.log('✅ Parsed service details:', parsedServices);
+      setAppointmentServiceDetails(parsedServices);
+    } else {
+      if (appointmentCopy.serviceId) {
+        const numericServiceId = parseInt(appointmentCopy.serviceId);
+        const service = services.find(s => {
+          if (s.id === `svc-${numericServiceId}`) return true;
+          if (s.id === `pkg-${numericServiceId}`) return true;
+          return false;
+        });
+        
+        if (service) {
+          setAppointmentServiceDetails([{
+            serviceId: service.id,
+            name: service.name,
+            description: service.description || '',
+            price: service.price || 0,
+            duration: service.duration || 0,
+            type: service.type || 'Single Treatment',
+            status: service.status || 'Active',
+            quantity: 1,
+            isPackage: service.type === 'Package Treatment'
+          }]);
         }
       }
     }
-    
-    setSelectedAppointment(appointmentCopy);
-    setModalOpen(true);
-    
-    // Ensure services are loaded before opening the modal
-    if (services.length === 0) {
-      console.log('Services not loaded, fetching from service-table...');
-      await fetchServices();
-    }
-    
-    console.log('Services available:', services.length);
-    
-    // PRELOAD service details BEFORE opening the modal
-    setLoadingServiceDetails(true);
-    try {
-      // Pass the required parameters to the helper function
-      const serviceDetails = await getAppointmentServiceDetails(
-        appointmentCopy, 
-        services, 
-        fetchAppointmentDetails
-      );
-      console.log('Service details result:', serviceDetails);
-      setAppointmentServiceDetails(serviceDetails);
-    } catch (error) {
-      console.error('Error fetching appointment service details:', error);
-      setAppointmentServiceDetails([]);
-    } finally {
-      setLoadingServiceDetails(false);
-    }
-    
-    // NOW open the modal after everything is loaded
-    setSelectedAppointment(appointmentCopy);
-    setModalOpen(true);
-  };
+  } catch (error) {
+    console.error('❌ Error loading service details:', error);
+    setAppointmentServiceDetails([]);
+  } finally {
+    setLoadingServiceDetails(false);
+  }
+  
+  setSelectedAppointment(appointmentCopy);
+  setModalOpen(true);
+};
+
+
+
+
 
   // Close modal
   const handleCloseModal = () => {
@@ -1143,12 +937,36 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     }
   };
 
-  // Handler for when appointment is logged successfully
-  const handleAppointmentLogged = () => {
-    setLogAppointmentOpen(false);
-    setAppointmentLogged(true);
-    // Modal stays open, button changes
-  };
+
+  useEffect(() => {
+    if (statusTab === 'history') {
+      fetchHistoryAppointments();
+    }
+  }, [statusTab]);
+
+
+ // Update the handleAppointmentLogged function (around line 800)
+ const handleAppointmentLogged = () => {
+  console.log('📝 Appointment logged, refreshing data...');
+  
+  // Close the log modal
+  setLogAppointmentOpen(false);
+  
+  // Show success state
+  setAppointmentLogged(true);
+  
+  // Refresh the current calendar view
+  refreshAppointments();
+  
+  // Switch to history tab and fetch history data
+  setStatusTab('history');
+  
+  // Give a small delay to ensure state updates, then fetch history
+  setTimeout(() => {
+    fetchHistoryAppointments();
+  }, 300);
+};
+
 
   // Handler for proceeding to billing
   const handleProceedToBilling = () => {
@@ -1179,17 +997,17 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
 
   const statusOptions = [
     { value: 'scheduled', label: 'Scheduled', color: '#e8710a' },
-    { value: 'done', label: 'Done', color: '#0d652d' },
-    { value: 'cancelled', label: 'Cancelled', color: '#ea4335' }
+  { value: 'done', label: 'Done', color: '#0d652d' },
+  { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
+  { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' } 
   ];
 
   // Filter categories for appointments (used by FilterComponent)
   const filterCategories = [
-    { label: 'Status', value: 'status', types: ['scheduled', 'done', 'cancelled'] },
+    { label: 'Status', value: 'status', types: ['scheduled', 'done', 'cancelled', 'ongoing'] }, // <-- Added 'ongoing'
     { label: 'Service', value: 'service', types: [] },
     { label: 'Date Range', value: 'dateRange', types: ['Last 7 days', 'Last 30 days', 'Last 90 days'] },
   ];
-
   const timeSlots = [
     '7 AM', '8 AM', '9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM', '8 PM', '9 PM', '10 PM'
   ];
@@ -1480,257 +1298,286 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
 
           {/* Render Calendar / History with transition */}
           <Box sx={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-            <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
-              <Box sx={{ height: '100%', overflowY: 'auto' }}>
-                {/* History mode: use the shared DataTable layout used across the app */}
-                {(() => {
-                  // History is currently disconnected from the calendar.
-                  // Use placeholders here so the history table is easy to replace with backend data later.
-                  const sourceAppointments = HISTORY_PLACEHOLDERS;
-                  const historyAppointments = [...sourceAppointments].sort((a, b) => {
-                    const da = new Date(a.appointmentDate || 0);
-                    const db = new Date(b.appointmentDate || 0);
-                    if (db - da !== 0) return db - da;
-                    const ta = a.timeStart || a.time || '00:00';
-                    const tb = b.timeStart || b.time || '00:00';
-                    return tb.localeCompare(ta);
-                  });
+          <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
+  <Box sx={{ height: '100%', overflowY: 'auto' }}>
+    {(() => {
+      const sourceAppointments = historyAppointments;
+      
+      const normalizedSearch = (search || '').toLowerCase().trim();
+      const filtered = normalizedSearch
+        ? sourceAppointments.filter(apt => {
+            const dateStr = apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : '';
+            return (
+              dateStr.toLowerCase().includes(normalizedSearch) ||
+              (apt.patientName || '').toLowerCase().includes(normalizedSearch) ||
+              (apt.procedure || '').toLowerCase().includes(normalizedSearch) ||
+              (apt.comments || '').toLowerCase().includes(normalizedSearch)
+            );
+          })
+        : sourceAppointments;
 
-                  const normalizedSearch = (search || '').toLowerCase().trim();
-                  const filtered = normalizedSearch
-                    ? historyAppointments.filter(apt => {
-                        const dateStr = apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : '';
-                        return (
-                          dateStr.toLowerCase().includes(normalizedSearch) ||
-                          (apt.patientName || '').toLowerCase().includes(normalizedSearch) ||
-                          (apt.procedure || '').toLowerCase().includes(normalizedSearch) ||
-                          (apt.comments || '').toLowerCase().includes(normalizedSearch)
-                        );
-                      })
-                    : historyAppointments;
+      const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+      const visible = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
-                  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-                  const visible = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+      return (
+        <DataTable
+          topContent={
+            <>
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                px: 3,
+                pt: 3,
+                pb: 2,
+                gap: 2,
+                boxSizing: 'border-box',
+              }}>
+                <SearchBar
+                  value={search}
+                  onChange={(v) => { setSearch(v); setPage(0); }}
+                  placeholder="Search by date/patient/service/notes"
+                  searchFields={["appointmentDate", "patientName", "procedure", "comments"]}
+                  data={historyAppointments}
+                />
 
-                  return (
-                    <DataTable
-                      topContent={
-                        <>
-                          <Box sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            width: '100%',
-                            px: 3,
-                            pt: 3,
-                            pb: 2,
-                            gap: 2,
-                            boxSizing: 'border-box',
-                          }}>
-                            <SearchBar
-                              value={search}
-                              onChange={(v) => { setSearch(v); setPage(0); }}
-                              placeholder="Search by date/patient/service/notes"
-                              searchFields={["appointmentDate", "patientName", "procedure", "comments"]}
-                              data={HISTORY_PLACEHOLDERS}
-                            />
-
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
-                              <FilterButton onClick={() => setShowFilterBox(v => !v)} />
-                              {statusTab === 'history' && (
-                                <Button
-                                  onClick={() => setStatusTab('scheduled')}
-                                  variant="contained"
-                                  onKeyDown={() => {}}
-                                  size="small"
-                                  aria-label="Back to Calendar"
-                                  sx={{
-                                    ml: 1,
-                                    backgroundColor: '#4A69BD',
-                                    color: 'white',
-                                    border: '1px solid #4A69BD',
-                                    borderRadius: '10px',
-                                    height: '38px',
-                                    px: 2,
-                                    textTransform: 'none',
-                                    fontWeight: 500,
-                                    fontSize: '16px',
-                                    fontFamily: 'DM Sans, sans-serif',
-                                    minWidth: 99,
-                                    boxShadow: 1,
-                                    '&:hover': {
-                                      backgroundColor: '#2148c0',
-                                      border: '1px solid #2148c0',
-                                    },
-                                  }}
-                                >
-                                  Calendar
-                                </Button>
-                              )}
-                            </Box>
-                          </Box>
-
-                          <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
-                            <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
-                          </Collapse>
-                        </>
-                      }
-                      tableHeader={
-                        <Box sx={{ px: 3, pt: 3, pb: 3 }}>
-                          <Box sx={{ display: 'flex', px: 2, alignItems: 'center' }}>
-                            <Box sx={{ flex: 1.5, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Date</Typography>
-                            </Box>
-                            <Box sx={{ flex: 2, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Patient</Typography>
-                            </Box>
-                            <Box sx={{ flex: 1, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Time</Typography>
-                            </Box>
-                            <Box sx={{ flex: 2, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Service</Typography>
-                            </Box>
-                            <Box sx={{ flex: 3.5, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Notes</Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      }
-                      tableRows={
-                        <Box sx={{
-                          px: 3,
-                          flex: 1,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          minHeight: 0,
-                          height: '100%',
-                          maxHeight: '402px',
-                          overflow: 'auto',
-                          boxSizing: 'border-box',
-                          '&::-webkit-scrollbar': {
-                            width: '6px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: '#f1f1f1',
-                            borderRadius: '3px',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: '#c1c1c1',
-                            borderRadius: '3px',
-                            '&:hover': {
-                              background: '#a8a8a8',
-                            },
-                          },
-                        }}>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
-                            {visible.length > 0 ? visible.map((apt) => (
-                              <Box 
-                                key={apt.id} 
-                                sx={{ 
-                                  display: 'flex', 
-                                  px: 2, 
-                                  py: 0.875,
-                                  alignItems: 'center',
-                                  backgroundColor: '#f9fafc',
-                                  borderRadius: '10px',
-                                  height: 60,
-                                  '&:hover': { 
-                                    backgroundColor: '#f0f4f8',
-                                    cursor: 'pointer'
-                                  }
-                                }}
-                                onClick={() => handleAppointmentClick(apt)}
-                              >
-                                <Box sx={{ flex: '1.5', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : ''}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '2', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.patientName}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '1', textAlign: 'center' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.timeStart ? `${apt.timeStart}${apt.timeEnd ? ' - ' + apt.timeEnd : ''}` : (apt.time || '')}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '2', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.procedure}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '3.5', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                    whiteSpace: 'normal',
-                                    wordBreak: 'break-word',
-                                  }}>{apt.comments || ''}</Typography>
-                                </Box>
-                              </Box>
-                            )) : (
-                              <Box 
-                                sx={{
-                                  display: 'flex',
-                                  justifyContent: 'center',
-                                  alignItems: 'center',
-                                  py: 4,
-                                  backgroundColor: '#f9fafc',
-                                  borderRadius: '10px',
-                                }}
-                              >
-                                <Typography sx={{
-                                  fontFamily: 'Roboto, sans-serif',
-                                  fontWeight: 400,
-                                  fontSize: '16px',
-                                  color: '#6d6b80',
-                                }}>No history records</Typography>
-                              </Box>
-                            )}
-                          </Box>
-                        </Box>
-                      }
-                      pagination={
-                        <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
-                          <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(r) => { setRowsPerPage(r); setPage(0); }} />
-                        </Box>
-                      }
-                      grayMinHeight={showFilterBox ? '440px' : '560px'}
-                      whiteMinHeight={showFilterBox ? '720px' : '620px'}
-                    />
-                  );
-                })()}
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                  <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                  {statusTab === 'history' && (
+                    <Button
+                      onClick={() => setStatusTab('scheduled')}
+                      variant="contained"
+                      size="small"
+                      aria-label="Back to Calendar"
+                      sx={{
+                        ml: 1,
+                        backgroundColor: '#4A69BD',
+                        color: 'white',
+                        border: '1px solid #4A69BD',
+                        borderRadius: '10px',
+                        height: '38px',
+                        px: 2,
+                        textTransform: 'none',
+                        fontWeight: 500,
+                        fontSize: '16px',
+                        fontFamily: 'DM Sans, sans-serif',
+                        minWidth: 99,
+                        boxShadow: 1,
+                        '&:hover': {
+                          backgroundColor: '#2148c0',
+                          border: '1px solid #2148c0',
+                        },
+                      }}
+                    >
+                      Calendar
+                    </Button>
+                  )}
+                </Box>
               </Box>
-            </Fade>
+
+              <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
+                <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
+              </Collapse>
+            </>
+          }
+          tableHeader={
+            <Box sx={{ px: 3, pt: 3, pb: 3 }}>
+              <Box sx={{ display: 'flex', px: 2, alignItems: 'center' }}>
+                <Box sx={{ flex: 1.5, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Date</Typography>
+                </Box>
+                <Box sx={{ flex: 2, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Patient</Typography>
+                </Box>
+                <Box sx={{ flex: 1, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Time</Typography>
+                </Box>
+                <Box sx={{ flex: 2, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Service</Typography>
+                </Box>
+                <Box sx={{ flex: 3.5, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Notes</Typography>
+                </Box>
+              </Box>
+            </Box>
+          }
+          tableRows={
+            loadingHistory ? (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                py: 8,
+                minHeight: '400px'
+              }}>
+                <CircularProgress sx={{ color: '#2148C0' }} />
+              </Box>
+            ) : (
+              <Box sx={{
+                px: 3,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                height: '100%',
+                maxHeight: '402px',
+                overflow: 'auto',
+                boxSizing: 'border-box',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: '#f1f1f1',
+                  borderRadius: '3px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: '#c1c1c1',
+                  borderRadius: '3px',
+                  '&:hover': {
+                    background: '#a8a8a8',
+                  },
+                },
+              }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
+                  {visible.length > 0 ? visible.map((apt) => (
+                    <Box 
+                      key={apt.id} 
+                      sx={{ 
+                        display: 'flex', 
+                        px: 2, 
+                        py: 0.875,
+                        alignItems: 'center',
+                        backgroundColor: '#f9fafc',
+                        borderRadius: '10px',
+                        height: 60,
+                        '&:hover': { 
+                          backgroundColor: '#f0f4f8',
+                          cursor: 'pointer'
+                        }
+                      }}
+                      onClick={() => handleAppointmentClick(apt)}
+                    >
+                      <Box sx={{ flex: '1.5', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : ''}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '2', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.patientName}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '1', textAlign: 'center' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.timeStart ? `${apt.timeStart}${apt.timeEnd ? ' - ' + apt.timeEnd : ''}` : (apt.time || '')}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '2', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.procedure}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '3.5', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                        }}>
+                          {apt.comments || ''}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )) : (
+                    <Box 
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        py: 8,
+                        backgroundColor: '#f9fafc',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      <Typography sx={{
+                        fontFamily: 'Roboto, sans-serif',
+                        fontWeight: 500,
+                        fontSize: '18px',
+                        color: '#6d6b80',
+                        mb: 1
+                      }}>
+                        No logged appointments yet
+                      </Typography>
+                      <Typography sx={{
+                        fontFamily: 'Roboto, sans-serif',
+                        fontWeight: 400,
+                        fontSize: '14px',
+                        color: '#9e9e9e',
+                      }}>
+                        Logged appointments will appear here after you complete the visit log
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )
+          }
+          pagination={
+            <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
+              <Pagination 
+                page={page} 
+                totalPages={totalPages} 
+                onPageChange={(p) => setPage(p)} 
+                rowsPerPage={rowsPerPage} 
+                onRowsPerPageChange={(r) => { setRowsPerPage(r); setPage(0); }} 
+              />
+            </Box>
+          }
+          grayMinHeight={showFilterBox ? '440px' : '560px'}
+          whiteMinHeight={showFilterBox ? '720px' : '620px'}
+        />
+      );
+    })()}
+  </Box>
+</Fade>
+
 
             <Fade in={statusTab !== 'history'} timeout={300} unmountOnExit>
               <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -2296,79 +2143,98 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     // ... keep your existing edit mode code ...
     <Box>
       <Autocomplete
-        value={null}
-        onChange={(event, newValue) => {
+                        // --- Core Props ---
+                        options={services}
+                        getOptionLabel={(option) => option.name || ''}
+                        isOptionEqualToValue={(option, value) => option.id === value.id && option.source_type === value.source_type}
+                        
+                        // --- State Control ---
+                        value={null} // Always reset the visual selection after picking an item
+                        inputValue={serviceInputValue}
+                        onInputChange={(event, newInputValue) => {
+                          setServiceInputValue(newInputValue);
+                        }}
+                        
+                        // --- CRITICAL FIX: The onChange handler ---
+                        onChange={(event, newValue) => {
+                          if (newValue) {
+                            // newValue is the full object of the selected service/package
+                            console.log('Autocomplete item selected:', newValue);
 
-          if (newValue) {
-            
-            const existingServiceIndex = editedServices.findIndex(item => item.service.id === newValue.id);
-            if (existingServiceIndex !== -1)
-               {
-              updateServiceQuantity(newValue.id, editedServices[existingServiceIndex].quantity + 1);
-            } else 
-            {
-              setEditedServices(prev => [...prev, { service: newValue, quantity: 1 }]);
-            }
+                            setEditedServices(prevServices => {
+                              const existingServiceIndex = prevServices.findIndex(
+                                item => item.service.id === newValue.id
+                              );
 
-            setServiceInputValue('');
-          }
-        }}
-        inputValue={serviceInputValue}
-        onInputChange={(event, newInputValue) => {
-          setServiceInputValue(newInputValue);
-        }}
-        options={services.filter(service => 
-          !service.status || service.status.toLowerCase() === 'active'
-        )}
-        getOptionLabel={(option) => option ? option.name : ''}
-        loading={services.length === 0}
-        filterOptions={(options, { inputValue }) => {
-          const filtered = options.filter(option => {
-            const matchesInput = option.name.toLowerCase().includes(inputValue.toLowerCase());
-            const isActive = !option.status || option.status.toLowerCase() === 'active';
-            return matchesInput && isActive;
-          });
-          return filtered;
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            placeholder={editedServices.length === 0 ? "Search for services..." : "Add more services..."}
-            size="small"
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '8px',
-                fontFamily: 'Inter, sans-serif',
-                minHeight: '56px'
-              }
-            }}
-          />
-        )}
-        renderOption={(props, option) => (
-          <Box
-            {...props}
-            sx={{
-              fontFamily: 'Inter, sans-serif',
-              fontSize: '14px',
-            }}
-          >
-            <Box sx={{ width: '100%' }}>
-              <Typography sx={{ fontWeight: '500' }}>
-                {option.name}
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#5f6368', fontSize: '12px' }}>
-                ₱{option.price} • {option.duration} minutes
-                {option.type === 'Package Treatment' && ' • Package'}
-              </Typography>
-              {editedServices.find(item => item.service.id === option.id) && (
-                <Typography variant="body2" sx={{ color: '#1a73e8', fontSize: '12px', fontWeight: '600' }}>
-                  Already selected (Qty: {editedServices.find(item => item.service.id === option.id).quantity})
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        )}
-        noOptionsText="No active services found"
+                              let updatedServices;
+
+                              if (existingServiceIndex !== -1) {
+                                // Item already exists, so just increment its quantity
+                                console.log(`Item "${newValue.name}" already exists. Incrementing quantity.`);
+                                updatedServices = [...prevServices];
+                                const existingItem = updatedServices[existingServiceIndex];
+                                updatedServices[existingServiceIndex] = {
+                                  ...existingItem,
+                                  quantity: existingItem.quantity + 1,
+                                };
+                              } else {
+                                // Item is new, add it to the list in the standard { quantity, service } format
+                                console.log(`Adding new item: "${newValue.name}"`);
+                                updatedServices = [
+                                  ...prevServices,
+                                  { service: newValue, quantity: 1 }
+                                ];
+                              }
+                              
+                              console.log('Updated editedServices state:', updatedServices);
+                              return updatedServices;
+                            });
+
+                            // Clear the autocomplete input text field after an item is selected
+                            setServiceInputValue(''); 
+                          }
+                        }}
+
+                        // --- Rendering Logic (UI) ---
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder={editedServices.length === 0 ? "Search for services or packages..." : "Add more..."}
+                            size="small"
+                            sx={{
+                              mt: 2,
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: '8px',
+                                fontFamily: 'Inter, sans-serif',
+                                minHeight: '56px'
+                              }
+                            }}
+                          />
+                        )}
+                        renderOption={(props, option) => {
+                          const isSelected = editedServices.some(item => item.service.id === option.id);
+                          return (
+                            <Box component="li" {...props} key={option.id + option.source_type}>
+                              <Box sx={{ width: '100%' }}>
+                                <Typography sx={{ fontWeight: '500' }}>
+                                  {option.name}
+                                  {option.source_type === 'package' && ' 📦'}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  ₱{option.price} • {option.duration} minutes
+                                </Typography>
+                                {isSelected && (
+                                  <Typography variant="body2" color="primary" sx={{ fontWeight: '600', mt: 0.5 }}>
+                                    Already selected
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          );
+                        }}
+
+        
+        noOptionsText="No active services or packages found"
         size="small"
       />
       
@@ -2604,7 +2470,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
           {appointmentServiceDetails.map((serviceDetail, index) => {
             if (serviceDetail.type === 'package-header') {
               return (
-                <Box key={`${serviceDetail.type}-${serviceDetail.id}`} sx={{
+                <Box   key={`service-detail-${serviceDetail.serviceId}-${index}-${selectedAppointment?.id}`}  sx={{
                   backgroundColor: '#2148C0',
                   color: 'white',
                   p: 2,
@@ -2694,7 +2560,7 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
             } else {
               // Regular service
               return (
-                <Box key={`${serviceDetail.type}-${serviceDetail.id}`} sx={{
+                <Box key={`service-${serviceDetail.serviceId || serviceDetail.originalId}-${index}`} sx={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',

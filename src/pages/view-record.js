@@ -22,6 +22,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
+import TeethChart from '../components/TeethChart';
 import { API_BASE } from '../apiConfig';
 // This should resolve to 'http://localhost:3001'
 
@@ -343,6 +344,13 @@ if (!hasAnyChanges) {
       fullWidth
       maxWidth={false}
       sx={{ '& .MuiDialog-paper': { width: '70%', borderRadius: 3 } }}
+      PaperProps={{
+        sx: {
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }
+      }}
     >
       <DialogTitle
         sx={{
@@ -422,9 +430,24 @@ if (!hasAnyChanges) {
         sx={{
           backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f5f7fa'),
           minHeight: 200,
+          maxHeight: 'calc(90vh - 180px)',
+          overflowY: 'auto',
           px: 4,
           py: 3,
           borderRadius: 3,
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            backgroundColor: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: '#c1c1c1',
+            borderRadius: '10px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            backgroundColor: '#a8a8a8',
+          },
         }}
       >
         {tabIndex === 0 && (
@@ -622,8 +645,9 @@ if (!hasAnyChanges) {
       p: 3,
       display: 'flex',
       gap: 2,
-      alignItems: 'stretch',
-      maxHeight: '100%'
+      alignItems: 'flex-start',
+      minHeight: `${Math.max(600, 300 + (Object.keys(toothChartData.toothSummaries || {}).length * 60))}px`,
+      height: 'auto'
     }}
   >
     <Grid container spacing={2}>
@@ -745,13 +769,23 @@ if (!hasAnyChanges) {
         </Grid>
       </Grid>
 
-      {/* **ADD THIS: Right: Tooth Chart** */}
+      {/* **RIGHT: Tooth Chart** */}
       <Grid item xs={12} md={5}>
-        <ToothChart 
-          onDataChange={editMode ? setToothChartData : undefined}
-          initialData={toothChartData}
-          readOnly={!editMode}
-        />
+        <Box>
+          <TeethChart 
+            selectedTeeth={toothChartData.selectedTeeth}
+            toothSummaries={toothChartData.toothSummaries}
+            onTeethChange={(updatedTeeth) => {
+              if (editMode) {
+                setToothChartData(prev => ({
+                  ...prev,
+                  selectedTeeth: updatedTeeth
+                }));
+              }
+            }}
+            readOnly={!editMode}
+          />
+        </Box>
       </Grid>
     </Grid>
   </Paper>
@@ -792,7 +826,6 @@ if (!hasAnyChanges) {
         </DialogActions>
       </Dialog>
     </Dialog>
-
   );
 };
 

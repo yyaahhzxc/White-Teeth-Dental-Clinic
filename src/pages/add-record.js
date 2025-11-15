@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import TeethChart from '../components/TeethChart';
 import { API_BASE } from '../apiConfig';
 
 const isValidContactNumber = (number) => {
@@ -248,6 +249,13 @@ const [toothChartData, setToothChartData] = useState({
         fullWidth
         maxWidth={false}
         sx={{ '& .MuiDialog-paper': { width: '70%' } }}
+        PaperProps={{
+          sx: {
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }
+        }}
       >
         <DialogTitle
           sx={{
@@ -589,7 +597,9 @@ const [toothChartData, setToothChartData] = useState({
               p: 3,
               display: 'flex',
               gap: 2,
-              alignItems: 'stretch',
+              alignItems: 'flex-start',
+              minHeight: `${Math.max(600, 300 + (Object.keys(toothChartData.toothSummaries || {}).length * 60))}px`,
+              height: 'auto'
             }}
           >
             <Grid container spacing={2}>
@@ -683,7 +693,19 @@ const [toothChartData, setToothChartData] = useState({
               </Grid>
               {/* Right: Tooth Chart */}
               <Grid item xs={12} md={5}>
-                <ToothChart onDataChange={setToothChartData} />
+                <Box>
+                  <TeethChart 
+                    selectedTeeth={toothChartData.selectedTeeth}
+                    toothSummaries={toothChartData.toothSummaries}
+                    onTeethChange={(updatedTeeth) => {
+                      setToothChartData(prev => ({
+                        ...prev,
+                        selectedTeeth: updatedTeeth
+                      }));
+                    }}
+                    readOnly={false}
+                  />
+                </Box>
               </Grid>
             </Grid>
           </Paper>

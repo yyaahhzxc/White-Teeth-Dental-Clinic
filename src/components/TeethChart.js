@@ -1,7 +1,123 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, IconButton, TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Edit, Close } from '@mui/icons-material';
-import './TeethChart.css';
+
+// Inline styles (previously in TeethChart.css)
+const styles = `
+.teeth-chart-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 380px;
+  align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.teeth-chart-bg {
+  text-align: center;
+  padding: 6px;
+  background: transparent;
+  border-radius: 8px;
+  height: 540px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.teeth-chart-bg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 600px;
+}
+
+svg.tooth {
+  cursor: pointer;
+  fill: white;
+}
+
+svg.tooth .selected {
+  fill: #f45252d4;
+}
+
+svg.tooth polygon {
+  stroke: black;
+  stroke-width: 0.5;
+}
+
+svg.tooth polygon:hover {
+  fill: lightgray;
+}
+
+.tooth-number {
+  font-size: 6pt;
+  font-weight: normal;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.tooth-summary {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-top: 16px;
+  min-height: 100px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.tooth-summary-content {
+  text-align: left;
+  width: 100%;
+}
+
+.tooth-summary-content h4 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+.tooth-summary-content p {
+  margin: 3px 0;
+  color: #666;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.tooth-summary-placeholder {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+}
+
+.tooth-summary-placeholder p {
+  margin: 3px 0;
+  font-size: 13px;
+}
+`;
+
+// Inject styles into document head
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = styles;
+  document.head.appendChild(styleSheet);
+}
 
 // Teeth components based on odontogram structure
 function Teeth({ start, end, x, y, handleChange, selectedTeeth, onToothClick }) {
@@ -438,13 +554,16 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                     borderRadius: '18px',
                     p: 2,
                     mb: 3,
-                    minHeight: '132px',
+                    width: '560px',
+                    height: '270px',
+                    mx: 'auto',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    overflow: 'visible'
                 }}
             >
-                <svg version="1.1" height="100%" width="100%" viewBox="0 0 760 320" preserveAspectRatio="xMidYMin meet">
+                <svg version="1.1" height="240px" width="530px" viewBox="0 0 760 320" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
                     <g transform="translate(6,8) scale(2.0)">
                         {/* Adult teeth */}
                         <Teeth start={18} end={11} x={0} y={0} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
@@ -466,7 +585,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
 
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
                 {/* LEFT: Tooth History */}
-                <Box sx={{ gridColumn: currentlySelectedTooth ? '1' : 'span 2' }}>
+                <Box sx={{ gridColumn: '1', minHeight: currentlySelectedTooth ? 'auto' : '0' }}>
                     {currentlySelectedTooth && (
                         <Box
                             sx={{
