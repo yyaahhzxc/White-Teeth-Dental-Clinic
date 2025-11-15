@@ -2384,6 +2384,132 @@ app.delete('/user-photo/:username', (req, res) => {
 
 //PATIENT ENDPOINTS
 
+// GET all patients with optional filtering
+app.get('/patients', (req, res) => {
+  console.log('📋 GET /patients - Fetching all patients');
+  console.log('Query params:', req.query);
+  
+  // Build dynamic WHERE clause based on query params
+  const allowedFilters = ['sex', 'status'];
+  const filters = [];
+  const values = [];
+  
+  allowedFilters.forEach(key => {
+    if (req.query[key]) {
+      filters.push(`${key} = ?`);
+      values.push(req.query[key]);
+    }
+  });
+  
+  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  
+  const query = `
+    SELECT 
+      id,
+      firstName,
+      lastName,
+      middleName,
+      suffix,
+      maritalStatus,
+      contactNumber,
+      occupation,
+      address,
+      dateOfBirth,
+      sex,
+      contactPersonName,
+      contactPersonRelationship,
+      contactPersonNumber,
+      contactPersonAddress,
+      dateCreated
+    FROM patients 
+    ${whereClause}
+    ORDER BY lastName ASC, firstName ASC
+  `;
+  
+  db.all(query, values, (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching patients:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    console.log(`✅ Found ${rows.length} patients`);
+    res.json(rows || []);
+  });
+});
+
+// GET patient by ID
+app.get('/patients/:id', (req, res) => {
+  const { id } = req.params;
+  console.log(`📋 GET /patients/${id} - Fetching patient details`);
+  
+  const query = `
+    SELECT * FROM patients WHERE id = ?
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching patient:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!row) {
+      console.log(`❌ Patient ${id} not found`);
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    console.log(`✅ Patient ${id} found:`, row.firstName, row.lastName);
+    res.json(row);
+  });
+});
+
+
+app.get('/debug/patients', (req, res) => {
+  db.all('SELECT COUNT(*) as count FROM patients', [], (err, countResult) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    db.all('SELECT * FROM patients LIMIT 5', [], (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      res.json({
+        totalPatients: countResult[0].count,
+        samplePatients: rows,
+        message: `Database has ${countResult[0].count} patients total`
+      });
+    });
+  });
+});
+
+// GET medical information for a patient
+app.get('/medical-information/:patientId', (req, res) => {
+  const { patientId } = req.params;
+  console.log(`🩺 GET /medical-information/${patientId} - Fetching medical info`);
+  
+  const query = `
+    SELECT * FROM MedicalInformation WHERE patientId = ?
+  `;
+  
+  db.get(query, [patientId], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching medical information:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!row) {
+      console.log(`ℹ️ No medical information found for patient ${patientId}`);
+      return res.json(null);
+    }
+    
+    console.log(`✅ Medical information found for patient ${patientId}`);
+    res.json(row);
+  });
+});
+
+
+
 // Add patient endpoint (replace your existing one)
 app.post('/patients', (req, res) => {
   const {

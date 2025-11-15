@@ -142,6 +142,7 @@ useEffect(() => {
 }, [service]);
 
 // REPLACE the existing handleSaveClick function (around line 100-150) with this:
+// REPLACE the existing handleSaveClick function (around line 100-150) with this:
 const handleSaveClick = async () => {
   setSubmitAttempted(true);
   const isValid = validateFields();
@@ -161,30 +162,56 @@ const handleSaveClick = async () => {
 
   setLoading(true);
   try {
-    // Determine if this is a package or service
+    // FIX: Determine the correct endpoint based on the service type
     const isPackage = editedService.type === 'Package Treatment';
-    const endpoint = isPackage ? `${API_BASE}/packages/${editedService.id}` : `${API_BASE}/service-table/${editedService.id}`;
+    
+    // Use the correct endpoint and data structure
+    let endpoint, requestData;
+    
+    if (isPackage) {
+      // For packages, use the packages endpoint
+      endpoint = `${API_BASE}/packages/${editedService.id}`;
+      requestData = {
+        name: editedService.name.trim(),
+        description: editedService.description,
+        price: parseFloat(editedService.price) || 0,
+        duration: parseInt(editedService.duration) || 0,
+        status: editedService.status
+        // Don't include services array - that would be handled separately
+      };
+    } else {
+      // For regular services, use the service-table endpoint
+      endpoint = `${API_BASE}/service-table/${editedService.id}`;
+      requestData = {
+        name: editedService.name.trim(),
+        description: editedService.description,
+        price: parseFloat(editedService.price) || 0,
+        duration: parseInt(editedService.duration) || 0,
+        type: editedService.type,
+        status: editedService.status
+      };
+    }
+    
+    console.log('Saving to endpoint:', endpoint);
+    console.log('Request data:', requestData);
     
     const response = await fetch(endpoint, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...editedService,
-        price: parseFloat(editedService.price),
-        duration: parseInt(editedService.duration)
-      })
+      body: JSON.stringify(requestData)
     });
 
     if (response.ok) {
       setIsEditing(false);
       if (onServiceUpdated) onServiceUpdated();
-      showSnackbar('Service updated successfully!');
+      showSnackbar(`${isPackage ? 'Package' : 'Service'} updated successfully!`);
     } else {
-      throw new Error('Failed to update service');
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to update ${isPackage ? 'package' : 'service'}`);
     }
   } catch (err) {
     console.error('Save Error:', err);
-    showSnackbar('Failed to save changes. Please try again.');
+    showSnackbar(`Failed to save changes: ${err.message}`);
   } finally {
     setLoading(false);
   }
