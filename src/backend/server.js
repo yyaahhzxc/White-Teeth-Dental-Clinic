@@ -3927,3 +3927,316 @@ function fetchCompletePackage(packageId, res) {
     });
   });
 }
+
+
+
+
+
+
+
+
+
+
+
+
+// Add this after your existing visit_logs endpoints (around line 1400)
+
+// GET patient details for logging appointment
+app.get('/patients/:id/for-logging', (req, res) => {
+  const { id } = req.params;
+  
+  console.log(`📋 GET /patients/${id}/for-logging - Fetching patient details for appointment logging`);
+  
+  const query = `
+    SELECT 
+      p.*,
+      mi.allergies,
+      mi.bloodType,
+      mi.bloodborneDiseases,
+      mi.pregnancyStatus,
+      mi.medications,
+      mi.additionalNotes,
+      mi.bloodPressure,
+      mi.diabetic
+    FROM patients p
+    LEFT JOIN MedicalInformation mi ON p.id = mi.patientId
+    WHERE p.id = ?
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching patient:', err);
+      return res.status(500).json({ error: 'Failed to fetch patient details' });
+    }
+    
+    if (!row) {
+      console.log('❌ Patient not found');
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    console.log('✅ Patient details fetched:', row);
+    res.json(row);
+  });
+});
+
+app.get('/tooth-chart/:patientId/for-logging', (req, res) => {
+  const { patientId } = req.params;
+  
+  console.log(`🦷 GET /tooth-chart/${patientId}/for-logging - Fetching tooth chart for logging`);
+  
+  db.get(
+    'SELECT * FROM tooth_charts WHERE patientId = ?',
+    [patientId],
+    (err, row) => {
+      if (err) {
+        console.error('❌ Error fetching tooth chart:', err);
+        return res.status(500).json({ error: 'Failed to fetch tooth chart' });
+      }
+      
+      if (!row) {
+        console.log('📝 No tooth chart found, returning empty data');
+        return res.json({
+          selectedTeeth: [],
+          toothSummaries: {},
+          xrayFiles: []
+        });
+      }
+      
+      // Parse JSON strings with error handling
+      let selectedTeeth = [];
+      let toothSummaries = {};
+      
+      try {
+        selectedTeeth = row.selectedTeeth ? JSON.parse(row.selectedTeeth) : [];
+      } catch (parseErr) {
+        console.error('⚠️ Error parsing selectedTeeth:', parseErr);
+        selectedTeeth = [];
+      }
+      
+      try {
+        toothSummaries = row.toothSummaries ? JSON.parse(row.toothSummaries) : {};
+      } catch (parseErr) {
+        console.error('⚠️ Error parsing toothSummaries:', parseErr);
+        toothSummaries = {};
+      }
+      
+      const parsedData = {
+        id: row.id,
+        patientId: row.patientId,
+        selectedTeeth: selectedTeeth,
+        toothSummaries: toothSummaries,
+        xrayFiles: [],
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
+      };
+      
+      console.log('✅ Tooth chart fetched successfully');
+      console.log('Selected teeth count:', selectedTeeth.length);
+      console.log('Tooth summaries count:', Object.keys(toothSummaries).length);
+      
+      res.json(parsedData);
+    }
+  );
+});
+
+// POST complete appointment log (visit log + billing)
+app.post('/appointments/:id/log', (req, res) => {
+  const appointmentId = req.params.id;
+  const {
+    visitLog,
+    teethData,
+    skipLogging = false
+  } = req.body;
+  
+  console.log('📝 POST /appointments/:id/log - Logging appointment');
+  console.log('Appointment ID:', appointmentId);
+  console.log('Visit Log:', visitLog);
+  
+  // First, get appointment and patient details
+  const appointmentQuery = `
+    SELECT 
+      a.*,
+      p.firstName,
+      p.lastName,
+      p.id as patientId,
+      (
+        SELECT GROUP_CONCAT(
+          COALESCE(pkg.name, s.name) || 
+          CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END,
+          ', '
+        )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) AS serviceNames,
+      (
+        SELECT SUM(COALESCE(pkg.price, s.price, 0) * aps.quantity)
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) AS totalAmount
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    WHERE a.id = ?
+  `;
+  
+  db.get(appointmentQuery, [appointmentId], (err, appointment) => {
+    if (err) {
+      console.error('❌ Error fetching appointment:', err);
+      return res.status(500).json({ error: 'Failed to fetch appointment details' });
+    }
+    
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    // Convert time formats from 12h to 24h for database storage
+    const convertTo24Hour = (time12) => {
+      const [time, modifier] = time12.split(' ');
+      let [hours, minutes] = time.split(':');
+      if (hours === '12') {
+        hours = '00';
+      }
+      if (modifier === 'PM') {
+        hours = parseInt(hours, 10) + 12;
+      }
+      return `${String(hours).padStart(2, '0')}:${minutes}`;
+    };
+    
+    const timeStart = visitLog.timeStart.includes('AM') || visitLog.timeStart.includes('PM') 
+      ? convertTo24Hour(visitLog.timeStart) 
+      : visitLog.timeStart;
+      
+    const timeEnd = visitLog.timeEnd.includes('AM') || visitLog.timeEnd.includes('PM')
+      ? convertTo24Hour(visitLog.timeEnd)
+      : visitLog.timeEnd;
+    
+    // Convert date from MM/DD/YYYY to YYYY-MM-DD
+    const dateParts = visitLog.date.split('/');
+    const visitDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+    
+    // Insert visit log
+    const visitLogQuery = `
+      INSERT INTO visit_logs (
+        patientId, appointmentId, visitDate, timeStart, timeEnd,
+        attendingDentist, concern, proceduresDone, progressNotes, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.run(visitLogQuery, [
+      appointment.patientId,
+      appointmentId,
+      visitDate,
+      timeStart,
+      timeEnd,
+      visitLog.attendingDentist,
+      visitLog.concern,
+      visitLog.proceduresDone || '',
+      visitLog.progressNotes || '',
+      visitLog.notes || ''
+    ], function(visitErr) {
+      if (visitErr) {
+        console.error('❌ Error creating visit log:', visitErr);
+        return res.status(500).json({ error: 'Failed to create visit log' });
+      }
+      
+      const visitLogId = this.lastID;
+      console.log('✅ Visit log created with ID:', visitLogId);
+      
+      // Update appointment status to 'done'
+      db.run(
+        'UPDATE appointments SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+        ['done', appointmentId],
+        (updateErr) => {
+          if (updateErr) {
+            console.error('❌ Error updating appointment status:', updateErr);
+            return res.status(500).json({ error: 'Failed to update appointment status' });
+          }
+          
+          console.log('✅ Appointment status updated to done');
+          
+          // Update tooth chart if provided
+          if (teethData && teethData.selectedTeeth) {
+            const toothChartUpdate = `
+              INSERT OR REPLACE INTO tooth_charts (patientId, selectedTeeth, toothSummaries, updatedAt)
+              VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            `;
+            
+            db.run(toothChartUpdate, [
+              appointment.patientId,
+              JSON.stringify(teethData.selectedTeeth),
+              JSON.stringify(teethData.toothSummaries || {})
+            ], (toothErr) => {
+              if (toothErr) {
+                console.error('⚠️ Error updating tooth chart:', toothErr);
+                // Don't fail the whole operation if tooth chart update fails
+              } else {
+                console.log('✅ Tooth chart updated');
+              }
+            });
+          }
+          
+          // Log the activity if not skipped
+          if (!skipLogging) {
+            logActivity(
+              'Appointment Logged',
+              `Visit log created for ${appointment.firstName} ${appointment.lastName} - ${appointment.serviceNames}`,
+              'appointments',
+              appointmentId,
+              null,
+              visitLog.attendingDentist
+            );
+          }
+          
+          // Return success with created IDs and billing info
+          res.json({
+            success: true,
+            visitLogId,
+            appointmentId,
+            billing: {
+              patientId: appointment.patientId,
+              patientName: `${appointment.firstName} ${appointment.lastName}`,
+              service: appointment.serviceNames,
+              totalAmount: appointment.totalAmount || 0,
+              date: visitDate
+            }
+          });
+        }
+      );
+    });
+  });
+});
+
+// GET visit log by appointment ID
+app.get('/appointments/:id/visit-log', (req, res) => {
+  const { id } = req.params;
+  
+  console.log(`📋 GET /appointments/${id}/visit-log - Fetching visit log`);
+  
+  const query = `
+    SELECT 
+      vl.*,
+      p.firstName || ' ' || p.lastName as patientName
+    FROM visit_logs vl
+    LEFT JOIN patients p ON vl.patientId = p.id
+    WHERE vl.appointmentId = ?
+    ORDER BY vl.createdAt DESC
+    LIMIT 1
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching visit log:', err);
+      return res.status(500).json({ error: 'Failed to fetch visit log' });
+    }
+    
+    if (!row) {
+      return res.json(null);
+    }
+    
+    console.log('✅ Visit log fetched');
+    res.json(row);
+  });
+});

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect} from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,112 +14,191 @@ import {
 } from '@mui/material';
 import { Close, AccessTime, CalendarToday, Edit } from '@mui/icons-material';
 import TeethChart from '../components/TeethChart';
+const API_BASE = 'http://localhost:3001';
+
+
+
 
 function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
   const [activeTab, setActiveTab] = useState(0);
-  const [editingField, setEditingField] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
-  
-  // Mock patient data - will be replaced with actual data later
-  const patientData = {
-    firstName: 'Vince Demeer',
-    middleName: 'Cauilan',
-    lastName: 'Valmores',
+   // Initialize patientData with empty object to avoid null errors
+   const [patientData, setPatientData] = useState({
+    firstName: '',
+    middleName: '',
+    lastName: '',
     suffix: '',
-    contactNumber: '09057274009',
-    dateOfBirth: '11/14/2002',
-    sex: 'M',
-    address: 'Door #21, 2nd Floor Woolrich Bldg., Km. 5 Buhangin, Davao City',
-    notes: 'Patient reports no major medical concerns affecting dental care. Noted impaction in the upper left and presence of a root fragment in the lower right. Routine monitoring and regular check-ups recommended.'
-  };
+    contactNumber: '',
+    dateOfBirth: '',
+    sex: '',
+    address: '',
+    notes: ''
+  });
+  
+  const [teethData, setTeethData] = useState({
+    selectedTeeth: [],
+    toothSummaries: {},
+    xrayFiles: [],
+    loadTimestamp: null // Add this
+  });
 
-  // Helper function to format date from YYYY-MM-DD to MM/DD/YYYY
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${month}/${day}/${year}`;
-  };
-
-  // Helper function to convert 24h to 12h format
-  const convertTo12Hour = (time24) => {
-    if (!time24) return '';
-    const [hours, minutes] = time24.split(':');
-    const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
-  };
-
-  // Initialize visit log data from appointment if available, otherwise use defaults
   const [visitLog, setVisitLog] = useState({
-    date: appointment?.appointmentDate ? formatDate(appointment.appointmentDate) : '12/31/2025',
-    timeStart: appointment?.timeStart ? convertTo12Hour(appointment.timeStart) : '1:00 PM',
-    timeEnd: appointment?.timeEnd ? convertTo12Hour(appointment.timeEnd) : '1:00 PM',
-    concern: appointment?.concern || 'Wisdom Tooth Extraction',
+    date: '',
+    timeStart: '',
+    timeEnd: '',
+    concern: '',
     attendingDentist: 'Dr. Sarah Gerona',
     proceduresDone: '',
     progressNotes: '',
     notes: ''
   });
 
-  // Mock teeth data - will be replaced with actual data later
-  const [teethData, setTeethData] = useState({
-    selectedTeeth: [],
-    toothSummaries: {},
-    xrayFiles: ['Valmores-X-Ray-08-07-2025.png'],
-    toothHistory: [
-      { date: '08-12-2025', condition: 'Broken' },
-      { date: '02-05-2025', condition: 'Malfunctioning tooth' }
-    ]
-  });
+ // Fetch patient data when modal opens
+useEffect(() => {
+  if (open && appointment && appointment.patientId) {
+    fetchPatientData();
+    fetchToothChart();
+    initializeVisitLog();
+  }
+}, [open, appointment]);
+
+  const fetchPatientData = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/patients/${appointment.patientId}/for-logging`);
+      if (!response.ok) throw new Error('Failed to fetch patient data');
+      const data = await response.json();
+      setPatientData(data);
+    } catch (error) {
+      console.error('Error fetching patient data:', error);
+    }
+  };
+
+  const fetchToothChart = async () => {
+    try {
+      console.log('🔄 Fetching tooth chart for patient:', appointment.patientId);
+      
+      const response = await fetch(`${API_BASE}/tooth-chart/${appointment.patientId}/for-logging`);
+      
+      if (!response.ok) {
+        console.warn('No tooth chart found, using empty data');
+        setTeethData({
+          selectedTeeth: [],
+          toothSummaries: {},
+          xrayFiles: [],
+          loadTimestamp: Date.now()
+        });
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('✅ Tooth chart data received:', data);
+      console.log('Selected teeth:', data.selectedTeeth);
+      console.log('Tooth summaries:', data.toothSummaries);
+      
+      setTeethData({
+        selectedTeeth: Array.isArray(data.selectedTeeth) ? data.selectedTeeth : [],
+        toothSummaries: typeof data.toothSummaries === 'object' ? data.toothSummaries : {},
+        xrayFiles: Array.isArray(data.xrayFiles) ? data.xrayFiles : [],
+        loadTimestamp: Date.now() // Add this
+      });
+      
+      console.log('✅ Teeth data state updated');
+    } catch (error) {
+      console.error('❌ Error fetching tooth chart:', error);
+      setTeethData({
+        selectedTeeth: [],
+        toothSummaries: {},
+        xrayFiles: [],
+        loadTimestamp: Date.now()
+      });
+    }
+  };
+
+
+  const initializeVisitLog = () => {
+    if (!appointment) return;
+  
+    // Format date to YYYY-MM-DD for date input
+    const formatDateForInput = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+  
+    console.log('🔄 Initializing visit log with appointment data:', appointment);
+  
+    setVisitLog({
+      date: appointment.appointmentDate ? formatDateForInput(appointment.appointmentDate) : '',
+      timeStart: appointment.timeStart || '', // Keep 24h format for time input
+      timeEnd: appointment.timeEnd || '',     // Keep 24h format for time input
+      concern: appointment.comments || '',
+      attendingDentist: 'Dr. Sarah Gerona',
+      proceduresDone: '',
+      progressNotes: '',
+      notes: ''
+    });
+  
+    console.log('✅ Visit log initialized');
+  };
+
+
+
+
+
+
+ const handleLog = async () => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`${API_BASE}/appointments/${appointment.id}/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visitLog,
+          teethData
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to log appointment');
+      
+      const result = await response.json();
+      console.log('✅ Appointment logged:', result);
+      
+      // Show success message
+      setSuccessMessage(true);
+      
+      // Close modal and notify parent after delay
+      setTimeout(() => {
+        setSuccessMessage(false);
+        onClose();
+        if (onAppointmentLogged) {
+          onAppointmentLogged();
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error('❌ Error logging appointment:', error);
+      alert('Failed to log appointment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  
+
+  
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
 
-  const handleLog = () => {
-    // Create billing entry directly without opening the modal
-    const billingEntry = {
-      id: Date.now(), // Generate a unique ID
-      dateCreated: visitLog.date,
-      firstName: patientData.firstName,
-      lastName: patientData.lastName,
-      totalBill: 1000.00, // Default amount, can be adjusted
-      amountPaid: 0,
-      balance: 1000.00,
-      status: 'Unpaid',
-      service: visitLog.concern,
-    };
 
-    // Save billing entry to local storage (frontend only)
-    try {
-      const existingBillings = JSON.parse(localStorage.getItem('billings') || '[]');
-      existingBillings.push(billingEntry);
-      localStorage.setItem('billings', JSON.stringify(existingBillings));
-      console.log('Billing entry saved:', billingEntry);
-      
-      // Trigger custom event for billing table to refresh
-      window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingEntry }));
-      
-      // Show success message
-      setSuccessMessage(true);
-      
-      // Close modal and notify parent after a brief delay
-      setTimeout(() => {
-        setSuccessMessage(false);
-        onClose();
-        // Notify parent that appointment was logged
-        if (onAppointmentLogged) {
-          onAppointmentLogged();
-        }
-      }, 2000);
-    } catch (error) {
-      console.error('Error saving billing entry:', error);
-    }
-  };
+
+  
 
   return (
     <Dialog
@@ -277,7 +356,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                         Suffix
                       </Typography>
                       <TextField
-                        value={patientData.suffix}
+                        value={patientData?.suffix || ''}
                         disabled
                         fullWidth
                         sx={{
@@ -296,7 +375,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                       Middle Name
                     </Typography>
                     <TextField
-                      value={patientData.middleName}
+                      value={patientData?.middleName || '' }
                       disabled
                       fullWidth
                       sx={{
@@ -314,7 +393,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                       Last Name
                     </Typography>
                     <TextField
-                      value={patientData.lastName}
+                      value={patientData?.lastName || ''}
                       disabled
                       fullWidth
                       sx={{
@@ -333,7 +412,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                         Contact Number
                       </Typography>
                       <TextField
-                        value={patientData.contactNumber}
+                        value={patientData?.contactNumber || ''}
                         disabled
                         fullWidth
                         sx={{
@@ -349,7 +428,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                         Date of Birth
                       </Typography>
                       <TextField
-                        value={patientData.dateOfBirth}
+                        value={patientData?.dateOfBirth || ''}
                         disabled
                         fullWidth
                         sx={{
@@ -365,7 +444,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                         Sex
                       </Typography>
                       <TextField
-                        value={patientData.sex}
+                        value={patientData?.sex || ''}
                         disabled
                         fullWidth
                         sx={{
@@ -384,7 +463,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                       Address
                     </Typography>
                     <TextField
-                      value={patientData.address}
+                      value={patientData?.address || ''}
                       disabled
                       fullWidth
                       sx={{
@@ -402,7 +481,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
                       Notes
                     </Typography>
                     <TextField
-                      value={patientData.notes}
+                      value={patientData?.notes || ''}
                       disabled
                       fullWidth
                       multiline
@@ -687,191 +766,261 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
           )}
 
           {/* Teeth Information Tab */}
-          {activeTab === 2 && (
-            <Box>
-              <Typography
-                sx={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 800,
-                  fontSize: '32px',
-                  color: '#2148c0',
-                  mb: 2
-                }}
-              >
-                Teeth Information
-              </Typography>
-              
-              <Box
-                sx={{
-                  backgroundColor: '#dfdfdf',
-                  borderRadius: '10px',
-                  p: 4,
-                  minHeight: '492px'
-                }}
-              >
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                  {/* Left Column - Teeth Chart Component (handles all three sections internally) */}
-                  <Box>
-                    <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '20px', mb: 2, fontWeight: 500 }}>
-                      Teeth Chart
-                    </Typography>
-                    
-                    {/* TeethChart component now handles: odontogram, selected teeth list, and tooth history */}
-                    <TeethChart
-                      selectedTeeth={teethData.selectedTeeth}
-                      toothSummaries={teethData.toothSummaries}
-                      onTeethChange={(selected) => setTeethData({ ...teethData, selectedTeeth: selected })}
-                      readOnly={false}
-                    />
-                  </Box>
+  {activeTab === 2 && (
+  <Box>
+    <Typography
+      sx={{
+        fontFamily: 'Inter, sans-serif',
+        fontWeight: 800,
+        fontSize: '32px',
+        color: '#2148c0',
+        mb: 2
+      }}
+    >
+      Teeth Information
+    </Typography>
 
-                  {/* Right Column - X-Ray Directory */}
-                  <Box>
-                    <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '20px', mb: 2, fontWeight: 500 }}>
-                      Teeth X-Ray Directory
-                    </Typography>
-                    
-                    <Box
+     {/* Add debug info */}
+     <Box sx={{ mb: 2, p: 2, backgroundColor: '#fff3cd', borderRadius: '4px' }}>
+      <Typography variant="caption" sx={{ display: 'block' }}>
+        Debug Info:
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block' }}>
+        Selected Teeth: {JSON.stringify(teethData.selectedTeeth)}
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block' }}>
+        Tooth Summaries: {JSON.stringify(Object.keys(teethData.toothSummaries || {}))}
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block' }}>
+        Patient ID: {appointment?.patientId}
+      </Typography>
+      <Typography variant="caption" sx={{ display: 'block' }}>
+        Load Timestamp: {teethData.loadTimestamp}
+      </Typography>
+    </Box>
+
+     
+
+    
+    <Box
+      sx={{
+        backgroundColor: '#dfdfdf',
+        borderRadius: '10px',
+        p: 4,
+        minHeight: '492px'
+      }}
+    >
+      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+        {/* Left Column - Teeth Chart */}
+        <Box>
+          <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '20px', mb: 2, fontWeight: 500 }}>
+            Teeth Chart
+          </Typography>
+          
+          <Box sx={{ backgroundColor: 'white', borderRadius: '8px', p: 2 }}>
+            {open && appointment?.patientId && teethData.loadTimestamp ? (
+              <TeethChart
+                key={`${appointment.patientId}-${teethData.loadTimestamp}`} // Force re-mount when data changes
+                patientId={appointment.patientId}
+                initialSelectedTeeth={teethData.selectedTeeth}
+                initialToothSummaries={teethData.toothSummaries}
+                onUpdate={(updatedData) => {
+                  console.log('🔄 TeethChart update received:', updatedData);
+                  setTeethData({
+                    ...teethData,
+                    selectedTeeth: updatedData.selectedTeeth || [],
+                    toothSummaries: updatedData.toothSummaries || {}
+                  });
+                }}
+                readOnly={false}
+              />
+            ) : (
+              <Typography sx={{ textAlign: 'center', py: 4, color: '#666' }}>
+                Loading tooth chart...
+              </Typography>
+            )}
+          </Box>
+        </Box>
+
+        {/* Right Column - X-Ray Directory */}
+        <Box>
+          <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '20px', mb: 2, fontWeight: 500 }}>
+            Teeth X-Ray Directory
+          </Typography>
+          
+          <Box
+            sx={{
+              border: '2px dashed #999',
+              borderRadius: '5px',
+              p: 3,
+              textAlign: 'center',
+              minHeight: '150px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'white'
+            }}
+          >
+            {teethData.xrayFiles && teethData.xrayFiles.length > 0 ? (
+              <Box sx={{ width: '100%' }}>
+                {teethData.xrayFiles.map((file, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      p: 1.5,
+                      mb: 1,
+                      backgroundColor: '#f5f5f5',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <Box>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Raleway, sans-serif',
+                          fontSize: '14.81px',
+                          fontWeight: 500
+                        }}
+                      >
+                        {file}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Raleway, sans-serif',
+                          fontSize: '12px',
+                          fontWeight: 300,
+                          color: '#666'
+                        }}
+                      >
+                        492kb
+                      </Typography>
+                    </Box>
+                    <IconButton 
+                      size="small"
+                      onClick={() => {
+                        setTeethData({
+                          ...teethData,
+                          xrayFiles: teethData.xrayFiles.filter((_, i) => i !== index)
+                        });
+                      }}
                       sx={{
-                        border: '2px dashed #999',
-                        borderRadius: '5px',
-                        p: 3,
-                        textAlign: 'center',
-                        minHeight: '150px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'white'
+                        width: '20px',
+                        height: '20px',
+                        p: 0
                       }}
                     >
-                      {teethData.xrayFiles.length > 0 ? (
-                        <Box sx={{ width: '100%' }}>
-                          {teethData.xrayFiles.map((file, index) => (
-                            <Box
-                              key={index}
-                              sx={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                p: 1.5,
-                                mb: 1,
-                                backgroundColor: '#f5f5f5',
-                                borderRadius: '4px'
-                              }}
-                            >
-                              <Box>
-                                <Typography
-                                  sx={{
-                                    fontFamily: 'Raleway, sans-serif',
-                                    fontSize: '14.81px',
-                                    fontWeight: 500
-                                  }}
-                                >
-                                  {file}
-                                </Typography>
-                                <Typography
-                                  sx={{
-                                    fontFamily: 'Raleway, sans-serif',
-                                    fontSize: '12px',
-                                    fontWeight: 300,
-                                    color: '#666'
-                                  }}
-                                >
-                                  492kb
-                                </Typography>
-                              </Box>
-                              <IconButton 
-                                size="small"
-                                sx={{
-                                  width: '20px',
-                                  height: '20px',
-                                  p: 0
-                                }}
-                              >
-                                <Close sx={{ fontSize: '10px' }} />
-                              </IconButton>
-                            </Box>
-                          ))}
-                          <Box
-                            sx={{
-                              borderTop: '1px solid #ccc',
-                              pt: 2,
-                              mt: 2
-                            }}
-                          >
-                            <Button
-                              variant="contained"
-                              component="label"
-                              sx={{
-                                backgroundColor: '#2148c0',
-                                fontSize: '10.813px',
-                                textTransform: 'none',
-                                fontFamily: 'Raleway, sans-serif',
-                                fontWeight: 500,
-                                mr: 1,
-                                py: 0.5,
-                                px: 2,
-                                minWidth: 'auto',
-                                '&:hover': {
-                                  backgroundColor: '#1a3a9a'
-                                }
-                              }}
-                            >
-                              Browse...
-                              <input type="file" hidden accept="image/*" />
-                            </Button>
-                            <Typography
-                              component="span"
-                              sx={{
-                                fontFamily: 'Raleway, sans-serif',
-                                fontSize: '10.813px',
-                                fontWeight: 500
-                              }}
-                            >
-                              or drop files here
-                            </Typography>
-                          </Box>
-                        </Box>
-                      ) : (
-                        <>
-                          <Button
-                            variant="contained"
-                            component="label"
-                            sx={{
-                              backgroundColor: '#2148c0',
-                              fontSize: '10.813px',
-                              textTransform: 'none',
-                              fontFamily: 'Raleway, sans-serif',
-                              fontWeight: 500,
-                              mb: 1,
-                              py: 0.5,
-                              px: 2,
-                              '&:hover': {
-                                backgroundColor: '#1a3a9a'
-                              }
-                            }}
-                          >
-                            Browse...
-                            <input type="file" hidden accept="image/*" />
-                          </Button>
-                          <Typography
-                            sx={{
-                              fontFamily: 'Raleway, sans-serif',
-                              fontSize: '10.813px',
-                              fontWeight: 500
-                            }}
-                          >
-                            or drop files here
-                          </Typography>
-                        </>
-                      )}
-                    </Box>
+                      <Close sx={{ fontSize: '10px' }} />
+                    </IconButton>
                   </Box>
+                ))}
+                <Box
+                  sx={{
+                    borderTop: '1px solid #ccc',
+                    pt: 2,
+                    mt: 2
+                  }}
+                >
+                  <Button
+                    variant="contained"
+                    component="label"
+                    sx={{
+                      backgroundColor: '#2148c0',
+                      fontSize: '10.813px',
+                      textTransform: 'none',
+                      fontFamily: 'Raleway, sans-serif',
+                      fontWeight: 500,
+                      mr: 1,
+                      py: 0.5,
+                      px: 2,
+                      minWidth: 'auto',
+                      '&:hover': {
+                        backgroundColor: '#1a3a9a'
+                      }
+                    }}
+                  >
+                    Browse...
+                    <input 
+                      type="file" 
+                      hidden 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setTeethData({
+                            ...teethData,
+                            xrayFiles: [...(teethData.xrayFiles || []), file.name]
+                          });
+                        }
+                      }}
+                    />
+                  </Button>
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontFamily: 'Raleway, sans-serif',
+                      fontSize: '10.813px',
+                      fontWeight: 500
+                    }}
+                  >
+                    or drop files here
+                  </Typography>
                 </Box>
               </Box>
-            </Box>
-          )}
+            ) : (
+              <>
+                <Button
+                  variant="contained"
+                  component="label"
+                  sx={{
+                    backgroundColor: '#2148c0',
+                    fontSize: '10.813px',
+                    textTransform: 'none',
+                    fontFamily: 'Raleway, sans-serif',
+                    fontWeight: 500,
+                    mb: 1,
+                    py: 0.5,
+                    px: 2,
+                    '&:hover': {
+                      backgroundColor: '#1a3a9a'
+                    }
+                  }}
+                >
+                  Browse...
+                  <input 
+                    type="file" 
+                    hidden 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setTeethData({
+                          ...teethData,
+                          xrayFiles: [file.name]
+                        });
+                      }
+                    }}
+                  />
+                </Button>
+                <Typography
+                  sx={{
+                    fontFamily: 'Raleway, sans-serif',
+                    fontSize: '10.813px',
+                    fontWeight: 500
+                  }}
+                >
+                  or drop files here
+                </Typography>
+              </>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  </Box>
+)}
         </Box>
 
         {/* Log Button - Fixed to bottom */}
