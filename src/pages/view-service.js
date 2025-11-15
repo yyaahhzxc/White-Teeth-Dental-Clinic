@@ -748,7 +748,7 @@ const handleSaveClick = async () => {
                     }}>
                       {packageServices.map((pkgService, index) => (
                         <Box 
-                          key={index} 
+                        key={`pkg-service-${pkgService.serviceId}-${index}`}
                           sx={{ 
                             display: 'flex', 
                             justifyContent: 'space-between', 

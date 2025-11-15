@@ -409,7 +409,7 @@ function ServiceList() {
               {visibleServices.length > 0 ? (
                 visibleServices.map((service) => (
                   <Box 
-                    key={service.id}
+                  key={`${service.type === 'Package Treatment' ? 'pkg' : 'svc'}-${service.id}`}
                     sx={{ 
                       display: 'flex', 
                       px: 2,
