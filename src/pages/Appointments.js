@@ -273,6 +273,30 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   // Add state to track if appointment was logged
   const [appointmentLogged, setAppointmentLogged] = useState(false);
 
+  // When selected appointment changes, check if it already has a visit log
+  useEffect(() => {
+    const checkVisitLogForAppointment = async () => {
+      if (!selectedAppointment?.id) {
+        setAppointmentLogged(false);
+        return;
+      }
+      try {
+        const resp = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}/visit-log`);
+        if (!resp.ok) {
+          setAppointmentLogged(false);
+          return;
+        }
+        const data = await resp.json();
+        setAppointmentLogged(!!data);
+      } catch (err) {
+        console.error('Error checking visit log for appointment:', err);
+        setAppointmentLogged(false);
+      }
+    };
+
+    checkVisitLogForAppointment();
+  }, [selectedAppointment]);
+
   // Billing modal state
   const [billingModalOpen, setBillingModalOpen] = useState(false);
 

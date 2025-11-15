@@ -380,6 +380,17 @@ db.run(`
   }
 });
 
+// Ensure appointmentId is unique in visit_logs to enforce one-to-one relation
+db.run(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_visit_logs_appointmentId_unique ON visit_logs(appointmentId)
+`, (err) => {
+  if (err) {
+    console.error('Error creating unique index on visit_logs.appointmentId:', err);
+  } else {
+    console.log('✅ Unique index for visit_logs.appointmentId ready');
+  }
+});
+
 // Create expenses table (primary key = year + seq in id)
 db.run(`
   CREATE TABLE IF NOT EXISTS expenses (
@@ -2028,19 +2039,33 @@ app.post('/visit-logs', (req, res) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(query, [
-    patientId, appointmentId, visitDate, timeStart, timeEnd,
-    attendingDentist, concern, proceduresDone, progressNotes, notes
-  ], function(err) {
-    if (err) {
-      console.error('Error creating visit log:', err);
-      return res.status(500).json({ error: err.message });
+  // Prevent duplicate visit logs for the same appointment
+  const checkQuery = `SELECT id FROM visit_logs WHERE appointmentId = ?`;
+  db.get(checkQuery, [appointmentId], (checkErr, existing) => {
+    if (checkErr) {
+      console.error('Error checking existing visit log:', checkErr);
+      return res.status(500).json({ error: checkErr.message });
     }
-    
-    console.log('Visit log created successfully with ID:', this.lastID);
-    res.json({ 
-      id: this.lastID, 
-      message: 'Visit log created successfully' 
+
+    if (existing) {
+      return res.status(409).json({ error: 'A visit log for this appointment already exists' });
+    }
+
+    // Proceed to insert since no existing visit log found
+    db.run(query, [
+      patientId, appointmentId, visitDate, timeStart, timeEnd,
+      attendingDentist, concern, proceduresDone, progressNotes, notes
+    ], function(err) {
+      if (err) {
+        console.error('Error creating visit log:', err);
+        return res.status(500).json({ error: err.message });
+      }
+      
+      console.log('Visit log created successfully with ID:', this.lastID);
+      res.json({ 
+        id: this.lastID, 
+        message: 'Visit log created successfully' 
+      });
     });
   });
 });
@@ -4151,87 +4176,101 @@ app.post('/appointments/:id/log', (req, res) => {
         attendingDentist, concern, proceduresDone, progressNotes, notes
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
-    db.run(visitLogQuery, [
-      appointment.patientId,
-      appointmentId,
-      visitDate,
-      timeStart,
-      timeEnd,
-      visitLog.attendingDentist,
-      visitLog.concern || '',
-      visitLog.proceduresDone || '',
-      visitLog.progressNotes || '',
-      visitLog.notes || ''
-    ], function(visitErr) {
-      if (visitErr) {
-        console.error('❌ Error creating visit log:', visitErr);
-        return res.status(500).json({ error: 'Failed to create visit log' });
+    // Prevent duplicate visit logs for the same appointment
+    const checkVisitQuery = `SELECT id FROM visit_logs WHERE appointmentId = ?`;
+    db.get(checkVisitQuery, [appointmentId], (checkErr, existing) => {
+      if (checkErr) {
+        console.error('❌ Error checking existing visit log:', checkErr);
+        return res.status(500).json({ error: 'Failed to check existing visit log' });
       }
-      
-      const visitLogId = this.lastID;
-      console.log('✅ Visit log created with ID:', visitLogId);
-      
-      // Update appointment status to 'done'
-      db.run(
-        'UPDATE appointments SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
-        ['done', appointmentId],
-        (updateErr) => {
-          if (updateErr) {
-            console.error('❌ Error updating appointment status:', updateErr);
-            return res.status(500).json({ error: 'Failed to update appointment status' });
-          }
-          
-          console.log('✅ Appointment status updated to done');
-          
-          // Update tooth chart if provided
-          if (teethData && (teethData.selectedTeeth?.length > 0 || Object.keys(teethData.toothSummaries || {}).length > 0)) {
-            const toothChartUpdate = `
-              INSERT OR REPLACE INTO tooth_charts (patientId, selectedTeeth, toothSummaries, updatedAt)
-              VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            `;
+
+      if (existing) {
+        console.log('ℹ️ Visit log already exists for appointment:', appointmentId);
+        return res.status(409).json({ error: 'A visit log for this appointment already exists' });
+      }
+
+      // Proceed to insert visit log
+      db.run(visitLogQuery, [
+        appointment.patientId,
+        appointmentId,
+        visitDate,
+        timeStart,
+        timeEnd,
+        visitLog.attendingDentist,
+        visitLog.concern || '',
+        visitLog.proceduresDone || '',
+        visitLog.progressNotes || '',
+        visitLog.notes || ''
+      ], function(visitErr) {
+        if (visitErr) {
+          console.error('❌ Error creating visit log:', visitErr);
+          return res.status(500).json({ error: 'Failed to create visit log' });
+        }
+        
+        const visitLogId = this.lastID;
+        console.log('✅ Visit log created with ID:', visitLogId);
+        
+        // Update appointment status to 'done'
+        db.run(
+          'UPDATE appointments SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+          ['done', appointmentId],
+          (updateErr) => {
+            if (updateErr) {
+              console.error('❌ Error updating appointment status:', updateErr);
+              return res.status(500).json({ error: 'Failed to update appointment status' });
+            }
             
-            db.run(toothChartUpdate, [
-              appointment.patientId,
-              JSON.stringify(teethData.selectedTeeth || []),
-              JSON.stringify(teethData.toothSummaries || {})
-            ], (toothErr) => {
-              if (toothErr) {
-                console.error('⚠️ Error updating tooth chart:', toothErr);
-                // Don't fail the whole operation if tooth chart update fails
-              } else {
-                console.log('✅ Tooth chart updated');
+            console.log('✅ Appointment status updated to done');
+            
+            // Update tooth chart if provided
+            if (teethData && (teethData.selectedTeeth?.length > 0 || Object.keys(teethData.toothSummaries || {}).length > 0)) {
+              const toothChartUpdate = `
+                INSERT OR REPLACE INTO tooth_charts (patientId, selectedTeeth, toothSummaries, updatedAt)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+              `;
+              
+              db.run(toothChartUpdate, [
+                appointment.patientId,
+                JSON.stringify(teethData.selectedTeeth || []),
+                JSON.stringify(teethData.toothSummaries || {})
+              ], (toothErr) => {
+                if (toothErr) {
+                  console.error('⚠️ Error updating tooth chart:', toothErr);
+                  // Don't fail the whole operation if tooth chart update fails
+                } else {
+                  console.log('✅ Tooth chart updated');
+                }
+              });
+            }
+            
+            // Log the activity if not skipped
+            if (!skipLogging) {
+              logActivity(
+                'Appointment Logged',
+                `Visit log created for ${appointment.firstName} ${appointment.lastName} - ${appointment.serviceNames}`,
+                'appointments',
+                appointmentId,
+                null,
+                visitLog.attendingDentist
+              );
+            }
+            
+            // Return success with created IDs and billing info
+            res.json({
+              success: true,
+              visitLogId,
+              appointmentId,
+              billing: {
+                patientId: appointment.patientId,
+                patientName: `${appointment.firstName} ${appointment.lastName}`,
+                service: appointment.serviceNames,
+                totalAmount: appointment.totalAmount || 0,
+                date: visitDate
               }
             });
           }
-          
-          // Log the activity if not skipped
-          if (!skipLogging) {
-            logActivity(
-              'Appointment Logged',
-              `Visit log created for ${appointment.firstName} ${appointment.lastName} - ${appointment.serviceNames}`,
-              'appointments',
-              appointmentId,
-              null,
-              visitLog.attendingDentist
-            );
-          }
-          
-          // Return success with created IDs and billing info
-          res.json({
-            success: true,
-            visitLogId,
-            appointmentId,
-            billing: {
-              patientId: appointment.patientId,
-              patientName: `${appointment.firstName} ${appointment.lastName}`,
-              service: appointment.serviceNames,
-              totalAmount: appointment.totalAmount || 0,
-              date: visitDate
-            }
-          });
-        }
-      );
+        );
+      });
     });
   });
 });

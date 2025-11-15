@@ -23,6 +23,7 @@ function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
+  const [alreadyLogged, setAlreadyLogged] = useState(false);
    // Initialize patientData with empty object to avoid null errors
    const [patientData, setPatientData] = useState({
     firstName: '',
@@ -60,8 +61,29 @@ useEffect(() => {
     fetchPatientData();
     fetchToothChart();
     initializeVisitLog();
+    fetchExistingVisitLog();
   }
 }, [open, appointment]);
+
+  const fetchExistingVisitLog = async () => {
+    if (!appointment?.id) return;
+    try {
+      const resp = await fetch(`${API_BASE}/appointments/${appointment.id}/visit-log`);
+      if (!resp.ok) {
+        console.warn('Failed to check existing visit log', resp.status);
+        setAlreadyLogged(false);
+        return;
+      }
+      const data = await resp.json();
+      setAlreadyLogged(!!data);
+      if (data) {
+        console.log('ℹ️ Existing visit log found for appointment', appointment.id);
+      }
+    } catch (err) {
+      console.error('Error checking existing visit log:', err);
+      setAlreadyLogged(false);
+    }
+  };
 
   const fetchPatientData = async () => {
     try {
@@ -165,6 +187,11 @@ useEffect(() => {
     }
     
     try {
+      if (alreadyLogged) {
+        alert('This appointment has already been logged.');
+        setLoading(false);
+        return;
+      }
       const url = `${API_BASE}/appointments/${appointment.id}/log`;
       console.log('🔄 POST request to:', url);
       
@@ -185,6 +212,12 @@ useEffect(() => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('❌ Server error:', errorData);
+        if (response.status === 409) {
+          alert(errorData.error || 'A visit log for this appointment already exists');
+          // Refresh existing flag
+          setAlreadyLogged(true);
+          return;
+        }
         throw new Error(errorData.error || 'Failed to log appointment');
       }
       
@@ -1039,6 +1072,7 @@ useEffect(() => {
           <Button
             variant="contained"
             onClick={handleLog}
+            disabled={alreadyLogged || loading}
             sx={{
               backgroundColor: '#2148c0',
               fontFamily: 'Inter, sans-serif',
@@ -1053,7 +1087,7 @@ useEffect(() => {
               }
             }}
           >
-            Log
+            {alreadyLogged ? 'Already Logged' : (loading ? 'Logging...' : 'Log')}
           </Button>
         </Box>
       </DialogContent>
