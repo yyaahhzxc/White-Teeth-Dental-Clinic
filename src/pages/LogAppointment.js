@@ -150,23 +150,46 @@ useEffect(() => {
 
 
 
- const handleLog = async () => {
+  const handleLog = async () => {
     setLoading(true);
     
+    console.log('📝 Logging appointment...');
+    console.log('Appointment ID:', appointment?.id);
+    console.log('Visit Log Data:', visitLog);
+    console.log('Teeth Data:', teethData);
+    
+    if (!appointment?.id) {
+      alert('No appointment selected');
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const response = await fetch(`${API_BASE}/appointments/${appointment.id}/log`, {
+      const url = `${API_BASE}/appointments/${appointment.id}/log`;
+      console.log('🔄 POST request to:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           visitLog,
           teethData
         })
       });
-
-      if (!response.ok) throw new Error('Failed to log appointment');
+  
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Server error:', errorData);
+        throw new Error(errorData.error || 'Failed to log appointment');
+      }
       
       const result = await response.json();
-      console.log('✅ Appointment logged:', result);
+      console.log('✅ Appointment logged successfully:', result);
       
       // Show success message
       setSuccessMessage(true);
@@ -178,15 +201,16 @@ useEffect(() => {
         if (onAppointmentLogged) {
           onAppointmentLogged();
         }
-      }, 2000);
+      }, 1500);
       
     } catch (error) {
       console.error('❌ Error logging appointment:', error);
-      alert('Failed to log appointment. Please try again.');
+      alert(`Failed to log appointment: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
+
 
   
 
@@ -780,26 +804,6 @@ useEffect(() => {
       Teeth Information
     </Typography>
 
-     {/* Add debug info */}
-     <Box sx={{ mb: 2, p: 2, backgroundColor: '#fff3cd', borderRadius: '4px' }}>
-      <Typography variant="caption" sx={{ display: 'block' }}>
-        Debug Info:
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block' }}>
-        Selected Teeth: {JSON.stringify(teethData.selectedTeeth)}
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block' }}>
-        Tooth Summaries: {JSON.stringify(Object.keys(teethData.toothSummaries || {}))}
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block' }}>
-        Patient ID: {appointment?.patientId}
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block' }}>
-        Load Timestamp: {teethData.loadTimestamp}
-      </Typography>
-    </Box>
-
-     
 
     
     <Box

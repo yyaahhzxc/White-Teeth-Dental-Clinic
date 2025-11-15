@@ -216,6 +216,9 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [historyAppointments, setHistoryAppointments] = useState([]);
+const [loadingHistory, setLoadingHistory] = useState(false);
+
   
   // Modal states
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -404,7 +407,7 @@ useEffect(() => {
       await fetchAppointmentsForMonth();
     }
     console.log('✅ Appointments refreshed');
-  };
+  };  
   
 
   // REPLACE the fetchAppointmentsForWeek function (around line 375)
@@ -461,6 +464,58 @@ useEffect(() => {
       setLoading(false);
     }
   };
+
+
+
+// Add function to fetch history appointments (around line 450)
+const fetchHistoryAppointments = async () => {
+  setLoadingHistory(true);
+  try {
+    console.log('🔄 Fetching history appointments...');
+    const response = await fetch(`${API_BASE}/visit-logs/history`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch history');
+    }
+    
+    const data = await response.json();
+    console.log('✅ History data received:', data);
+    
+    // Transform the data to match the expected format
+    const transformed = data.map(log => ({
+      id: log.id,
+      appointmentId: log.appointmentId,
+      appointmentDate: log.visitDate,
+      patientName: log.patientName,
+      timeStart: log.timeStart,
+      timeEnd: log.timeEnd,
+      procedure: log.serviceNames || 'No services listed',
+      comments: log.notes || log.progressNotes || '',
+      concern: log.concern || '',
+      attendingDentist: log.attendingDentist || '',
+      proceduresDone: log.proceduresDone || '',
+      progressNotes: log.progressNotes || '',
+      status: 'done'
+    }));
+    
+    setHistoryAppointments(transformed);
+  } catch (error) {
+    console.error('❌ Error fetching history:', error);
+    setHistoryAppointments([]);
+  } finally {
+    setLoadingHistory(false);
+  }
+};
+
+
+
+
+
+
+
+
+
+
   
 
  // Update the fetchAppointmentsForMonth function similarly (around line 290)
@@ -882,12 +937,36 @@ const handleAppointmentClick = async (appointment) => {
     }
   };
 
-  // Handler for when appointment is logged successfully
-  const handleAppointmentLogged = () => {
-    setLogAppointmentOpen(false);
-    setAppointmentLogged(true);
-    // Modal stays open, button changes
-  };
+
+  useEffect(() => {
+    if (statusTab === 'history') {
+      fetchHistoryAppointments();
+    }
+  }, [statusTab]);
+
+
+ // Update the handleAppointmentLogged function (around line 800)
+ const handleAppointmentLogged = () => {
+  console.log('📝 Appointment logged, refreshing data...');
+  
+  // Close the log modal
+  setLogAppointmentOpen(false);
+  
+  // Show success state
+  setAppointmentLogged(true);
+  
+  // Refresh the current calendar view
+  refreshAppointments();
+  
+  // Switch to history tab and fetch history data
+  setStatusTab('history');
+  
+  // Give a small delay to ensure state updates, then fetch history
+  setTimeout(() => {
+    fetchHistoryAppointments();
+  }, 300);
+};
+
 
   // Handler for proceeding to billing
   const handleProceedToBilling = () => {
@@ -1219,257 +1298,286 @@ const handleAppointmentClick = async (appointment) => {
 
           {/* Render Calendar / History with transition */}
           <Box sx={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-            <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
-              <Box sx={{ height: '100%', overflowY: 'auto' }}>
-                {/* History mode: use the shared DataTable layout used across the app */}
-                {(() => {
-                  // History is currently disconnected from the calendar.
-                  // Use placeholders here so the history table is easy to replace with backend data later.
-                  const sourceAppointments = HISTORY_PLACEHOLDERS;
-                  const historyAppointments = [...sourceAppointments].sort((a, b) => {
-                    const da = new Date(a.appointmentDate || 0);
-                    const db = new Date(b.appointmentDate || 0);
-                    if (db - da !== 0) return db - da;
-                    const ta = a.timeStart || a.time || '00:00';
-                    const tb = b.timeStart || b.time || '00:00';
-                    return tb.localeCompare(ta);
-                  });
+          <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
+  <Box sx={{ height: '100%', overflowY: 'auto' }}>
+    {(() => {
+      const sourceAppointments = historyAppointments;
+      
+      const normalizedSearch = (search || '').toLowerCase().trim();
+      const filtered = normalizedSearch
+        ? sourceAppointments.filter(apt => {
+            const dateStr = apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : '';
+            return (
+              dateStr.toLowerCase().includes(normalizedSearch) ||
+              (apt.patientName || '').toLowerCase().includes(normalizedSearch) ||
+              (apt.procedure || '').toLowerCase().includes(normalizedSearch) ||
+              (apt.comments || '').toLowerCase().includes(normalizedSearch)
+            );
+          })
+        : sourceAppointments;
 
-                  const normalizedSearch = (search || '').toLowerCase().trim();
-                  const filtered = normalizedSearch
-                    ? historyAppointments.filter(apt => {
-                        const dateStr = apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : '';
-                        return (
-                          dateStr.toLowerCase().includes(normalizedSearch) ||
-                          (apt.patientName || '').toLowerCase().includes(normalizedSearch) ||
-                          (apt.procedure || '').toLowerCase().includes(normalizedSearch) ||
-                          (apt.comments || '').toLowerCase().includes(normalizedSearch)
-                        );
-                      })
-                    : historyAppointments;
+      const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+      const visible = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
-                  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-                  const visible = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+      return (
+        <DataTable
+          topContent={
+            <>
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                px: 3,
+                pt: 3,
+                pb: 2,
+                gap: 2,
+                boxSizing: 'border-box',
+              }}>
+                <SearchBar
+                  value={search}
+                  onChange={(v) => { setSearch(v); setPage(0); }}
+                  placeholder="Search by date/patient/service/notes"
+                  searchFields={["appointmentDate", "patientName", "procedure", "comments"]}
+                  data={historyAppointments}
+                />
 
-                  return (
-                    <DataTable
-                      topContent={
-                        <>
-                          <Box sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            width: '100%',
-                            px: 3,
-                            pt: 3,
-                            pb: 2,
-                            gap: 2,
-                            boxSizing: 'border-box',
-                          }}>
-                            <SearchBar
-                              value={search}
-                              onChange={(v) => { setSearch(v); setPage(0); }}
-                              placeholder="Search by date/patient/service/notes"
-                              searchFields={["appointmentDate", "patientName", "procedure", "comments"]}
-                              data={HISTORY_PLACEHOLDERS}
-                            />
-
-                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
-                              <FilterButton onClick={() => setShowFilterBox(v => !v)} />
-                              {statusTab === 'history' && (
-                                <Button
-                                  onClick={() => setStatusTab('scheduled')}
-                                  variant="contained"
-                                  onKeyDown={() => {}}
-                                  size="small"
-                                  aria-label="Back to Calendar"
-                                  sx={{
-                                    ml: 1,
-                                    backgroundColor: '#4A69BD',
-                                    color: 'white',
-                                    border: '1px solid #4A69BD',
-                                    borderRadius: '10px',
-                                    height: '38px',
-                                    px: 2,
-                                    textTransform: 'none',
-                                    fontWeight: 500,
-                                    fontSize: '16px',
-                                    fontFamily: 'DM Sans, sans-serif',
-                                    minWidth: 99,
-                                    boxShadow: 1,
-                                    '&:hover': {
-                                      backgroundColor: '#2148c0',
-                                      border: '1px solid #2148c0',
-                                    },
-                                  }}
-                                >
-                                  Calendar
-                                </Button>
-                              )}
-                            </Box>
-                          </Box>
-
-                          <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
-                            <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
-                          </Collapse>
-                        </>
-                      }
-                      tableHeader={
-                        <Box sx={{ px: 3, pt: 3, pb: 3 }}>
-                          <Box sx={{ display: 'flex', px: 2, alignItems: 'center' }}>
-                            <Box sx={{ flex: 1.5, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Date</Typography>
-                            </Box>
-                            <Box sx={{ flex: 2, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Patient</Typography>
-                            </Box>
-                            <Box sx={{ flex: 1, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Time</Typography>
-                            </Box>
-                            <Box sx={{ flex: 2, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Service</Typography>
-                            </Box>
-                            <Box sx={{ flex: 3.5, px: 2 }}>
-                              <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Notes</Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      }
-                      tableRows={
-                        <Box sx={{
-                          px: 3,
-                          flex: 1,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          minHeight: 0,
-                          height: '100%',
-                          maxHeight: '402px',
-                          overflow: 'auto',
-                          boxSizing: 'border-box',
-                          '&::-webkit-scrollbar': {
-                            width: '6px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: '#f1f1f1',
-                            borderRadius: '3px',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: '#c1c1c1',
-                            borderRadius: '3px',
-                            '&:hover': {
-                              background: '#a8a8a8',
-                            },
-                          },
-                        }}>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
-                            {visible.length > 0 ? visible.map((apt) => (
-                              <Box 
-                                key={apt.id} 
-                                sx={{ 
-                                  display: 'flex', 
-                                  px: 2, 
-                                  py: 0.875,
-                                  alignItems: 'center',
-                                  backgroundColor: '#f9fafc',
-                                  borderRadius: '10px',
-                                  height: 60,
-                                  '&:hover': { 
-                                    backgroundColor: '#f0f4f8',
-                                    cursor: 'pointer'
-                                  }
-                                }}
-                                onClick={() => handleAppointmentClick(apt)}
-                              >
-                                <Box sx={{ flex: '1.5', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : ''}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '2', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.patientName}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '1', textAlign: 'center' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.timeStart ? `${apt.timeStart}${apt.timeEnd ? ' - ' + apt.timeEnd : ''}` : (apt.time || '')}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '2', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                  }}>{apt.procedure}</Typography>
-                                </Box>
-
-                                <Box sx={{ flex: '3.5', textAlign: 'left' }}>
-                                  <Typography sx={{
-                                    fontFamily: 'Roboto, sans-serif',
-                                    fontWeight: 400,
-                                    fontSize: '15px',
-                                    color: '#6d6b80',
-                                    lineHeight: '22px',
-                                    letterSpacing: '0.5px',
-                                    whiteSpace: 'normal',
-                                    wordBreak: 'break-word',
-                                  }}>{apt.comments || ''}</Typography>
-                                </Box>
-                              </Box>
-                            )) : (
-                              <Box 
-                                sx={{
-                                  display: 'flex',
-                                  justifyContent: 'center',
-                                  alignItems: 'center',
-                                  py: 4,
-                                  backgroundColor: '#f9fafc',
-                                  borderRadius: '10px',
-                                }}
-                              >
-                                <Typography sx={{
-                                  fontFamily: 'Roboto, sans-serif',
-                                  fontWeight: 400,
-                                  fontSize: '16px',
-                                  color: '#6d6b80',
-                                }}>No history records</Typography>
-                              </Box>
-                            )}
-                          </Box>
-                        </Box>
-                      }
-                      pagination={
-                        <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
-                          <Pagination page={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} rowsPerPage={rowsPerPage} onRowsPerPageChange={(r) => { setRowsPerPage(r); setPage(0); }} />
-                        </Box>
-                      }
-                      grayMinHeight={showFilterBox ? '440px' : '560px'}
-                      whiteMinHeight={showFilterBox ? '720px' : '620px'}
-                    />
-                  );
-                })()}
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                  <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                  {statusTab === 'history' && (
+                    <Button
+                      onClick={() => setStatusTab('scheduled')}
+                      variant="contained"
+                      size="small"
+                      aria-label="Back to Calendar"
+                      sx={{
+                        ml: 1,
+                        backgroundColor: '#4A69BD',
+                        color: 'white',
+                        border: '1px solid #4A69BD',
+                        borderRadius: '10px',
+                        height: '38px',
+                        px: 2,
+                        textTransform: 'none',
+                        fontWeight: 500,
+                        fontSize: '16px',
+                        fontFamily: 'DM Sans, sans-serif',
+                        minWidth: 99,
+                        boxShadow: 1,
+                        '&:hover': {
+                          backgroundColor: '#2148c0',
+                          border: '1px solid #2148c0',
+                        },
+                      }}
+                    >
+                      Calendar
+                    </Button>
+                  )}
+                </Box>
               </Box>
-            </Fade>
+
+              <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
+                <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
+              </Collapse>
+            </>
+          }
+          tableHeader={
+            <Box sx={{ px: 3, pt: 3, pb: 3 }}>
+              <Box sx={{ display: 'flex', px: 2, alignItems: 'center' }}>
+                <Box sx={{ flex: 1.5, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Date</Typography>
+                </Box>
+                <Box sx={{ flex: 2, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Patient</Typography>
+                </Box>
+                <Box sx={{ flex: 1, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Time</Typography>
+                </Box>
+                <Box sx={{ flex: 2, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Service</Typography>
+                </Box>
+                <Box sx={{ flex: 3.5, px: 2 }}>
+                  <Typography sx={{ color: '#6d6b80', fontSize: 16, fontWeight: 700 }}>Notes</Typography>
+                </Box>
+              </Box>
+            </Box>
+          }
+          tableRows={
+            loadingHistory ? (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                py: 8,
+                minHeight: '400px'
+              }}>
+                <CircularProgress sx={{ color: '#2148C0' }} />
+              </Box>
+            ) : (
+              <Box sx={{
+                px: 3,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                height: '100%',
+                maxHeight: '402px',
+                overflow: 'auto',
+                boxSizing: 'border-box',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: '#f1f1f1',
+                  borderRadius: '3px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: '#c1c1c1',
+                  borderRadius: '3px',
+                  '&:hover': {
+                    background: '#a8a8a8',
+                  },
+                },
+              }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
+                  {visible.length > 0 ? visible.map((apt) => (
+                    <Box 
+                      key={apt.id} 
+                      sx={{ 
+                        display: 'flex', 
+                        px: 2, 
+                        py: 0.875,
+                        alignItems: 'center',
+                        backgroundColor: '#f9fafc',
+                        borderRadius: '10px',
+                        height: 60,
+                        '&:hover': { 
+                          backgroundColor: '#f0f4f8',
+                          cursor: 'pointer'
+                        }
+                      }}
+                      onClick={() => handleAppointmentClick(apt)}
+                    >
+                      <Box sx={{ flex: '1.5', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString() : ''}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '2', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.patientName}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '1', textAlign: 'center' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.timeStart ? `${apt.timeStart}${apt.timeEnd ? ' - ' + apt.timeEnd : ''}` : (apt.time || '')}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '2', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {apt.procedure}
+                        </Typography>
+                      </Box>
+
+                      <Box sx={{ flex: '3.5', textAlign: 'left' }}>
+                        <Typography sx={{
+                          fontFamily: 'Roboto, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '15px',
+                          color: '#6d6b80',
+                          lineHeight: '22px',
+                          letterSpacing: '0.5px',
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                        }}>
+                          {apt.comments || ''}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )) : (
+                    <Box 
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        py: 8,
+                        backgroundColor: '#f9fafc',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      <Typography sx={{
+                        fontFamily: 'Roboto, sans-serif',
+                        fontWeight: 500,
+                        fontSize: '18px',
+                        color: '#6d6b80',
+                        mb: 1
+                      }}>
+                        No logged appointments yet
+                      </Typography>
+                      <Typography sx={{
+                        fontFamily: 'Roboto, sans-serif',
+                        fontWeight: 400,
+                        fontSize: '14px',
+                        color: '#9e9e9e',
+                      }}>
+                        Logged appointments will appear here after you complete the visit log
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )
+          }
+          pagination={
+            <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
+              <Pagination 
+                page={page} 
+                totalPages={totalPages} 
+                onPageChange={(p) => setPage(p)} 
+                rowsPerPage={rowsPerPage} 
+                onRowsPerPageChange={(r) => { setRowsPerPage(r); setPage(0); }} 
+              />
+            </Box>
+          }
+          grayMinHeight={showFilterBox ? '440px' : '560px'}
+          whiteMinHeight={showFilterBox ? '720px' : '620px'}
+        />
+      );
+    })()}
+  </Box>
+</Fade>
+
 
             <Fade in={statusTab !== 'history'} timeout={300} unmountOnExit>
               <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>

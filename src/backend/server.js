@@ -4050,7 +4050,18 @@ app.post('/appointments/:id/log', (req, res) => {
   
   console.log('📝 POST /appointments/:id/log - Logging appointment');
   console.log('Appointment ID:', appointmentId);
+  console.log('Request body:', req.body);
   console.log('Visit Log:', visitLog);
+  console.log('Teeth Data:', teethData);
+  
+  // Validate required data
+  if (!visitLog) {
+    return res.status(400).json({ error: 'Visit log data is required' });
+  }
+
+  if (!visitLog.date || !visitLog.timeStart || !visitLog.timeEnd || !visitLog.attendingDentist) {
+    return res.status(400).json({ error: 'Missing required visit log fields' });
+  }
   
   // First, get appointment and patient details
   const appointmentQuery = `
@@ -4092,8 +4103,11 @@ app.post('/appointments/:id/log', (req, res) => {
       return res.status(404).json({ error: 'Appointment not found' });
     }
     
+    console.log('✅ Appointment found:', appointment);
+    
     // Convert time formats from 12h to 24h for database storage
     const convertTo24Hour = (time12) => {
+      if (!time12) return '';
       const [time, modifier] = time12.split(' ');
       let [hours, minutes] = time.split(':');
       if (hours === '12') {
@@ -4105,17 +4119,30 @@ app.post('/appointments/:id/log', (req, res) => {
       return `${String(hours).padStart(2, '0')}:${minutes}`;
     };
     
-    const timeStart = visitLog.timeStart.includes('AM') || visitLog.timeStart.includes('PM') 
+    const timeStart = visitLog.timeStart && (visitLog.timeStart.includes('AM') || visitLog.timeStart.includes('PM'))
       ? convertTo24Hour(visitLog.timeStart) 
       : visitLog.timeStart;
       
-    const timeEnd = visitLog.timeEnd.includes('AM') || visitLog.timeEnd.includes('PM')
+    const timeEnd = visitLog.timeEnd && (visitLog.timeEnd.includes('AM') || visitLog.timeEnd.includes('PM'))
       ? convertTo24Hour(visitLog.timeEnd)
       : visitLog.timeEnd;
     
-    // Convert date from MM/DD/YYYY to YYYY-MM-DD
-    const dateParts = visitLog.date.split('/');
-    const visitDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+    // Convert date format
+    let visitDate;
+    if (visitLog.date.includes('/')) {
+      // MM/DD/YYYY to YYYY-MM-DD
+      const dateParts = visitLog.date.split('/');
+      visitDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+    } else {
+      // Already in YYYY-MM-DD format
+      visitDate = visitLog.date;
+    }
+    
+    console.log('📅 Processed dates and times:', {
+      visitDate,
+      timeStart,
+      timeEnd
+    });
     
     // Insert visit log
     const visitLogQuery = `
@@ -4132,7 +4159,7 @@ app.post('/appointments/:id/log', (req, res) => {
       timeStart,
       timeEnd,
       visitLog.attendingDentist,
-      visitLog.concern,
+      visitLog.concern || '',
       visitLog.proceduresDone || '',
       visitLog.progressNotes || '',
       visitLog.notes || ''
@@ -4158,7 +4185,7 @@ app.post('/appointments/:id/log', (req, res) => {
           console.log('✅ Appointment status updated to done');
           
           // Update tooth chart if provided
-          if (teethData && teethData.selectedTeeth) {
+          if (teethData && (teethData.selectedTeeth?.length > 0 || Object.keys(teethData.toothSummaries || {}).length > 0)) {
             const toothChartUpdate = `
               INSERT OR REPLACE INTO tooth_charts (patientId, selectedTeeth, toothSummaries, updatedAt)
               VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -4166,7 +4193,7 @@ app.post('/appointments/:id/log', (req, res) => {
             
             db.run(toothChartUpdate, [
               appointment.patientId,
-              JSON.stringify(teethData.selectedTeeth),
+              JSON.stringify(teethData.selectedTeeth || []),
               JSON.stringify(teethData.toothSummaries || {})
             ], (toothErr) => {
               if (toothErr) {
@@ -4209,6 +4236,11 @@ app.post('/appointments/:id/log', (req, res) => {
   });
 });
 
+
+
+
+
+
 // GET visit log by appointment ID
 app.get('/appointments/:id/visit-log', (req, res) => {
   const { id } = req.params;
@@ -4238,5 +4270,46 @@ app.get('/appointments/:id/visit-log', (req, res) => {
     
     console.log('✅ Visit log fetched');
     res.json(row);
+  });
+});
+
+// Add this endpoint after your existing visit_logs endpoints (around line 1450)
+
+// GET all visit logs for history view
+app.get('/visit-logs/history', (req, res) => {
+  console.log('📋 GET /visit-logs/history - Fetching all visit logs for history');
+  
+  const query = `
+    SELECT 
+      vl.*,
+      p.firstName || ' ' || p.lastName as patientName,
+      a.appointmentDate,
+      a.timeStart,
+      a.timeEnd,
+      (
+        SELECT GROUP_CONCAT(
+          COALESCE(pkg.name, s.name),
+          ', '
+        )
+        FROM appointment_services aps
+        LEFT JOIN services s ON aps.serviceId = s.id
+        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+        WHERE aps.appointmentId = a.id
+      ) as serviceNames
+    FROM visit_logs vl
+    LEFT JOIN patients p ON vl.patientId = p.id
+    LEFT JOIN appointments a ON vl.appointmentId = a.id
+    WHERE a.status = 'done'
+    ORDER BY vl.visitDate DESC, vl.timeStart DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching visit logs:', err);
+      return res.status(500).json({ error: 'Failed to fetch visit logs' });
+    }
+    
+    console.log(`✅ Fetched ${rows.length} visit logs`);
+    res.json(rows);
   });
 });
