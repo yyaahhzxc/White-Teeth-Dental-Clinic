@@ -817,29 +817,27 @@ useEffect(() => {
             Teeth Chart
           </Typography>
           
-          <Box sx={{ backgroundColor: 'white', borderRadius: '8px', p: 2 }}>
-            {open && appointment?.patientId && teethData.loadTimestamp ? (
-              <TeethChart
-                key={`${appointment.patientId}-${teethData.loadTimestamp}`} // Force re-mount when data changes
-                patientId={appointment.patientId}
-                initialSelectedTeeth={teethData.selectedTeeth}
-                initialToothSummaries={teethData.toothSummaries}
-                onUpdate={(updatedData) => {
-                  console.log('🔄 TeethChart update received:', updatedData);
-                  setTeethData({
-                    ...teethData,
-                    selectedTeeth: updatedData.selectedTeeth || [],
-                    toothSummaries: updatedData.toothSummaries || {}
-                  });
-                }}
-                readOnly={false}
-              />
-            ) : (
+          {open && appointment?.patientId && teethData.loadTimestamp ? (
+            <TeethChart
+              key={`${appointment.patientId}-${teethData.loadTimestamp}`}
+              selectedTeeth={teethData.selectedTeeth}
+              toothSummaries={teethData.toothSummaries}
+              onTeethChange={(updatedTeeth) => {
+                console.log('🔄 TeethChart update received:', updatedTeeth);
+                setTeethData({
+                  ...teethData,
+                  selectedTeeth: updatedTeeth || []
+                });
+              }}
+              readOnly={false}
+            />
+          ) : (
+            <Box sx={{ backgroundColor: 'white', borderRadius: '8px', p: 2 }}>
               <Typography sx={{ textAlign: 'center', py: 4, color: '#666' }}>
                 Loading tooth chart...
               </Typography>
-            )}
-          </Box>
+            </Box>
+          )}
         </Box>
 
         {/* Right Column - X-Ray Directory */}

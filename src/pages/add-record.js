@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import TeethChart from '../components/TeethChart';
 import { API_BASE } from '../apiConfig';
 
 const isValidContactNumber = (number) => {
@@ -248,6 +249,13 @@ const [toothChartData, setToothChartData] = useState({
         fullWidth
         maxWidth={false}
         sx={{ '& .MuiDialog-paper': { width: '70%' } }}
+        PaperProps={{
+          sx: {
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }
+        }}
       >
         <DialogTitle
           sx={{
@@ -283,10 +291,24 @@ const [toothChartData, setToothChartData] = useState({
           sx={{
             backgroundColor: '#f5f7fa', // Change background color
             minHeight: 200,             // Set a minimum height
+            maxHeight: 'calc(90vh - 180px)', // Max height with scrolling
+            overflowY: 'auto',          // Enable vertical scrolling
             px: 4,                      // Horizontal padding
             py: 3,                      // Vertical padding
             borderRadius: 3,            // Rounded corners (if you want)
-            // Add any other styles you want here
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: 'transparent',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: '#c1c1c1',
+              borderRadius: '10px',
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              backgroundColor: '#a8a8a8',
+            },
           }}
         >
           {tabIndex === 0 && (
@@ -548,7 +570,9 @@ const [toothChartData, setToothChartData] = useState({
               p: 3,
               display: 'flex',
               gap: 2,
-              alignItems: 'stretch',
+              alignItems: 'flex-start',
+              minHeight: `${Math.max(600, 300 + (Object.keys(toothChartData.toothSummaries || {}).length * 60))}px`,
+              height: 'auto'
             }}
           >
             <Grid container spacing={2}>
@@ -642,7 +666,19 @@ const [toothChartData, setToothChartData] = useState({
               </Grid>
               {/* Right: Tooth Chart */}
               <Grid item xs={12} md={5}>
-                <ToothChart onDataChange={setToothChartData} />
+                <Box>
+                  <TeethChart 
+                    selectedTeeth={toothChartData.selectedTeeth}
+                    toothSummaries={toothChartData.toothSummaries}
+                    onTeethChange={(updatedTeeth) => {
+                      setToothChartData(prev => ({
+                        ...prev,
+                        selectedTeeth: updatedTeeth
+                      }));
+                    }}
+                    readOnly={false}
+                  />
+                </Box>
               </Grid>
             </Grid>
           </Paper>
@@ -673,175 +709,5 @@ const [toothChartData, setToothChartData] = useState({
     </>
   );
 };
-
-const teethNumbers = [
-  [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26],
-  [55, 54, 53, 52, 51, 61, 62, 63, 64, 65],
-  [85, 84, 83, 82, 81, 71, 72, 73, 74, 75],
-  [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36],
-];
-
-function ToothChart({ onDataChange }) {
-  const [selectedTeeth, setSelectedTeeth] = useState([]);
-  const [toothSummaries, setToothSummaries] = useState({}); // { [toothNumber]: summary }
-  const [editingTooth, setEditingTooth] = useState(null);
-  const [editValue, setEditValue] = useState('');
-
-
-  useEffect(() => {
-    if (onDataChange) {
-      onDataChange({
-        selectedTeeth,
-        toothSummaries
-      });
-    }
-  }, [selectedTeeth, toothSummaries, onDataChange]);
-
-  const toggleTooth = (num) => {
-    setSelectedTeeth((prev) =>
-      prev.includes(num) ? prev.filter((t) => t !== num) : [...prev, num]
-    );
-    // Remove summary if tooth is deselected
-    if (selectedTeeth.includes(num)) {
-      setToothSummaries((prev) => {
-        const copy = { ...prev };
-        delete copy[num];
-        return copy;
-      });
-    }
-  };
-
-  const handleEdit = (num) => {
-    setEditingTooth(num);
-    setEditValue(toothSummaries[num] || '');
-  };
-
-  const handleEditSave = (num) => {
-    setToothSummaries((prev) => ({ ...prev, [num]: editValue }));
-    setEditingTooth(null);
-    setEditValue('');
-  };
-
-  const handleDelete = (num) => {
-    setSelectedTeeth((prev) => prev.filter((t) => t !== num));
-    setToothSummaries((prev) => {
-      const copy = { ...prev };
-      delete copy[num];
-      return copy;
-    });
-    if (editingTooth === num) {
-      setEditingTooth(null);
-      setEditValue('');
-    }
-  };
-
-  return (
-    <Paper sx={{ p: 2, borderRadius: 3 }}>
-      <Box sx={{ backgroundColor: "white", p: 2, borderRadius: 3 }}>
-        {teethNumbers.map((row, rowIndex) => (
-          <Grid
-            container
-            justifyContent="center"
-            spacing={1}
-            key={rowIndex}
-            sx={{ mb: 2 }}
-          >
-            {row.map((num) => (
-              <Grid item key={num}>
-                <Box
-                  onClick={() => toggleTooth(num)}
-                  sx={{
-                    width: 27,
-                    height: 35,
-                    borderRadius: 1,
-                    cursor: "pointer",
-                    backgroundColor: selectedTeeth.includes(num)
-                      ? "#f45252d4"
-                      : "transparent",
-                    "&:hover": { backgroundColor: "#e3f2fd" },
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                  }}
-                >
-                  ⊠
-                </Box>
-                <Typography
-                  variant="caption"
-                  display="block"
-                  align="center"
-                  marginTop={-3}
-                  sx={{ mt: 0.5 }}
-                >
-                  {num}
-                </Typography>
-              </Grid>
-            ))}
-          </Grid>
-        ))}
-      </Box>
-      {/* Tooth List Table */}
-      <Box sx={{ mt: 3, maxHeight: 150, overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fafafa' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: 8 }}>Tooth Number</th>
-              <th style={{ textAlign: 'left', padding: 8 }}>Tooth Summary</th>
-              <th style={{ width: 80 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedTeeth.length === 0 ? (
-              <tr>
-                <td colSpan={3} style={{ textAlign: 'center', color: '#aaa', padding: 16 }}>
-                  No teeth selected.
-                </td>
-              </tr>
-            ) : (
-              selectedTeeth.map((num) => (
-                <tr key={num} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>{num}</td>
-                  <td style={{ padding: 8 }}>
-                    {editingTooth === num ? (
-                      <Box display="flex" alignItems="center">
-                        <TextField
-                          size="small"
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
-                          autoFocus
-                          sx={{ mr: 1, width: 120 }}
-                        />
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="primary"
-                          onClick={() => handleEditSave(num)}
-                          sx={{ minWidth: 32, px: 1, fontSize: 12 }}
-                        >
-                          Save
-                        </Button>
-                      </Box>
-                    ) : (
-                      toothSummaries[num] || <span style={{ color: '#aaa' }}>No summary</span>
-                    )}
-                  </td>
-                  <td>
-                    <IconButton size="small" onClick={() => handleEdit(num)} disabled={editingTooth === num}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => handleDelete(num)}>
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </Box>
-    </Paper>
-  );
-}
 
 export default AddPatientRecord;
