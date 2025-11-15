@@ -313,12 +313,26 @@ function Logs() {
           
           <Card sx={{ minWidth: 100, textAlign: 'center' }}>
             <CardContent sx={{ py: 1 }}>
-              <Badge badgeContent={stats.unviewedLogs || 0} color="error">
-                <Typography variant="h6" color="warning.main">
-                  {stats.unviewedLogs || 0}
-                </Typography>
-              </Badge>
-              <Typography variant="caption">Unviewed</Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                {/* Make Badge a block-level element and center its content */}
+                <Badge
+                  badgeContent={stats.unviewedLogs || 0}
+                  color="error"
+                  sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Typography
+                    variant="h6"
+                    color="warning.main"
+                    sx={{ display: 'block', textAlign: 'center' }}
+                  >
+                    {stats.unviewedLogs || 0}
+                  </Typography>
+                </Badge>
+              </Box>
+
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                Unviewed
+              </Typography>
             </CardContent>
           </Card>
           

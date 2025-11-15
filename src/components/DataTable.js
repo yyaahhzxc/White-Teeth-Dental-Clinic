@@ -29,7 +29,9 @@ export default function DataTable({
       }}
     >
       <Paper
+        className="data-table"
         sx={{
+          fontSize: 'inherit',
           width: '100%',
           maxWidth: 'calc(100vw - 32px)',
           minHeight: whiteMinHeight,
