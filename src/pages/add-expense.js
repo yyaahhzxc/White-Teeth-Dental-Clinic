@@ -52,10 +52,10 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ bgcolor: '#2148c0', color: 'white', borderTopLeftRadius: 6, borderTopRightRadius: 6, mb: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>Add Expense</Typography>
-      </DialogTitle>
-      <DialogContent sx={{ pt: 3, pb: 2 }}>
+      <DialogTitle sx={{ bgcolor: '#2148c0', color: 'white', borderTopLeftRadius: 6, borderTopRightRadius: 6, mb: 4, fontSize: '1.25rem' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 'inherit' }}>Add Expense</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 2, fontSize: '1rem' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField label="Expense Name" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth variant="outlined" />
           <TextField label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} fullWidth variant="outlined" placeholder="0.00" />
@@ -72,9 +72,9 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
           </FormControl>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} variant="text" sx={{ color: '#2148c0', textTransform: 'none' }}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={!isValid()} sx={{ backgroundColor: '#2148c0', '&:hover': { backgroundColor: '#173b8a' }, textTransform: 'none' }}>Add Expense</Button>
+      <DialogActions sx={{ px: 3, pb: 2, fontSize: '1rem' }}>
+        <Button onClick={onClose} variant="text" sx={{ color: '#2148c0', textTransform: 'none', fontSize: 'inherit' }}>Cancel</Button>
+        <Button variant="contained" onClick={handleSubmit} disabled={!isValid()} sx={{ backgroundColor: '#2148c0', '&:hover': { backgroundColor: '#173b8a' }, textTransform: 'none', fontSize: 'inherit' }}>Add Expense</Button>
       </DialogActions>
     </Dialog>
   );

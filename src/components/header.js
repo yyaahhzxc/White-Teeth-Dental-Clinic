@@ -212,10 +212,10 @@ function Header() {
           <img
             src="/White-Teeth-Logo.png"
             alt="logo"
-            style={{ width: 40, marginRight: 8, cursor: 'pointer' }}
+            style={{ width: '2.5rem', marginRight: '0.5rem', cursor: 'pointer' }}
             onClick={() => navigate('/dashboard')}
           />
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" className="no-scale-header-brand" sx={{ flexGrow: 1 }}>
             White Teeth Dental Clinic
           </Typography>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -265,7 +265,7 @@ function Header() {
             aria-controls={open ? 'header-user-menu' : undefined}
             aria-haspopup="true"
           >
-            <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: 32, height: 32, bgcolor: userPhoto ? '#1976d2' : 'transparent', border: userPhoto ? '1px solid #155a9c' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
+            <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: '2rem', height: '2rem', bgcolor: userPhoto ? '#1976d2' : 'transparent', border: userPhoto ? '1px solid #155a9c' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
           </IconButton>
 
           <Menu
@@ -292,7 +292,7 @@ function Header() {
                 cursor: 'pointer',
               }}
             >
-              <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: 56, height: 56, bgcolor: userPhoto ? '#b39ddb' : 'transparent', border: userPhoto ? '2px solid #a38ccc' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
+              <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: '3.5rem', height: '3.5rem', bgcolor: userPhoto ? '#b39ddb' : 'transparent', border: userPhoto ? '2px solid #a38ccc' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
               <Box>
                 <Typography variant="subtitle1">
                   {currentUser && currentUser.firstName && currentUser.lastName 
