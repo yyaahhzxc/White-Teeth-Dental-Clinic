@@ -75,27 +75,61 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch services (excluding packages)
-      const servicesResponse = await fetch(`${API_BASE}/service-table`);
+      console.log('🔍 Fetching services for package creation...');
+      
+      // Use the services-and-packages endpoint
+      const servicesResponse = await fetch(`${API_BASE}/services-and-packages`);
+      
       if (servicesResponse.ok) {
-        const services = await servicesResponse.json();
-        // Filter out packages, only get single treatments
-        const singleServices = services.filter(s => s.type !== 'Package Treatment');
+        const data = await servicesResponse.json();
+        console.log('📦 Services data received:', data);
+        
+        // Handle the response structure from /services-and-packages
+        let servicesList = [];
+        
+        if (data.services && Array.isArray(data.services)) {
+          // Data has separate services and packages arrays
+          servicesList = data.services;
+        } else if (data.all && Array.isArray(data.all)) {
+          // Data has combined array
+          servicesList = data.all.filter(s => s.type !== 'Package Treatment');
+        } else if (Array.isArray(data)) {
+          // Data is directly an array
+          servicesList = data.filter(s => s.type !== 'Package Treatment');
+        }
+        
+        // Filter to only active single treatment services
+        const singleServices = servicesList.filter(s => 
+          s.type !== 'Package Treatment' && 
+          s.status === 'Active'
+        );
+        
+        console.log(`✅ Found ${singleServices.length} active single treatment services`);
+        console.log('Sample services:', singleServices.slice(0, 3));
+        
         setAvailableServices(singleServices);
+      } else {
+        console.error('❌ Failed to fetch services:', servicesResponse.status);
+        throw new Error(`HTTP ${servicesResponse.status}`);
       }
-
+  
       // Fetch existing packages for name validation
       const packagesResponse = await fetch(`${API_BASE}/packages`);
       if (packagesResponse.ok) {
         const packages = await packagesResponse.json();
+        console.log(`✅ Found ${packages.length} existing packages`);
         setAllPackages(packages);
       }
+      
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('❌ Error fetching data:', error);
+      setAvailableServices([]);
+      setAllPackages([]);
     } finally {
       setLoading(false);
     }
   };
+  
 
   const resetForm = () => {
     setPackageData({

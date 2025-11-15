@@ -111,21 +111,34 @@ const [loadingPackageServices, setLoadingPackageServices] = useState(false);
 
 
   const fetchPackageDetails = async (packageId) => {
-    if (!packageId) return;
+    if (!packageId) {
+      console.warn('⚠️ fetchPackageDetails called with no packageId');
+      return;
+    }
     
     setLoadingPackageServices(true);
+    console.log('🔍 Fetching package details for ID:', packageId);
+    
     try {
       const response = await fetch(`${API_BASE}/packages/${packageId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPackageServices(data.packageServices || []);
-        console.log('Package services loaded:', data.packageServices);
-      } else {
-        console.error('Failed to fetch package details');
-        setPackageServices([]);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      console.log('📦 Package data received:', data);
+      console.log('📦 Package services:', data.packageServices);
+      console.log('📦 Services count:', data.packageServices?.length);
+      
+      // Handle both formats
+      const services = data.packageServices || data.services || [];
+      
+      setPackageServices(services);
+      console.log('✅ Package services set:', services.length, 'services');
+      
     } catch (error) {
-      console.error('Error fetching package details:', error);
+      console.error('❌ Error fetching package details:', error);
       setPackageServices([]);
     } finally {
       setLoadingPackageServices(false);
@@ -134,7 +147,12 @@ const [loadingPackageServices, setLoadingPackageServices] = useState(false);
 
   // Add useEffect to fetch package details when service changes
 useEffect(() => {
+  console.log('🔄 Service changed:', service);
+  console.log('  - Service type:', service?.type);
+  console.log('  - Service ID:', service?.id);
+
   if (service && service.type === 'Package Treatment') {
+    console.log('✅ Fetching package details for:', service.id);
     fetchPackageDetails(service.id);
   } else {
     setPackageServices([]);

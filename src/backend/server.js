@@ -1249,6 +1249,65 @@ app.get('/packages', (req, res) => {
   });
 });
 
+// Add this endpoint after your GET /packages endpoint (around line 950)
+app.get('/packages/:id', (req, res) => {
+  const packageId = parseInt(req.params.id);
+  
+  console.log(`📦 GET /packages/${packageId} - Fetching package details`);
+  
+  if (!packageId || packageId < 1) {
+    return res.status(400).json({ error: 'Invalid package ID' });
+  }
+
+  getPackageWithServices(packageId, (err, packageData) => {
+    if (err) {
+      console.error('❌ Error fetching package:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!packageData) {
+      console.log(`❌ Package ${packageId} not found`);
+      return res.status(404).json({ error: 'Package not found' });
+    }
+    
+    console.log(`✅ Package ${packageId} found with ${packageData.packageServices?.length || 0} services`);
+    res.json(packageData);
+  });
+});
+
+app.get('/service-table', (req, res) => {
+  console.log('📋 GET /service-table - Fetching all services');
+  
+  const query = `
+    SELECT 
+      id,
+      name,
+      description,
+      price,
+      duration,
+      CASE 
+        WHEN type IS NULL OR type = '' THEN 'Single Treatment'
+        ELSE type 
+      END as type,
+      status
+    FROM services 
+    ORDER BY name ASC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching services:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    console.log(`✅ Found ${rows.length} services`);
+    res.json(rows || []);
+  });
+});
+
+
+
+
 app.put('/packages/:id', (req, res) => {
   const packageId = parseInt(req.params.id);
   const { name, description, price, duration, status, services } = req.body;
