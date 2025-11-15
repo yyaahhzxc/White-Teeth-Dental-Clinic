@@ -1070,47 +1070,51 @@ app.put('/appointments/:id', (req, res) => {
       // First, delete existing service associations
       db.run('DELETE FROM appointment_services WHERE appointmentId = ?', [id], (deleteErr) => {
         if (deleteErr) {
-          console.error('Error deleting old services:', deleteErr);
+          console.error('❌ Error deleting old services:', deleteErr);
           return res.status(500).json({ error: 'Failed to update services' });
         }
-        
-        console.log('✅ Old service associations deleted');
-        
-        // Insert new service associations with quantities
-        let servicesInserted = 0;
-        const totalServices = serviceIds.length;
-        let insertErrors = [];
-        
-        if (totalServices === 0) {
+
+        console.log('✅ Old services deleted');
+
+        // Insert new services with quantities
+        let servicesProcessed = 0;
+        let errors = [];
+
+        if (serviceIds.length === 0) {
           console.log('✅ No services to insert, returning updated appointment');
           return returnUpdatedAppointment();
         }
-        
+
         serviceIds.forEach((serviceData, index) => {
-          const serviceIdValue = typeof serviceData === 'object' ? serviceData.id : serviceData;
-          const quantity = typeof serviceData === 'object' ? (serviceData.quantity || 1) : 1;
-          
-          console.log(`📝 Inserting service ${index + 1}/${totalServices}: ID=${serviceIdValue}, Qty=${quantity}`);
-          
+          const serviceIdToInsert = serviceData.id || serviceData;
+          const quantity = serviceData.quantity || 1;
+
+          console.log(`📝 Inserting service ${index + 1}/${serviceIds.length}:`, { serviceIdToInsert, quantity });
+
           db.run(
             'INSERT INTO appointment_services (appointmentId, serviceId, quantity) VALUES (?, ?, ?)',
-            [id, serviceIdValue, quantity],
-            function(insertErr) {
-              servicesInserted++;
-              
+            [id, serviceIdToInsert, quantity],
+            function (insertErr) {
+              servicesProcessed++;
+
               if (insertErr) {
-                console.error(`❌ Error inserting service ${serviceIdValue}:`, insertErr);
-                insertErrors.push(insertErr);
+                console.error(`❌ Error inserting service ${serviceIdToInsert}:`, insertErr);
+                errors.push(`Service ${serviceIdToInsert}: ${insertErr.message}`);
               } else {
-                console.log(`✅ Service ${serviceIdValue} (qty: ${quantity}) inserted`);
+                console.log(`✅ Service ${serviceIdToInsert} inserted with quantity ${quantity}`);
               }
-              
+
               // Check if all services have been processed
-              if (servicesInserted === totalServices) {
-                if (insertErrors.length > 0) {
-                  console.error('⚠️ Some services failed to insert:', insertErrors);
+              if (servicesProcessed === serviceIds.length) {
+                if (errors.length > 0) {
+                  console.error('❌ Some services failed to insert:', errors);
+                  return res.status(500).json({ 
+                    error: 'Failed to insert some services', 
+                    details: errors 
+                  });
                 }
-                console.log('✅ All services processed, returning updated appointment');
+
+                console.log('✅ All services inserted successfully');
                 returnUpdatedAppointment();
               }
             }
@@ -1124,8 +1128,15 @@ app.put('/appointments/:id', (req, res) => {
     }
   });
 
-  // Helper function to return the updated appointment (only called once)
+  // Helper function to return the updated appointment (ONLY called once)
   function returnUpdatedAppointment() {
+    // Add a flag to prevent multiple calls
+    if (returnUpdatedAppointment.called) {
+      console.log('⚠️ returnUpdatedAppointment already called, skipping...');
+      return;
+    }
+    returnUpdatedAppointment.called = true;
+
     console.log('📤 Fetching updated appointment details for ID:', id);
     
     const selectQuery = `
@@ -1175,11 +1186,11 @@ app.put('/appointments/:id', (req, res) => {
     db.get(selectQuery, [id], (selectErr, row) => {
       if (selectErr) {
         console.error('❌ Error fetching updated appointment:', selectErr);
-        return res.status(500).json({ error: 'Appointment updated but failed to fetch details' });
+        return res.status(500).json({ error: 'Failed to fetch updated appointment' });
       }
       
       if (!row) {
-        console.error('❌ Updated appointment not found');
+        console.log('❌ Updated appointment not found');
         return res.status(404).json({ error: 'Appointment not found after update' });
       }
       
@@ -1195,7 +1206,7 @@ app.put('/appointments/:id', (req, res) => {
         finalTotalDuration = row.junctionTotalDuration;
       } else {
         finalServiceNames = row.primaryServiceName;
-        finalServiceIds = row.serviceId;
+        finalServiceIds = row.serviceId?.toString();
         finalTotalPrice = row.primaryServicePrice;
         finalTotalDuration = row.primaryServiceDuration;
       }
@@ -1210,20 +1221,52 @@ app.put('/appointments/:id', (req, res) => {
         totalDuration: finalTotalDuration,
         hasMultipleServices: hasJunctionServices && finalServiceNames && finalServiceNames.includes(',')
       };
-      
-      console.log('✅ Returning updated appointment:', {
-        id: processedRow.id,
-        serviceNames: processedRow.serviceNames,
-        serviceIds: processedRow.serviceIds,
-        totalPrice: processedRow.totalPrice,
-        hasMultiple: processedRow.hasMultipleServices
-      });
-      
-      // THIS IS THE ONLY PLACE WHERE WE SEND A RESPONSE
-      res.json({
-        success: true,
-        message: 'Appointment updated successfully',
-        appointment: processedRow
+
+      // Log the appointment update
+      db.get('SELECT * FROM appointments WHERE id = ?', [id], (oldErr, oldAppointment) => {
+        if (!oldErr && oldAppointment) {
+          logActivity(
+            'Appointment Updated',
+            `Appointment updated for ${row.patientName} on ${appointmentDate}`,
+            'appointments',
+            parseInt(id),
+            req.user?.id,
+            req.user?.username || 'system',
+            {
+              appointmentDate: oldAppointment.appointmentDate,
+              timeStart: oldAppointment.timeStart,
+              timeEnd: oldAppointment.timeEnd,
+              status: oldAppointment.status,
+              comments: oldAppointment.comments
+            },
+            {
+              appointmentDate,
+              timeStart,
+              timeEnd,
+              status,
+              comments,
+              serviceNames: finalServiceNames,
+              totalPrice: finalTotalPrice,
+              totalDuration: finalTotalDuration
+            },
+            req
+          );
+        }
+
+        console.log('✅ Returning updated appointment:', {
+          id: processedRow.id,
+          serviceNames: processedRow.serviceNames,
+          serviceIds: processedRow.serviceIds,
+          totalPrice: processedRow.totalPrice,
+          hasMultiple: processedRow.hasMultipleServices
+        });
+        
+        // THIS IS THE ONLY PLACE WHERE WE SEND A RESPONSE
+        res.json({
+          success: true,
+          message: 'Appointment updated successfully',
+          appointment: processedRow
+        });
       });
     });
   }
