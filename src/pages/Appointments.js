@@ -468,41 +468,67 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   }, [currentDate, calendarView]);
 
   // Function to fetch services - UPDATED to include packages
-const fetchServices = async () => {
-  try {
-    console.log('Fetching services and packages...');
-    
-    // Try the new endpoint first
-    let response = await fetch(`${API_BASE}/services-and-packages`);
-    if (response.ok) {
-      const data = await response.json();
-      // Combine regular services and packages into one array
-      const allItems = [...(data.services || []), ...(data.packages || [])];
-      setServices(allItems);
-      console.log('Fetched via services-and-packages:', {
-        services: data.services?.length || 0,
-        packages: data.packages?.length || 0,
-        total: allItems.length
-      });
-      return;
-    }
-    
-    // Fallback to old endpoint
-    console.log('Fallback to service-table endpoint...');
-    response = await fetch(`${API_BASE}/service-table`);
-    if (response.ok) {
-      const data = await response.json();
-      setServices(data);
-      console.log('Fetched via service-table:', data.length);
-    } else {
-      console.error('Failed to fetch services');
+  const fetchServices = async () => {
+    try {
+      console.log('Fetching services and packages...');
+  
+      let response = await fetch(`${API_BASE}/services-and-packages`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Services and packages response:', data);
+        
+        // FIX: Check if data has an 'all' property that contains the array
+        if (data.all && Array.isArray(data.all)) {
+          console.log(`✅ Loaded ${data.all.length} services/packages from combined endpoint`);
+          setServices(data.all);
+          return;
+        }
+        // FIX: If data itself is an array, use it directly
+        else if (Array.isArray(data)) {
+          console.log(`✅ Loaded ${data.length} services/packages`);
+          setServices(data);
+          return;
+        }
+        // FIX: If data has services/packages properties, combine them
+        else if (data.services || data.packages) {
+          const combined = [
+            ...(Array.isArray(data.services) ? data.services : []),
+            ...(Array.isArray(data.packages) ? data.packages : [])
+          ];
+          console.log(`✅ Loaded ${combined.length} services/packages`);
+          setServices(combined);
+          return;
+        }
+      }
+  
+      // Fallback to service-table endpoint
+      console.log('Fallback to service-table endpoint...');
+      response = await fetch(`${API_BASE}/service-table`);
+  
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Service-table response:', data);
+        
+        // FIX: Ensure we're setting an array
+        if (Array.isArray(data)) {
+          console.log(`✅ Loaded ${data.length} services from service-table`);
+          setServices(data);
+        } else {
+          console.error('❌ service-table did not return an array:', typeof data);
+          setServices([]);
+        }
+      } else {
+        console.error('❌ Failed to fetch from service-table');
+        setServices([]);
+      }
+  
+    } catch (error) {
+      console.error('❌ Error fetching services:', error);
       setServices([]);
     }
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    setServices([]);
-  }
-};
+  };
+
 
   // Update the useEffect around line 210
 useEffect(() => {
@@ -661,92 +687,147 @@ useEffect(() => {
 }, [modalOpen]);
 
   // Handle edit mode toggle
-  const handleEditClick = () => {
-    setEditMode(true);
-    setEditedAppointment({ ...selectedAppointment });
+  const handleEditClick = async () => {
+  try {
+    console.log('=== EDIT CLICK START ===');
+    console.log('Selected appointment:', selectedAppointment);
+    console.log('Services type:', typeof services);
+    console.log('Services is array:', Array.isArray(services));
+    console.log('Services count:', services?.length);
     
-    console.log('=== EDIT CLICK DEBUG ===');
-    console.log('Selected appointment full object:', selectedAppointment);
-    console.log('Available services:', services);
+    // FIX: Ensure services is an array
+    if (!Array.isArray(services)) {
+      console.error('❌ Services is not an array, type:', typeof services);
+      setUpdateError('Services data is invalid. Please refresh the page.');
+      await fetchServices(); // Try to reload services
+      return;
+    }
     
-    // Parse multiple services from the appointment data
-    let foundServices = [];
+    // Prevent edit mode if services aren't loaded
+    if (!services || services.length === 0) {
+      console.error('❌ Cannot edit: Services not loaded');
+      setUpdateError('Services not loaded. Please try again.');
+      await fetchServices(); // Try to reload services
+      return;
+    }
     
-    // First, try to get the appointment details with multiple services from the backend
-    fetchAppointmentDetails(selectedAppointment.id).then(appointmentDetails => {
-      if (appointmentDetails) {
-        console.log('Fetched appointment details:', appointmentDetails);
+      
+      // Set edit mode immediately to prevent UI issues
+      setEditMode(true);
+      setEditedAppointment({ ...selectedAppointment });
+      
+      let foundServices = [];
+      
+      try {
+        // Fetch appointment details
+        console.log('Fetching appointment details...');
+        const appointmentDetails = await fetchAppointmentDetails(selectedAppointment.id);
         
-        // Check if we have multiple services in the fetched details
-        if (appointmentDetails.serviceNames && appointmentDetails.serviceNames.includes(',')) {
-          console.log('✅ Multiple services detected in fetched details');
+        if (!appointmentDetails) {
+          console.warn('⚠️ No appointment details returned, using fallback');
+          // Fallback to single service
+          if (selectedAppointment.serviceId) {
+            const service = services.find(s => s.id === selectedAppointment.serviceId);
+            if (service) {
+              foundServices = [{ service, quantity: 1 }];
+            }
+          }
+          setEditedServices(foundServices);
+          setServiceInputValue('');
+          return;
+        }
+        
+        console.log('✅ Appointment details fetched:', appointmentDetails);
+        
+        // Check if we have multiple services
+        const hasMultipleServices = appointmentDetails.serviceNames && 
+                                    appointmentDetails.serviceNames.includes(',');
+        
+        if (hasMultipleServices) {
+          console.log('✅ Multiple services detected');
           
           const serviceNames = appointmentDetails.serviceNames.split(',').map(name => name.trim());
           let serviceIds = [];
-          
-          // ADD QUANTITY PARSING HERE
           let quantities = [];
-          if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(':')) {
-            // New format: "id1:qty1,id2:qty2"
-            const serviceEntries = appointmentDetails.serviceIds.split(',');
-            serviceIds = serviceEntries.map(entry => {
-              const [id, qty] = entry.split(':');
-              quantities.push(parseInt(qty) || 1);
-              return parseInt(id.trim());
-            });
-          } else if (appointmentDetails.serviceIds && appointmentDetails.serviceIds.includes(',')) {
-            // Old format: just IDs
-            serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
-            quantities = new Array(serviceIds.length).fill(1); // Default to quantity 1
+          
+          // Parse service IDs and quantities
+          if (appointmentDetails.serviceIds) {
+            if (appointmentDetails.serviceIds.includes(':')) {
+              // Format: "id1:qty1,id2:qty2"
+              const serviceEntries = appointmentDetails.serviceIds.split(',');
+              serviceIds = serviceEntries.map(entry => {
+                const [id, qty] = entry.split(':');
+                const parsedQty = parseInt(qty) || 1;
+                quantities.push(parsedQty);
+                return parseInt(id.trim());
+              });
+            } else if (appointmentDetails.serviceIds.includes(',')) {
+              // Format: "id1,id2,id3"
+              serviceIds = appointmentDetails.serviceIds.split(',').map(id => parseInt(id.trim()));
+              quantities = new Array(serviceIds.length).fill(1);
+            } else {
+              // Single ID
+              serviceIds = [parseInt(appointmentDetails.serviceIds)];
+              quantities = [1];
+            }
           }
           
-          console.log('Parsed service names:', serviceNames);
           console.log('Parsed service IDs:', serviceIds);
-          console.log('Parsed quantities:', quantities); // NEW LOG
+          console.log('Parsed quantities:', quantities);
+          console.log('Parsed service names:', serviceNames);
           
+          // Map services with quantities
           foundServices = serviceNames.map((name, index) => {
             let service = null;
             
-            // Try to find by ID if available
+            // Try to find by ID first
             if (serviceIds[index]) {
               service = services.find(s => s.id === serviceIds[index]);
             }
             
             // If not found by ID, try by name
             if (!service) {
-              service = services.find(s => s.name === name);
+              // Remove quantity indicator from name if present (e.g., "Service (x2)")
+              const cleanName = name.replace(/\s*\(x\d+\)\s*/g, '').trim();
+              service = services.find(s => s.name === cleanName || s.name === name);
             }
             
             // If still not found, create placeholder
             if (!service) {
+              console.warn(`⚠️ Service not found: ${name} (ID: ${serviceIds[index]})`);
               service = {
-                id: serviceIds[index] || `placeholder_${name}`,
+                id: serviceIds[index] || `placeholder_${index}`,
                 name: name,
                 price: 0,
                 duration: 60,
-                status: 'Active'
+                status: 'Active',
+                type: 'Single Treatment'
               };
             }
             
-            // RETURN WITH QUANTITY STRUCTURE
             return {
               service: service,
               quantity: quantities[index] || 1
             };
-          });
+          }).filter(Boolean); // Remove any null/undefined entries
+          
         } else {
-          // Single service fallback
-          console.log('❌ Single service detected');
+          // Single service
+          console.log('Single service detected');
           
           if (selectedAppointment.serviceId) {
-            const currentService = services.find(s => s.id === selectedAppointment.serviceId);
-            if (currentService) {
-              foundServices = [{ service: currentService, quantity: 1 }]; // WRAP WITH QUANTITY
+            const service = services.find(s => s.id === selectedAppointment.serviceId);
+            
+            if (service) {
+              foundServices = [{ service, quantity: 1 }];
             } else {
               // Try by name
-              const serviceByName = services.find(s => s.name === selectedAppointment.procedure);
+              const serviceByName = services.find(s => 
+                s.name === selectedAppointment.procedure
+              );
+              
               if (serviceByName) {
-                foundServices = [{ service: serviceByName, quantity: 1 }]; // WRAP WITH QUANTITY
+                foundServices = [{ service: serviceByName, quantity: 1 }];
               } else {
                 // Create placeholder
                 foundServices = [{
@@ -755,45 +836,44 @@ useEffect(() => {
                     name: selectedAppointment.procedure || 'Unknown Service',
                     price: 0,
                     duration: 60,
-                    status: 'Active'
+                    status: 'Active',
+                    type: 'Single Treatment'
                   },
-                  quantity: 1 // ADD QUANTITY
+                  quantity: 1
                 }];
               }
             }
           }
         }
         
-        console.log('Final foundServices with quantities:', foundServices); // UPDATED LOG
-        setEditedServices(foundServices);
-        setServiceInputValue('');
-      }
-    }).catch(error => {
-      console.error('Error fetching appointment details:', error);
-      
-      // Fallback to original logic if fetch fails
-      if (selectedAppointment.serviceId) {
-        const currentService = services.find(s => s.id === selectedAppointment.serviceId);
-        if (currentService) {
-          foundServices = [{ service: currentService, quantity: 1 }]; // WRAP WITH QUANTITY
-        } else {
-          foundServices = [{
-            service: {
-              id: selectedAppointment.serviceId,
-              name: selectedAppointment.procedure || 'Unknown Service',
-              price: 0,
-              duration: 60,
-              status: 'Active'
-            },
-            quantity: 1 // ADD QUANTITY
-          }];
+        console.log('✅ Final found services:', foundServices);
+        
+      } catch (fetchError) {
+        console.error('❌ Error fetching appointment details:', fetchError);
+        setUpdateError('Failed to load appointment details: ' + fetchError.message);
+        
+        // Fallback: Use current appointment data
+        if (selectedAppointment.serviceId) {
+          const service = services.find(s => s.id === selectedAppointment.serviceId);
+          if (service) {
+            foundServices = [{ service, quantity: 1 }];
+          }
         }
       }
       
+      // Always set the services, even if empty
       setEditedServices(foundServices);
       setServiceInputValue('');
-    });
+      
+      console.log('=== EDIT CLICK COMPLETE ===');
+      
+    } catch (error) {
+      console.error('❌ Critical error in handleEditClick:', error);
+      setUpdateError('Failed to enter edit mode: ' + error.message);
+      setEditMode(false); // Disable edit mode on critical error
+    }
   };
+  
 
   // Add this helper function (same as before)
 const updateServiceQuantity = (serviceId, newQuantity) => {
@@ -814,25 +894,42 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
   // Add this function to fetch appointment details with multiple services
   const fetchAppointmentDetails = async (appointmentId) => {
     try {
-      console.log('Fetching details for appointment ID:', appointmentId);
-      const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
+      console.log('🔍 Fetching details for appointment ID:', appointmentId);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched appointment details:', data);
-        return data;
-      } else {
-        console.error('Failed to fetch appointment details:', response.status);
-        return null;
+      const response = await fetch(`http://localhost:3001/appointments/${appointmentId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      console.log('📦 Raw server response:', data);
+      
+      // Ensure we have the required fields with defaults
+      const result = {
+        id: data.id || appointmentId,
+        appointmentDate: data.appointmentDate || '',
+        timeStart: data.timeStart || '',
+        timeEnd: data.timeEnd || '',
+        comments: data.comments || '',
+        status: data.status || 'scheduled',
+        serviceIds: data.serviceIds || '',
+        serviceNames: data.serviceNames || '',
+        patientName: data.patientName || '',
+        patientId: data.patientId || null
+      };
+      
+      console.log('✅ Processed appointment details:', result);
+      return result;
+      
     } catch (error) {
-      console.error('Error fetching appointment details:', error);
+      console.error('❌ Error in fetchAppointmentDetails:', error);
+      // Return null instead of throwing to prevent crashes
       return null;
     }
   };
 
 
-  // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
     
@@ -840,7 +937,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     setUpdateError(null);
     
     try {
-      // Calculate totals with quantities
       const totalPrice = editedServices.reduce((total, item) => 
         total + (parseFloat(item.service.price) * item.quantity), 0
       );
@@ -849,10 +945,36 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         total + (parseInt(item.service.duration) * item.quantity), 0
       );
       
-      // Create service summary with quantities
       const serviceNames = editedServices.map(item => 
         `${item.service.name}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
       ).join(', ');
+      
+      // Process service IDs to handle unique IDs from appointment-services endpoint
+      const processedServiceIds = editedServices.map(item => {
+        const service = item.service;
+        let actualId;
+        
+        // Extract original ID from unique ID format
+        if (service.id && typeof service.id === 'string') {
+          if (service.id.startsWith('pkg_')) {
+            actualId = service.originalId || parseInt(service.id.replace('pkg_', ''));
+          } else if (service.id.startsWith('svc_')) {
+            actualId = service.originalId || parseInt(service.id.replace('svc_', ''));
+          } else {
+            actualId = service.originalId || service.id;
+          }
+        } else {
+          actualId = service.originalId || service.id;
+        }
+        
+        return {
+          id: actualId,
+          quantity: item.quantity,
+          isPackage: service.isPackage || false,
+          sourceType: service.sourceType || 'service',
+          name: service.name
+        };
+      });
       
       const requestData = {
         patientId: selectedAppointment.patientId,
@@ -861,87 +983,39 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         timeEnd: editedAppointment.timeEnd,
         comments: editedAppointment.comments,
         status: editedAppointment.status,
-        serviceId: editedServices.length > 0 ? editedServices[0].service.id : selectedAppointment.serviceId,
-        serviceName: editedServices.length > 0 ? editedServices[0].service.name : selectedAppointment.procedure,
-        serviceIds: editedServices.map(item => ({
-          id: item.service.id,
-          quantity: item.quantity
-        })),
+        serviceId: processedServiceIds.length > 0 ? processedServiceIds[0].id : selectedAppointment.serviceId,
+        serviceName: processedServiceIds.length > 0 ? processedServiceIds[0].name : selectedAppointment.procedure,
+        serviceIds: processedServiceIds,
         serviceNames: serviceNames,
         totalPrice: totalPrice,
         totalDuration: totalDuration
       };
       
       console.log('=== SAVE DEBUG ===');
-      console.log('Edited services with quantities:', editedServices);
-      console.log('Request data being sent:', requestData);
+      console.log('Processed service IDs:', processedServiceIds);
       
       const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
       });
   
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log('Update response:', responseData);
-        
-        // Update the selected appointment immediately with new data
-        const updatedAppointment = {
-          ...selectedAppointment,
-          ...editedAppointment,
-          serviceId: requestData.serviceId,
-          procedure: requestData.serviceName,
-          serviceName: requestData.serviceName
-        };
-        
-        setSelectedAppointment(updatedAppointment);
-        
-        // Set appropriate success message based on status change
-        const statusChanged = editedAppointment.status !== selectedAppointment.status;
-        if (statusChanged) {
-          const statusMessages = {
-            'done': 'Appointment marked as done!',
-            'cancelled': 'Appointment cancelled!',
-            'scheduled': 'Appointment rescheduled!',
-            'ongoing': 'Appointment status updated to ongoing!'
-          };
-          setSuccessMessage(statusMessages[editedAppointment.status] || 'Appointment updated successfully!');
-        } else {
-          setSuccessMessage('Appointment updated successfully!');
-        }
-        
-        setUpdateSuccess(true);
-        setEditMode(false);
-        setEditedAppointment(null);
-        setEditedServices([]);
-        setServiceInputValue('');
-        
-        // Refresh appointments
-        window.dispatchEvent(new CustomEvent('appointmentUpdated'));
-        
-        setTimeout(async () => {
-          if (calendarView === 'Week') {
-            await fetchAppointmentsForWeek();
-          } else {
-            await fetchAppointmentsForMonth();
-          }
-        }, 500);
-        
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update appointment:', response.status, errorText);
-        setUpdateError(`Failed to update: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update appointment');
       }
+  
+      setUpdateSuccess(true);
+      refreshAppointments();
+      setEditMode(false);
     } catch (error) {
       console.error('Error updating appointment:', error);
-      setUpdateError(`Network error: ${error.message}`);
+      setUpdateError(error.message);
     } finally {
       setUpdating(false);
     }
   };
+
 
   // Handle input changes
   const handleEditChange = (field, value) => {
