@@ -21,9 +21,9 @@ export function FilterButton({ onClick }) {
       startIcon={<TuneIcon />}
       onClick={onClick}
       sx={{
-        backgroundColor: '#4A69BD',
-        color: 'white',
-        border: '1px solid #4A69BD',
+        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#4A69BD',
+        color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
+        border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.primary.main}` : '1px solid #4A69BD',
         borderRadius: '10px',
         height: '38px',
         px: 2,
@@ -34,8 +34,8 @@ export function FilterButton({ onClick }) {
         minWidth: 99,
         boxShadow: 1,
         '&:hover': {
-          backgroundColor: '#2148c0',
-          border: '1px solid #2148c0',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.dark : '#2148c0',
+          border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.primary.dark}` : '1px solid #2148c0',
         },
       }}
     >
@@ -88,7 +88,7 @@ export function FilterContent({
 
   return (
     <Box sx={{
-      background: '#f8f9fa',
+      background: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f8f9fa',
       borderRadius: 2,
       mx: 3,
       mb: 2,
@@ -96,7 +96,7 @@ export function FilterContent({
       display: 'flex',
       flexDirection: 'column',
       gap: 1,
-      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
+      boxShadow: (theme) => theme.palette.mode === 'dark' ? 'none' : 'inset 0 1px 3px rgba(0,0,0,0.1)',
       transform: 'translateZ(0)', // Force hardware acceleration
       willChange: 'height', // Optimize for height changes
     }}>
@@ -111,7 +111,7 @@ export function FilterContent({
                   value={filter.category}
                   onChange={e => handleFilterCategoryChange(idx, e.target.value)}
                   displayEmpty
-                  sx={{ bgcolor: '#f5f5f5', color: '#333', borderRadius: 1 }}
+                  sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f5f5f5', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#333', borderRadius: 1 }}
                 >
                   <MenuItem value="" disabled>Select category</MenuItem>
                   {filterCategories.map(cat => (
@@ -127,7 +127,7 @@ export function FilterContent({
                   value={filter.type}
                   onChange={e => handleFilterTypeChange(idx, e.target.value)}
                   displayEmpty
-                  sx={{ bgcolor: '#f5f5f5', color: '#333', borderRadius: 1 }}
+                  sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f5f5f5', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#333', borderRadius: 1 }}
                   disabled={!filter.category}
                 >
                   <MenuItem value="" disabled>Select type</MenuItem>
@@ -140,7 +140,7 @@ export function FilterContent({
             <Box sx={{ display: 'flex', alignItems: 'center', height: '40px' }}>
               <IconButton
                 onClick={() => handleRemoveFilter(idx)}
-                sx={{ bgcolor: '#B71C1C', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#C62828' } }}
+                sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.main : '#B71C1C', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.contrastText : '#fff', borderRadius: 1, '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#C62828' } }}
                 size="small"
                 disabled={activeFilters.length === 1}
               >
@@ -155,15 +155,15 @@ export function FilterContent({
           onClick={handleAddFilter}
           startIcon={<AddIcon />}
           sx={{ 
-            bgcolor: '#f5f5f5', 
-            color: '#333', 
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f5f5f5', 
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#333', 
             borderRadius: 1, 
             textTransform: 'none',
             fontSize: '14px',
             fontWeight: 500,
             px: 2,
             py: 1,
-            '&:hover': { bgcolor: '#e0e0e0' } 
+            '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : '#e0e0e0' } 
           }}
           size="small"
         >

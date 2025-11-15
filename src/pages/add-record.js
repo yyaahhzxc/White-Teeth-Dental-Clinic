@@ -251,7 +251,7 @@ const [toothChartData, setToothChartData] = useState({
       >
         <DialogTitle
           sx={{
-            color: '#2148C0',
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148C0',
             fontSize: 32,
             fontWeight: 800,
             textAlign: 'center',
@@ -266,34 +266,75 @@ const [toothChartData, setToothChartData] = useState({
               position: 'absolute',
               right: 8,
               top: 8,
-              color: (theme) => theme.palette.grey[700],
+              color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.text.primary : theme.palette.grey[700]),
+              '&:hover': { backgroundColor: 'transparent' },
             }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
         <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
-          <Tabs value={tabIndex} onChange={handleTabChange}>
-            <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
-            <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
+          <Tabs
+            value={tabIndex}
+            onChange={handleTabChange}
+            TabIndicatorProps={{ style: { display: 'none' } }}
+            sx={{ ml: 1 }}
+          >
+            <Tab
+              label="Patient Information"
+              sx={(theme) => ({
+                fontWeight: 'bold',
+                borderRadius: 2,
+                px: 2,
+                textTransform: 'none',
+                zIndex: 2,
+                color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#000',
+                backgroundColor: 'transparent',
+                '&.Mui-selected': {
+                  backgroundColor: theme.palette.primary.main,
+                  color: theme.palette.getContrastText(theme.palette.primary.main),
+                },
+                '&.Mui-selected:hover': {
+                  backgroundColor: theme.palette.primary.dark || theme.palette.primary.main,
+                },
+              })}
+            />
+            <Tab
+              label="Medical Information"
+              sx={(theme) => ({
+                fontWeight: 'bold',
+                borderRadius: 2,
+                px: 2,
+                textTransform: 'none',
+                zIndex: 2,
+                color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#000',
+                backgroundColor: 'transparent',
+                '&.Mui-selected': {
+                  backgroundColor: theme.palette.primary.main,
+                  color: theme.palette.getContrastText(theme.palette.primary.main),
+                },
+                '&.Mui-selected:hover': {
+                  backgroundColor: theme.palette.primary.dark || theme.palette.primary.main,
+                },
+              })}
+            />
           </Tabs>
         </Box>
         <DialogContent
           dividers
           sx={{
-            backgroundColor: '#f5f7fa', // Change background color
-            minHeight: 200,             // Set a minimum height
-            px: 4,                      // Horizontal padding
-            py: 3,                      // Vertical padding
-            borderRadius: 3,            // Rounded corners (if you want)
-            // Add any other styles you want here
+            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f5f7fa'),
+            minHeight: 200,
+            px: 4,
+            py: 3,
+            borderRadius: 3,
           }}
         >
           {tabIndex === 0 && (
             <Paper
               elevation={0}
               sx={{
-                bgcolor: '#ddd',
+                bgcolor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ddd'),
                 borderRadius: 4,
                 p: 3,
                 display: 'flex',
@@ -313,7 +354,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="First Name" 
-        sx={{ width: 400, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 400, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={firstName}
         onChange={(e) => setFirstName(e.target.value)}
         error={requiredError && requiredFields.firstName}
@@ -325,7 +366,7 @@ const [toothChartData, setToothChartData] = useState({
     select
     fullWidth
     label="Suffix"
-    sx={{ width: 90, backgroundColor: '#ffffff9e' }}
+    sx={{ width: 90, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
     value={suffix}
     onChange={(e) => setSuffix(e.target.value)}
   >
@@ -342,7 +383,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Middle Name" 
-        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={middleName}
         onChange={(e) => setMiddleName(e.target.value)}
       />
@@ -351,7 +392,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Last Name" 
-        sx={{ width: 350, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 350, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={lastName}
         onChange={(e) => setLastName(e.target.value)}
         error={requiredError && requiredFields.lastName}
@@ -363,7 +404,7 @@ const [toothChartData, setToothChartData] = useState({
         select
         fullWidth
         label="Marital Status"
-        sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+        sx={{ width: 140, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
         value={maritalStatus}
         onChange={(e) => setMaritalStatus(e.target.value)}
       >
@@ -377,7 +418,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Contact Number" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={contactNumber}
         onChange={(e) => {
           const value = e.target.value;
@@ -396,7 +437,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Occupation" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={occupation}
         onChange={(e) => setOccupation(e.target.value)}
       />
@@ -407,7 +448,7 @@ const [toothChartData, setToothChartData] = useState({
         label="Address" 
         multiline 
         rows={3} 
-        sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ mb: 0.8, width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={address}
         onChange={(e) => setAddress(e.target.value)}
         error={requiredError && requiredFields.address}
@@ -419,7 +460,7 @@ const [toothChartData, setToothChartData] = useState({
         fullWidth 
         label="Date of Birth" 
         type="date" 
-        sx={{ width: 250, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 250, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         InputLabelProps={{ shrink: true }}
         value={dateOfBirth}
         onChange={(e) => setDateOfBirth(e.target.value)}
@@ -472,7 +513,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Name" 
-        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={contactPersonName}
         onChange={(e) => setContactPersonName(e.target.value)}
         error={requiredError && requiredFields.contactPersonName}
@@ -484,7 +525,7 @@ const [toothChartData, setToothChartData] = useState({
     select
     fullWidth
     label="Relationship"
-    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+    sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
     value={contactPersonRelationship}
     onChange={(e) => setContactPersonRelationship(e.target.value)}
     error={requiredError && requiredFields.contactPersonRelationship}
@@ -505,7 +546,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField 
         fullWidth 
         label="Contact Number" 
-        sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={contactPersonNumber}
         onChange={(e) => {
           const value = e.target.value;
@@ -526,7 +567,7 @@ const [toothChartData, setToothChartData] = useState({
         label="Address" 
         multiline 
         rows={3} 
-        sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
+        sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} 
         value={contactPersonAddress}
         onChange={(e) => setContactPersonAddress(e.target.value)}
         error={requiredError && requiredFields.contactPersonAddress}
@@ -543,7 +584,7 @@ const [toothChartData, setToothChartData] = useState({
           <Paper
             elevation={0}
             sx={{
-              bgcolor: '#ddd',
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ddd'),
               borderRadius: 4,
               p: 3,
               display: 'flex',
@@ -558,13 +599,13 @@ const [toothChartData, setToothChartData] = useState({
                   Health Profile
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: '#ffffff9e' }}value={allergies} onChange={(e) => setAllergies(e.target.value)} /></Grid>
+                  <Grid item xs={8}><TextField fullWidth label="Allergies" sx={{ width: 350, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} value={allergies} onChange={(e) => setAllergies(e.target.value)} /></Grid>
                   <Grid item xs={4}>
                     <TextField
                       select
                       fullWidth
                       label="Blood Type"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+                      sx={{ width: 140, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                       value={bloodType} 
                       onChange={(e) => setBloodType(e.target.value)}
                       error={requiredError && requiredFields.bloodType}
@@ -580,13 +621,13 @@ const [toothChartData, setToothChartData] = useState({
                       <MenuItem value="O-">O-</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: '#ffffff9e' }} value={bloodborneDiseases} onChange={(e) => setBloodborneDiseases(e.target.value)} /></Grid>
+                  <Grid item xs={12}><TextField fullWidth label="Bloodborne Diseases" sx={{ width: 350, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} value={bloodborneDiseases} onChange={(e) => setBloodborneDiseases(e.target.value)} /></Grid>
                   <Grid item xs={12}>
                     <TextField
                       select
                       fullWidth
                       label="Pregnancy Status"
-                      sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+                      sx={{ width: 140, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                       value={pregnancyStatus} 
                       onChange={(e) => setPregnancyStatus(e.target.value)}
                     >
@@ -594,8 +635,8 @@ const [toothChartData, setToothChartData] = useState({
                       <MenuItem value="Not Pregnant">Not Pregnant</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
-                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: '#ffffff9e' }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Medications" sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} value={medications} onChange={(e) => setMedications(e.target.value)} /></Grid>
+                  <Grid item xs={6}><TextField fullWidth label="Additional Notes" multiline rows={3} sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }} value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} /></Grid>
                  <Grid item xs={4} sx={{ ml: 3,
       color: requiredError && requiredFields.sex ? '#d32f2f' : 'inherit',}}>
                     <Typography sx={{
@@ -625,7 +666,7 @@ const [toothChartData, setToothChartData] = useState({
                 <Typography variant="subtitle1" fontWeight="bold" mb={2}>
                 X-Ray Uploads
               </Typography>
-              <Grid item xs={12}>
+                <Grid item xs={12}>
                 <Button
                   variant="outlined"
                   component="label"
@@ -652,8 +693,8 @@ const [toothChartData, setToothChartData] = useState({
       <Button
   variant="contained"
   color="primary"
-  sx={{ borderRadius: 8, px: 2, fontWeight: 'bold', fontSize: 18, mt: 1, mb: 1, mr: 2, backgroundColor: '#2148C0' }}
-  onClick={handleAddPatient} // <-- added this
+  sx={{ borderRadius: 8, px: 2, fontWeight: 'bold', fontSize: 18, mt: 1, mb: 1, mr: 2, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148C0'), color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : '#fff') }}
+  onClick={handleAddPatient}
 >
   Add Patient
 </Button>
@@ -736,8 +777,8 @@ function ToothChart({ onDataChange }) {
   };
 
   return (
-    <Paper sx={{ p: 2, borderRadius: 3 }}>
-      <Box sx={{ backgroundColor: "white", p: 2, borderRadius: 3 }}>
+    <Paper sx={{ p: 2, borderRadius: 3, bgcolor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : 'transparent') }}>
+      <Box sx={{ backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.default : 'white'), p: 2, borderRadius: 3 }}>
         {teethNumbers.map((row, rowIndex) => (
           <Grid
             container
@@ -755,10 +796,10 @@ function ToothChart({ onDataChange }) {
                     height: 35,
                     borderRadius: 1,
                     cursor: "pointer",
-                    backgroundColor: selectedTeeth.includes(num)
-                      ? "#f45252d4"
-                      : "transparent",
-                    "&:hover": { backgroundColor: "#e3f2fd" },
+                    backgroundColor: (theme) => selectedTeeth.includes(num)
+                      ? (theme.palette.mode === 'dark' ? theme.palette.error.main : '#f45252d4')
+                      : 'transparent',
+                    "&:hover": (theme) => ({ backgroundColor: theme.palette.action.hover || (theme.palette.mode === 'dark' ? theme.palette.action.hover : '#e3f2fd') }),
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -771,8 +812,7 @@ function ToothChart({ onDataChange }) {
                   variant="caption"
                   display="block"
                   align="center"
-                  marginTop={-3}
-                  sx={{ mt: 0.5 }}
+                  sx={{ mt: 0.5, color: (theme) => theme.palette.text.primary }}
                 >
                   {num}
                 </Typography>
@@ -782,8 +822,30 @@ function ToothChart({ onDataChange }) {
         ))}
       </Box>
       {/* Tooth List Table */}
-      <Box sx={{ mt: 3, maxHeight: 150, overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fafafa' }}>
+      <Box
+        sx={{
+          mt: 3,
+          maxHeight: 150,
+          overflowY: 'auto',
+          '& table': {
+            width: '100%',
+            borderCollapse: 'collapse',
+            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fafafa'),
+          },
+          '& th, & td': {
+            padding: 1,
+            color: (theme) => theme.palette.text.primary,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+          },
+          '& thead th': {
+            textAlign: 'left',
+            padding: 1,
+            fontWeight: 600,
+            color: (theme) => theme.palette.text.primary,
+          }
+        }}
+      >
+        <table>
           <thead>
             <tr>
               <th style={{ textAlign: 'left', padding: 8 }}>Tooth Number</th>
@@ -794,15 +856,15 @@ function ToothChart({ onDataChange }) {
           <tbody>
             {selectedTeeth.length === 0 ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', color: '#aaa', padding: 16 }}>
+                <td colSpan={3} style={{ textAlign: 'center', color: ("var(--no-teeth-color, #aaa)"), padding: 16 }}>
                   No teeth selected.
                 </td>
               </tr>
             ) : (
               selectedTeeth.map((num) => (
-                <tr key={num} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>{num}</td>
-                  <td style={{ padding: 8 }}>
+                <tr key={num}>
+                  <td>{num}</td>
+                  <td>
                     {editingTooth === num ? (
                       <Box display="flex" alignItems="center">
                         <TextField

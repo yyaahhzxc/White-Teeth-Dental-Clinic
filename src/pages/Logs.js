@@ -270,7 +270,7 @@ function Logs() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#2148c0',
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}

@@ -196,7 +196,7 @@ function ServiceList() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#2148c0',
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -258,8 +258,8 @@ function ServiceList() {
                   variant="contained"
                   onClick={() => setShowServiceModal(true)}
                   sx={{
-                    backgroundColor: '#2148c0',
-                    color: 'white',
+                    backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'),
+                    color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white'),
                     borderRadius: '8px',
                     height: '38px',
                     px: 3,
@@ -269,7 +269,7 @@ function ServiceList() {
                     fontFamily: 'Inter, sans-serif',
                     boxShadow: 'none',
                     '&:hover': {
-                      backgroundColor: '#1e3fa8',
+                      backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.dark || theme.palette.primary.main : '#1e3fa8'),
                       boxShadow: 'none',
                     },
                   }}
@@ -280,9 +280,9 @@ function ServiceList() {
                   variant="outlined"
                   onClick={() => setShowPackageModal(true)}
                   sx={{
-                    borderColor: '#2148c0',
-                    color: 'white',
-                    backgroundColor: '#2148c0',
+                    borderColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'),
+                    color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white'),
+                    backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'),
                     borderRadius: '8px',
                     height: '38px',
                     px: 3,
@@ -293,8 +293,8 @@ function ServiceList() {
                     boxShadow: 'none',
                     ml: 1,
                     '&:hover': {
-                      backgroundColor: '#1e3fa8',
-                      borderColor: '#1e3fa8'
+                      backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.dark || theme.palette.primary.main : '#1e3fa8'),
+                      borderColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.dark || theme.palette.primary.main : '#1e3fa8')
                     },
                   }}
                 >
@@ -415,11 +415,13 @@ function ServiceList() {
                       px: 2,
                       py: 0.875,
                       alignItems: 'center',
-                      backgroundColor: '#f9fafc',
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc',
                       borderRadius: '10px',
                       height: 60,
+                      boxSizing: 'border-box',
+                      border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb',
                       '&:hover': { 
-                        backgroundColor: '#f0f4f8',
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action?.hover || theme.palette.background.paper : '#f0f4f8',
                         cursor: 'pointer'
                       }
                     }}
@@ -528,8 +530,10 @@ function ServiceList() {
                     justifyContent: 'center',
                     alignItems: 'center',
                     py: 4,
-                    backgroundColor: '#f9fafc',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc',
                     borderRadius: '10px',
+                    boxSizing: 'border-box',
+                    border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb',
                   }}
                 >
                   <Typography

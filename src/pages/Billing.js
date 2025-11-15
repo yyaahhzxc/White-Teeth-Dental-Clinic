@@ -6,7 +6,7 @@ import {
   Collapse,
   Chip,
 } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
@@ -21,46 +21,15 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 
 function Billing() {
-  // Helper function to format dates
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric', 
-      year: 'numeric' 
-    });
-  };
-
-  // Initial mock billing data
-  const initialBillings = [
-    { id: 1, dateCreated: formatDate('2025-10-30'), firstName: 'Vince', lastName: 'Valmores', totalBill: 2500.00, amountPaid: 2500.00, balance: 0.00, status: 'Paid' },
-    { id: 2, dateCreated: formatDate('2025-10-30'), firstName: 'Jane', lastName: 'Foster', totalBill: 500.00, amountPaid: 500.00, balance: 0.00, status: 'Paid' },
-    { id: 3, dateCreated: formatDate('2025-10-25'), firstName: 'Thor', lastName: 'Odinson', totalBill: 600.00, amountPaid: 450.00, balance: 150.00, status: 'Partial' },
-    { id: 4, dateCreated: formatDate('2025-10-17'), firstName: 'Jan', lastName: 'Gerona', totalBill: 1000.00, amountPaid: 700.00, balance: 300.00, status: 'Partial' },
-    { id: 5, dateCreated: formatDate('2025-10-16'), firstName: 'Warlter', lastName: 'Andao', totalBill: 1400.00, amountPaid: 950.00, balance: 450.00, status: 'Partial' },
-    { id: 6, dateCreated: formatDate('2025-10-10'), firstName: 'Ben', lastName: 'Dover', totalBill: 1000.00, amountPaid: 1000.00, balance: 0.00, status: 'Paid' },
-  ];
-
-  // Load billings from localStorage or use initial data
-  const [billings, setBillings] = useState(() => {
-    try {
-      const storedBillings = localStorage.getItem('billings');
-      if (storedBillings) {
-        const parsed = JSON.parse(storedBillings);
-        // Merge with initial billings (avoid duplicates)
-        const merged = [...initialBillings];
-        parsed.forEach(newBilling => {
-          if (!merged.find(b => b.id === newBilling.id)) {
-            merged.push(newBilling);
-          }
-        });
-        return merged;
-      }
-      return initialBillings;
-    } catch (error) {
-      console.error('Error loading billings from localStorage:', error);
-      return initialBillings;
-    }
-  });
+  // Mock billing data (not connected to backend)
+  const [billings, setBillings] = useState([
+    { id: 1, dateCreated: 'October 30, 2025', firstName: 'Vince', lastName: 'Valmores', totalBill: 2500.00, amountPaid: 2500.00, balance: 0.00, status: 'Paid' },
+    { id: 2, dateCreated: 'October 30, 2025', firstName: 'Jane', lastName: 'Foster', totalBill: 500.00, amountPaid: 500.00, balance: 0.00, status: 'Paid' },
+    { id: 3, dateCreated: 'October 25, 2025', firstName: 'Thor', lastName: 'Odinson', totalBill: 600.00, amountPaid: 450.00, balance: 150.00, status: 'Partial' },
+    { id: 4, dateCreated: 'October 17, 2025', firstName: 'Jan', lastName: 'Gerona', totalBill: 1000.00, amountPaid: 700.00, balance: 300.00, status: 'Partial' },
+    { id: 5, dateCreated: 'October 16, 2025', firstName: 'Warlter', lastName: 'Andao', totalBill: 1400.00, amountPaid: 950.00, balance: 450.00, status: 'Partial' },
+    { id: 6, dateCreated: 'October 10, 2025', firstName: 'Ben', lastName: 'Dover', totalBill: 1000.00, amountPaid: 1000.00, balance: 0.00, status: 'Paid' },
+  ]);
 
   const [categoryFilteredBillings, setCategoryFilteredBillings] = useState([]);
   const [filteredBillings, setFilteredBillings] = useState([]);
@@ -82,63 +51,38 @@ function Billing() {
   const [selectedBilling, setSelectedBilling] = useState(null);
 
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // Check if we should open billing modal from navigation state
-  useEffect(() => {
-    if (location.state?.openBillingModal && location.state?.billingData) {
-      setModalOpen(true);
-      setSelectedBilling(location.state.billingData);
-      // Clear the state to prevent reopening on refresh
-      navigate(location.pathname, { replace: true, state: {} });
+  // Theme detection — only alter styles when dark mode is active
+  const resolveMode = (theme) => {
+    if (!theme || theme === 'System') {
+      try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      catch (e) { return 'light'; }
     }
-  }, [location, navigate]);
+    return String(theme).toLowerCase();
+  };
+  const [isDark, setIsDark] = useState(() => resolveMode(localStorage.getItem('appTheme')) === 'dark');
+  useEffect(() => {
+    const onTheme = (e) => {
+      try {
+        const t = (e && e.detail && e.detail.theme) || localStorage.getItem('appTheme');
+        setIsDark(resolveMode(t) === 'dark');
+      } catch (err) {}
+    };
+    window.addEventListener('appThemeChanged', onTheme);
+    const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    const onMedia = (ev) => {
+      try { const theme = localStorage.getItem('appTheme') || 'System'; if (theme === 'System') setIsDark(ev.matches); } catch (e) {}
+    };
+    if (mq && mq.addEventListener) mq.addEventListener('change', onMedia);
+    try { setIsDark(resolveMode(localStorage.getItem('appTheme')) === 'dark'); } catch (e) {}
+    return () => { window.removeEventListener('appThemeChanged', onTheme); if (mq && mq.removeEventListener) mq.removeEventListener('change', onMedia); };
+  }, []);
 
   // Filter categories for billing
   const filterCategories = [
     { label: 'Status', value: 'status', types: ['Paid', 'Partial'] },
     { label: 'Date Range', value: 'dateRange', types: ['Last 7 days', 'Last 30 days', 'Last 90 days'] },
   ];
-
-  // Listen for new billing entries
-  useEffect(() => {
-    const handleBillingCreated = (event) => {
-      console.log('New billing created:', event.detail);
-      const newBilling = event.detail;
-      
-      // Format date to "Month Day, Year"
-      const dateObj = new Date(newBilling.dateCreated);
-      const formattedDate = dateObj.toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-      
-      setBillings(prevBillings => {
-        const billingWithFormattedDate = { ...newBilling, dateCreated: formattedDate };
-        const newBillings = [...prevBillings, billingWithFormattedDate];
-        // Update localStorage
-        localStorage.setItem('billings', JSON.stringify(newBillings));
-        return newBillings;
-      });
-    };
-    
-    const handleInvoiceCreated = () => {
-      console.log('Invoice created - refreshing billing table');
-      // Force reload billings from localStorage to get updated statuses
-      const storedBillings = localStorage.getItem('billings');
-      if (storedBillings) {
-        setBillings(JSON.parse(storedBillings));
-      }
-    };
-
-    window.addEventListener('billingCreated', handleBillingCreated);
-    window.addEventListener('invoiceCreated', handleInvoiceCreated);
-    return () => {
-      window.removeEventListener('billingCreated', handleBillingCreated);
-      window.removeEventListener('invoiceCreated', handleInvoiceCreated);
-    };
-  }, []);
 
   // Initialize data
   useEffect(() => {
@@ -209,7 +153,7 @@ function Billing() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#2148c0',
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -227,10 +171,10 @@ function Billing() {
           px: 2,
         }}
       >
-        <Typography 
+          <Typography 
           variant="h3" 
           sx={{ 
-            color: 'white',
+            color: isDark ? 'var(--app-text)' : 'white',
             fontWeight: 800,
             fontSize: '39.14px',
             fontFamily: 'Inter, sans-serif',
@@ -387,14 +331,14 @@ function Billing() {
               width: '6px',
             },
             '&::-webkit-scrollbar-track': {
-              background: '#f1f1f1',
+              background: isDark ? 'rgba(255,255,255,0.02)' : '#f1f1f1',
               borderRadius: '3px',
             },
             '&::-webkit-scrollbar-thumb': {
-              background: '#c1c1c1',
+              background: isDark ? 'rgba(255,255,255,0.06)' : '#c1c1c1',
               borderRadius: '3px',
               '&:hover': {
-                background: '#a8a8a8',
+                background: isDark ? 'rgba(255,255,255,0.12)' : '#a8a8a8',
               },
             },
           }}>
@@ -412,11 +356,13 @@ function Billing() {
                       px: 2,
                       py: 0.875,
                       alignItems: 'center',
-                      backgroundColor: '#f9fafc',
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc',
                       borderRadius: '10px',
                       height: 60,
+                      boxSizing: 'border-box',
+                      border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb',
                       '&:hover': { 
-                        backgroundColor: '#f0f4f8',
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action?.hover || theme.palette.background.paper : '#f0f4f8',
                         cursor: 'pointer'
                       }
                     }}
@@ -427,7 +373,7 @@ function Billing() {
                           fontFamily: 'Roboto, sans-serif',
                           fontWeight: 400,
                           fontSize: '15px',
-                          color: '#6d6b80',
+                          color: isDark ? 'var(--app-text-secondary)' : '#6d6b80',
                           lineHeight: '22px',
                           letterSpacing: '0.5px',
                         }}
@@ -442,7 +388,7 @@ function Billing() {
                           fontFamily: 'Roboto, sans-serif',
                           fontWeight: 400,
                           fontSize: '15px',
-                          color: '#6d6b80',
+                          color: isDark ? 'var(--app-text-secondary)' : '#6d6b80',
                           lineHeight: '22px',
                           letterSpacing: '0.5px',
                         }}
@@ -506,10 +452,11 @@ function Billing() {
                       <Chip
                         label={billing.status}
                         sx={{
-                          backgroundColor: 
-                            billing.status === 'Paid' ? '#4CAF50' : 
-                            billing.status === 'Partial' ? '#FF9800' : 
-                            '#F44336',
+                          backgroundColor: (
+                            isDark
+                              ? (billing.status === 'Paid' ? 'var(--card-success-bg)' : billing.status === 'Partial' ? 'var(--card-warning-bg)' : 'var(--card-danger-bg)')
+                              : (billing.status === 'Paid' ? '#4CAF50' : billing.status === 'Partial' ? '#FF9800' : '#F44336')
+                          ),
                           color: 'white',
                           fontWeight: 500,
                           fontSize: '12.5px',
@@ -532,7 +479,7 @@ function Billing() {
                           textTransform: 'none',
                           fontFamily: 'Roboto, sans-serif',
                           fontSize: '13.3px',
-                          color: '#2148c0',
+                          color: isDark ? 'var(--app-accent)' : '#2148c0',
                           fontWeight: 500,
                           textDecoration: 'none',
                           '&:hover': {
@@ -557,7 +504,7 @@ function Billing() {
                           textTransform: 'none',
                           fontFamily: 'Roboto, sans-serif',
                           fontSize: '13.3px',
-                          color: '#2148c0',
+                          color: isDark ? 'var(--app-accent)' : '#2148c0',
                           fontWeight: 500,
                           textDecoration: 'none',
                           '&:hover': {

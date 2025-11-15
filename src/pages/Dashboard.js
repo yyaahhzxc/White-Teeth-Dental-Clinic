@@ -87,32 +87,32 @@ function Dashboard() {
 
       {/* Alerts */}
       <Fade in={showLoginAlert} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: '#C8E6C9', color: '#38883C', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
+        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: 'success.light', color: (theme) => theme.palette.text.primary, borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Login successful!
         </Box>
       </Fade>
       <Fade in={showLogoutAlert} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: '#FFE0B2', color: '#8A4B00', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
+        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: 'warning.light', color: (theme) => theme.palette.text.primary, borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Logged out
         </Box>
       </Fade>
       <Fade in={showPatientAdded} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: '#C8E6C9', color: '#38883C', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
+        <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: 'success.light', color: (theme) => theme.palette.text.primary, borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Patient added successfully!
         </Box>
       </Fade>
 
       {/* Summary Cards */}
       <Box display="flex" gap={2} p={3}>
-  <Paper sx={{ flex: 1, bgcolor: '#178E5C', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
+  <Paper sx={{ flex: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.success.dark : theme.palette.success.main, color: (theme) => theme.palette.mode === 'dark' ? '#000' : theme.palette.getContrastText(theme.palette.mode === 'dark' ? theme.palette.success.dark : theme.palette.success.main), p: 4, borderRadius: 2, height: 220 }}>
     <Typography variant="h4">3</Typography>
     <Typography>Completed Appointments Today</Typography>
   </Paper>
-  <Paper sx={{ flex: 1, bgcolor: '#FFAA1D', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
+  <Paper sx={{ flex: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.dark : theme.palette.warning.main, color: (theme) => theme.palette.mode === 'dark' ? '#000' : theme.palette.getContrastText(theme.palette.mode === 'dark' ? theme.palette.warning.dark : theme.palette.warning.main), p: 4, borderRadius: 2, height: 220 }}>
     <Typography variant="h4">15</Typography>
     <Typography>Upcoming Appointments</Typography>
   </Paper>
-  <Paper sx={{ flex: 1, bgcolor: '#D9003C', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
+  <Paper sx={{ flex: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : theme.palette.error.main, color: (theme) => theme.palette.mode === 'dark' ? '#000' : theme.palette.getContrastText(theme.palette.mode === 'dark' ? theme.palette.error.dark : theme.palette.error.main), p: 4, borderRadius: 2, height: 220 }}>
     <Typography variant="h4">4</Typography>
     <Typography>Upcoming Appointments Today</Typography>
   </Paper>
