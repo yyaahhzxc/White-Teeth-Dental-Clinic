@@ -162,10 +162,9 @@ const handleSaveClick = async () => {
 
   setLoading(true);
   try {
-    // FIX: Determine the correct endpoint based on the service type
+    // Determine if this is a package or regular service
     const isPackage = editedService.type === 'Package Treatment';
     
-    // Use the correct endpoint and data structure
     let endpoint, requestData;
     
     if (isPackage) {
@@ -177,10 +176,10 @@ const handleSaveClick = async () => {
         price: parseFloat(editedService.price) || 0,
         duration: parseInt(editedService.duration) || 0,
         status: editedService.status
-        // Don't include services array - that would be handled separately
+        // Note: Package services are managed separately via package_services table
       };
     } else {
-      // For regular services, use the service-table endpoint
+      // For regular services, use the services endpoint
       endpoint = `${API_BASE}/service-table/${editedService.id}`;
       requestData = {
         name: editedService.name.trim(),
@@ -194,6 +193,7 @@ const handleSaveClick = async () => {
     
     console.log('Saving to endpoint:', endpoint);
     console.log('Request data:', requestData);
+    console.log('Is package:', isPackage);
     
     const response = await fetch(endpoint, {
       method: 'PUT',
@@ -205,6 +205,11 @@ const handleSaveClick = async () => {
       setIsEditing(false);
       if (onServiceUpdated) onServiceUpdated();
       showSnackbar(`${isPackage ? 'Package' : 'Service'} updated successfully!`);
+      
+      // If this is a package, refresh the package services
+      if (isPackage) {
+        fetchPackageDetails(editedService.id);
+      }
     } else {
       const errorData = await response.json();
       throw new Error(errorData.error || `Failed to update ${isPackage ? 'package' : 'service'}`);
@@ -216,6 +221,7 @@ const handleSaveClick = async () => {
     setLoading(false);
   }
 };
+
 
 
   const handleChange = (e) => {

@@ -468,41 +468,47 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   }, [currentDate, calendarView]);
 
   // Function to fetch services - UPDATED to include packages
-const fetchServices = async () => {
-  try {
-    console.log('Fetching services and packages...');
-    
-    // Try the new endpoint first
-    let response = await fetch(`${API_BASE}/services-and-packages`);
-    if (response.ok) {
-      const data = await response.json();
-      // Combine regular services and packages into one array
-      const allItems = [...(data.services || []), ...(data.packages || [])];
-      setServices(allItems);
-      console.log('Fetched via services-and-packages:', {
-        services: data.services?.length || 0,
-        packages: data.packages?.length || 0,
-        total: allItems.length
-      });
-      return;
-    }
-    
-    // Fallback to old endpoint
-    console.log('Fallback to service-table endpoint...');
-    response = await fetch(`${API_BASE}/service-table`);
-    if (response.ok) {
-      const data = await response.json();
-      setServices(data);
-      console.log('Fetched via service-table:', data.length);
-    } else {
-      console.error('Failed to fetch services');
+  const fetchServices = async () => {
+    try {
+      console.log('Fetching services and packages...');
+  
+      let response = await fetch(`${API_BASE}/services-and-packages`);
+      
+      if (response.ok) {
+        const data = await response.json();
+  
+        // Backend returns ONE flat array — just set it directly
+        setServices(data);
+  
+        console.log('Fetched via services-and-packages:', {
+          total: data.length
+        });
+  
+        return;
+      }
+  
+      // Fallback to service-table
+      console.log('Fallback to service-table endpoint...');
+      response = await fetch(`${API_BASE}/service-table`);
+  
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data);
+  
+        console.log('Fetched via service-table:', {
+          total: data.length
+        });
+      } else {
+        console.error('Failed to fetch services');
+        setServices([]);
+      }
+  
+    } catch (error) {
+      console.error('Error fetching services:', error);
       setServices([]);
     }
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    setServices([]);
-  }
-};
+  };
+  
 
   // Update the useEffect around line 210
 useEffect(() => {
@@ -832,7 +838,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
   };
 
 
-  // Handle saving changes
   const handleSaveClick = async () => {
     if (!editedAppointment) return;
     
@@ -840,7 +845,6 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
     setUpdateError(null);
     
     try {
-      // Calculate totals with quantities
       const totalPrice = editedServices.reduce((total, item) => 
         total + (parseFloat(item.service.price) * item.quantity), 0
       );
@@ -849,10 +853,36 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         total + (parseInt(item.service.duration) * item.quantity), 0
       );
       
-      // Create service summary with quantities
       const serviceNames = editedServices.map(item => 
         `${item.service.name}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
       ).join(', ');
+      
+      // Process service IDs to handle unique IDs from appointment-services endpoint
+      const processedServiceIds = editedServices.map(item => {
+        const service = item.service;
+        let actualId;
+        
+        // Extract original ID from unique ID format
+        if (service.id && typeof service.id === 'string') {
+          if (service.id.startsWith('pkg_')) {
+            actualId = service.originalId || parseInt(service.id.replace('pkg_', ''));
+          } else if (service.id.startsWith('svc_')) {
+            actualId = service.originalId || parseInt(service.id.replace('svc_', ''));
+          } else {
+            actualId = service.originalId || service.id;
+          }
+        } else {
+          actualId = service.originalId || service.id;
+        }
+        
+        return {
+          id: actualId,
+          quantity: item.quantity,
+          isPackage: service.isPackage || false,
+          sourceType: service.sourceType || 'service',
+          name: service.name
+        };
+      });
       
       const requestData = {
         patientId: selectedAppointment.patientId,
@@ -861,87 +891,39 @@ const updateServiceQuantity = (serviceId, newQuantity) => {
         timeEnd: editedAppointment.timeEnd,
         comments: editedAppointment.comments,
         status: editedAppointment.status,
-        serviceId: editedServices.length > 0 ? editedServices[0].service.id : selectedAppointment.serviceId,
-        serviceName: editedServices.length > 0 ? editedServices[0].service.name : selectedAppointment.procedure,
-        serviceIds: editedServices.map(item => ({
-          id: item.service.id,
-          quantity: item.quantity
-        })),
+        serviceId: processedServiceIds.length > 0 ? processedServiceIds[0].id : selectedAppointment.serviceId,
+        serviceName: processedServiceIds.length > 0 ? processedServiceIds[0].name : selectedAppointment.procedure,
+        serviceIds: processedServiceIds,
         serviceNames: serviceNames,
         totalPrice: totalPrice,
         totalDuration: totalDuration
       };
       
       console.log('=== SAVE DEBUG ===');
-      console.log('Edited services with quantities:', editedServices);
-      console.log('Request data being sent:', requestData);
+      console.log('Processed service IDs:', processedServiceIds);
       
       const response = await fetch(`${API_BASE}/appointments/${editedAppointment.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
       });
   
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log('Update response:', responseData);
-        
-        // Update the selected appointment immediately with new data
-        const updatedAppointment = {
-          ...selectedAppointment,
-          ...editedAppointment,
-          serviceId: requestData.serviceId,
-          procedure: requestData.serviceName,
-          serviceName: requestData.serviceName
-        };
-        
-        setSelectedAppointment(updatedAppointment);
-        
-        // Set appropriate success message based on status change
-        const statusChanged = editedAppointment.status !== selectedAppointment.status;
-        if (statusChanged) {
-          const statusMessages = {
-            'done': 'Appointment marked as done!',
-            'cancelled': 'Appointment cancelled!',
-            'scheduled': 'Appointment rescheduled!',
-            'ongoing': 'Appointment status updated to ongoing!'
-          };
-          setSuccessMessage(statusMessages[editedAppointment.status] || 'Appointment updated successfully!');
-        } else {
-          setSuccessMessage('Appointment updated successfully!');
-        }
-        
-        setUpdateSuccess(true);
-        setEditMode(false);
-        setEditedAppointment(null);
-        setEditedServices([]);
-        setServiceInputValue('');
-        
-        // Refresh appointments
-        window.dispatchEvent(new CustomEvent('appointmentUpdated'));
-        
-        setTimeout(async () => {
-          if (calendarView === 'Week') {
-            await fetchAppointmentsForWeek();
-          } else {
-            await fetchAppointmentsForMonth();
-          }
-        }, 500);
-        
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update appointment:', response.status, errorText);
-        setUpdateError(`Failed to update: ${response.status} - ${errorText}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update appointment');
       }
+  
+      setUpdateSuccess(true);
+      refreshAppointments();
+      setEditMode(false);
     } catch (error) {
       console.error('Error updating appointment:', error);
-      setUpdateError(`Network error: ${error.message}`);
+      setUpdateError(error.message);
     } finally {
       setUpdating(false);
     }
   };
+
 
   // Handle input changes
   const handleEditChange = (field, value) => {
