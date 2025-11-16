@@ -16,13 +16,13 @@ import {
   Paper,
   Box,
   IconButton,
-  MenuItem,
-  Snackbar
+  MenuItem
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import TeethChart from '../components/TeethChart';
+import Toast from '../components/Toast';
 import { API_BASE } from '../apiConfig';
 // This should resolve to 'http://localhost:3001'
 
@@ -35,15 +35,11 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   const [tabIndex, setTabIndex] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMsg, setSnackbarMsg] = useState('');
+  const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
 
-  
-
-  const showSnackbar = (msg) => {
-    setSnackbarMsg(msg);
-    setSnackbarOpen(true);
-    setTimeout(() => setSnackbarOpen(false), 2000);
+  const showToast = (message, type = 'info') => {
+    setToast({ open: true, message, type });
+    setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 2000);
   };
 
   // Patient Info State
@@ -158,41 +154,63 @@ const handleSaveClick = async () => {
   console.log('🚀 Save button clicked!'); // Debug log
   
   if (!patient || !patient.id) {
-    showSnackbar('Cannot save. No patient selected.');
+    showToast('Cannot save. No patient selected.', 'error');
     return;
   }
   
   try {
     console.log('📋 Checking what changed...');
     
-    // Compare with original data
-    const patientDataChanged = (
-      firstName !== (originalPatientData?.firstName || '') ||
-      lastName !== (originalPatientData?.lastName || '') ||
-      middleName !== (originalPatientData?.middleName || '') ||
-      suffix !== (originalPatientData?.suffix || '') ||
-      maritalStatus !== (originalPatientData?.maritalStatus || '') ||
-      contactNumber !== (originalPatientData?.contactNumber || '') ||
-      occupation !== (originalPatientData?.occupation || '') ||
-      address !== (originalPatientData?.address || '') ||
-      dateOfBirth !== (originalPatientData?.dateOfBirth || '') ||
-      sex !== (originalPatientData?.sex || '') ||
-      contactPersonName !== (originalPatientData?.contactPersonName || '') ||
-      contactPersonRelationship !== (originalPatientData?.contactPersonRelationship || '') ||
-      contactPersonNumber !== (originalPatientData?.contactPersonNumber || '') ||
-      contactPersonAddress !== (originalPatientData?.contactPersonAddress || '')
-    );
+    // Compare with original data and count changed fields
+    let changedFieldsCount = 0;
+    
+    // Patient data field comparison
+    const patientFields = [
+      { current: firstName, original: originalPatientData?.firstName },
+      { current: lastName, original: originalPatientData?.lastName },
+      { current: middleName, original: originalPatientData?.middleName },
+      { current: suffix, original: originalPatientData?.suffix },
+      { current: maritalStatus, original: originalPatientData?.maritalStatus },
+      { current: contactNumber, original: originalPatientData?.contactNumber },
+      { current: occupation, original: originalPatientData?.occupation },
+      { current: address, original: originalPatientData?.address },
+      { current: dateOfBirth, original: originalPatientData?.dateOfBirth },
+      { current: sex, original: originalPatientData?.sex },
+      { current: contactPersonName, original: originalPatientData?.contactPersonName },
+      { current: contactPersonRelationship, original: originalPatientData?.contactPersonRelationship },
+      { current: contactPersonNumber, original: originalPatientData?.contactPersonNumber },
+      { current: contactPersonAddress, original: originalPatientData?.contactPersonAddress }
+    ];
+    
+    patientFields.forEach(field => {
+      if ((field.current || '') !== (field.original || '')) {
+        changedFieldsCount++;
+      }
+    });
+    
+    const patientDataChanged = changedFieldsCount > 0;
 
-    const medicalDataChanged = (
-      allergies !== (originalMedicalData?.allergies || '') ||
-      bloodType !== (originalMedicalData?.bloodType || '') ||
-      bloodborneDiseases !== (originalMedicalData?.bloodborneDiseases || '') ||
-      pregnancyStatus !== (originalMedicalData?.pregnancyStatus || '') ||
-      medications !== (originalMedicalData?.medications || '') ||
-      additionalNotes !== (originalMedicalData?.additionalNotes || '') ||
-      bloodPressure !== (originalMedicalData?.bloodPressure || '') ||
-      diabetic !== (originalMedicalData?.diabetic || '')
-    );
+    // Medical data field comparison
+    let medicalChangedCount = 0;
+    const medicalFields = [
+      { current: allergies, original: originalMedicalData?.allergies },
+      { current: bloodType, original: originalMedicalData?.bloodType },
+      { current: bloodborneDiseases, original: originalMedicalData?.bloodborneDiseases },
+      { current: pregnancyStatus, original: originalMedicalData?.pregnancyStatus },
+      { current: medications, original: originalMedicalData?.medications },
+      { current: additionalNotes, original: originalMedicalData?.additionalNotes },
+      { current: bloodPressure, original: originalMedicalData?.bloodPressure },
+      { current: diabetic, original: originalMedicalData?.diabetic }
+    ];
+    
+    medicalFields.forEach(field => {
+      if ((field.current || '') !== (field.original || '')) {
+        medicalChangedCount++;
+      }
+    });
+    
+    changedFieldsCount += medicalChangedCount;
+    const medicalDataChanged = medicalChangedCount > 0;
 
  // Proper tooth chart change detection
  const toothChartChanged = (
@@ -210,7 +228,7 @@ let updateCount = 0;
 let hasAnyChanges = patientDataChanged || medicalDataChanged || toothChartChanged;
 
 if (!hasAnyChanges) {
-  showSnackbar('No changes detected.');
+  showToast('No changes detected.', 'info');
   setEditMode(false);
   return;
 }
@@ -278,11 +296,11 @@ if (!hasAnyChanges) {
     console.log('✅ All updates completed!');
     setEditMode(false);
     if (onRecordUpdated) onRecordUpdated();
-    showSnackbar(`Successfully updated ${updateCount} section${updateCount > 1 ? 's' : ''}.`);
+    showToast(`Successfully updated ${changedFieldsCount} field${changedFieldsCount > 1 ? 's' : ''}.`, 'success');
 
   } catch (err) {
     console.error("💥 Save Error:", err);
-    showSnackbar(`Failed to save changes: ${err.message}`);
+    showToast(`Failed to save changes: ${err.message}`, 'error');
   }
 };
 
@@ -358,7 +376,7 @@ if (!hasAnyChanges) {
           fontSize: 32,
           fontWeight: 800,
           textAlign: 'center',
-          marginBottom: -4,
+          marginBottom: -2,
         }}
       >
         View Patient Record
@@ -375,10 +393,63 @@ if (!hasAnyChanges) {
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
-        <Tabs value={tabIndex} onChange={handleTabChange}>
-          <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
-          <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
+      <Box display="flex" sx={{ px: 3, pt: 1, pb: 1 }}>
+        <Tabs
+          value={tabIndex}
+          onChange={handleTabChange}
+          sx={{
+            minHeight: '36px',
+            '& .MuiTabs-indicator': {
+              display: 'none'
+            }
+          }}
+        >
+          <Tab
+            label="Patient Information"
+            sx={{
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: 700,
+              fontSize: '14px',
+              textTransform: 'none',
+              borderRadius: '12px',
+              border: '1px solid #2148c0',
+              mr: 1.5,
+              minHeight: '32px',
+              py: 0.5,
+              px: 2,
+              backgroundColor: tabIndex === 0 ? '#2148c0' : 'transparent',
+              color: tabIndex === 0 ? '#ffffff !important' : '#2148c0',
+              '&:hover': {
+                backgroundColor: tabIndex === 0 ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
+              },
+              '&.Mui-selected': {
+                color: '#ffffff !important'
+              }
+            }}
+          />
+          <Tab
+            label="Medical Information"
+            sx={{
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: 700,
+              fontSize: '14px',
+              textTransform: 'none',
+              borderRadius: '12px',
+              border: '1px solid #2148c0',
+              mr: 1.5,
+              minHeight: '32px',
+              py: 0.5,
+              px: 2,
+              backgroundColor: tabIndex === 1 ? '#2148c0' : 'transparent',
+              color: tabIndex === 1 ? '#ffffff !important' : '#2148c0',
+              '&:hover': {
+                backgroundColor: tabIndex === 1 ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
+              },
+              '&.Mui-selected': {
+                color: '#ffffff !important'
+              }
+            }}
+          />
         </Tabs>
       </Box>
       <DialogContent
@@ -426,7 +497,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={8}>
                   <TextField
                     fullWidth
-                    label="First Name"
+                    label="First Name *"
                     sx={{ width: 400, backgroundColor: '#ffffff9e' }}
                     value={firstName}
                     onChange={e => setFirstName(e.target.value)}
@@ -456,7 +527,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Last Name"
+                    label="Last Name *"
                     sx={{ width: 350, backgroundColor: '#ffffff9e' }}
                     value={lastName}
                     onChange={e => setLastName(e.target.value)}
@@ -467,7 +538,7 @@ if (!hasAnyChanges) {
                   <TextField
                     select
                     fullWidth
-                    label="Marital Status"
+                    label="Marital Status *"
                     sx={{ width: 140, backgroundColor: '#ffffff9e' }}
                     value={maritalStatus}
                     onChange={e => setMaritalStatus(e.target.value)}
@@ -480,7 +551,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={6}>
                   <TextField
                     fullWidth
-                    label="Contact Number"
+                    label="Contact Number *"
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={contactNumber}
                     onChange={e => setContactNumber(e.target.value)}
@@ -490,7 +561,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={6}>
                   <TextField
                     fullWidth
-                    label="Occupation"
+                    label="Occupation *"
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={occupation}
                     onChange={e => setOccupation(e.target.value)}
@@ -500,7 +571,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Address"
+                    label="Address *"
                     multiline
                     rows={3}
                     sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }}
@@ -512,7 +583,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Date of Birth"
+                    label="Date of Birth *"
                     type="date"
                     sx={{ width: 250, backgroundColor: '#ffffff9e' }}
                     InputLabelProps={{ shrink: true }}
@@ -549,8 +620,8 @@ if (!hasAnyChanges) {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="Name"
-                    sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+                    label="Name *"
+                    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={contactPersonName}
                     onChange={e => setContactPersonName(e.target.value)}
                     disabled={!editMode}
@@ -559,7 +630,7 @@ if (!hasAnyChanges) {
                 <Grid item xs={6}>
                   <TextField
                     fullWidth
-                    label="Relationship"
+                    label="Relationship *"
                     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
                     value={contactPersonRelationship}
                     onChange={e => setContactPersonRelationship(e.target.value)}
@@ -627,7 +698,7 @@ if (!hasAnyChanges) {
             <TextField
               select
               fullWidth
-              label="Blood Type"
+              label="Blood Type *"
               sx={{ width: 140, backgroundColor: '#ffffff9e' }}
               value={bloodType}
               onChange={(e) => setBloodType(e.target.value)}
@@ -773,7 +844,6 @@ if (!hasAnyChanges) {
       >
         <DialogTitle>Save changes?</DialogTitle>
         <DialogContent>
-      <Snackbar open={snackbarOpen} message={snackbarMsg} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
           <Typography>Do you want to save your changes before closing?</Typography>
         </DialogContent>
         <DialogActions>
@@ -781,6 +851,12 @@ if (!hasAnyChanges) {
           <Button onClick={handleConfirmSave} color="primary" variant="contained">Save</Button>
         </DialogActions>
       </Dialog>
+      <Toast 
+        open={toast.open} 
+        message={toast.message} 
+        type={toast.type} 
+        onClose={() => setToast({ ...toast, open: false })}
+      />
     </Dialog>
   );
 };

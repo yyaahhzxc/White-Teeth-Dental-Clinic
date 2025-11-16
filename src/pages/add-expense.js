@@ -9,10 +9,10 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
 
   useEffect(() => {
     if (open) {
-      // reset fields when opened
+      // reset fields when opened and set today's date as default
       setDescription('');
       setAmount('');
-      setDate('');
+      setDate(new Date().toISOString().split('T')[0]); // Set today's date
       setCategory('General');
     }
   }, [open]);

@@ -14,13 +14,13 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  Snackbar,
-  Alert,
   TextField,
   Autocomplete,
   CircularProgress
   , Fade
   , Collapse
+  , Popover
+  , InputAdornment
 } from '@mui/material';
 import { format, startOfWeek, endOfWeek, addDays, addMonths, subMonths, startOfMonth, endOfMonth, getDay, getDate, getMonth, getYear, isSameDay, isSameMonth } from 'date-fns';
 import DataTable from '../components/DataTable';
@@ -45,6 +45,8 @@ import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
 import LogAppointment from './LogAppointment';
 import BillingAppointmentSummary from './BillingAppointmentSummary';
+import Toast from '../components/Toast';
+import DateCalendar from '../components/DateCalendar';
 const API_BASE = 'http://localhost:3001';
 
 
@@ -224,14 +226,25 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [updateSuccess, setUpdateSuccess] = useState(false);
   const [updateError, setUpdateError] = useState(null);
+
+  // Toast state
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    type: 'info'
+  });
+
+  const showToast = (message, type = 'info') => {
+    setToast({ open: true, message, type });
+  };
 
   // Edit mode states
   const [editMode, setEditMode] = useState(false);
   const [editedAppointment, setEditedAppointment] = useState(null);
   const [editedServices, setEditedServices] = useState([]); // Add this for multiple services
   const [serviceInputValue, setServiceInputValue] = useState(''); // Add this for autocomplete
+  const [appointmentDateCalendarAnchor, setAppointmentDateCalendarAnchor] = useState(null); // Add this for date calendar
 
   // Services state
   const [services, setServices] = useState([]);
@@ -716,7 +729,7 @@ const handleSaveClick = async () => {
 
     console.log('✅ Appointment updated:', result);
     setSuccessMessage('Appointment updated successfully!');
-    setUpdateSuccess(true);
+    showToast('Appointment updated successfully!', 'success');
 
     // CRITICAL FIX: Refresh appointments BEFORE closing modal
     await refreshAppointments();
@@ -728,7 +741,7 @@ const handleSaveClick = async () => {
 
   } catch (error) {
     console.error('❌ Update failed:', error);
-    setUpdateError(error.message);
+    showToast(error.message, 'error');
   } finally {
     setUpdating(false);
   }
@@ -857,7 +870,7 @@ const handleCloseModal = () => {
         ));
         
         setSuccessMessage('Appointment marked as done!');
-        setUpdateSuccess(true);
+        showToast('Appointment marked as done!', 'success');
         
         // Refresh appointments to ensure calendar updates
         if (calendarView === 'Week') {
@@ -866,11 +879,11 @@ const handleCloseModal = () => {
           fetchAppointmentsForMonth();
         }
       } else {
-        setUpdateError('Failed to update appointment status');
+        showToast('Failed to update appointment status', 'error');
       }
     } catch (error) {
       console.error('Error updating appointment:', error);
-      setUpdateError(`Network error: ${error.message}`);
+      showToast(`Network error: ${error.message}`, 'error');
     } finally {
       setUpdating(false);
     }
@@ -1973,19 +1986,72 @@ const handleCloseModal = () => {
                     </Typography>
                   </Box>
                   {editMode ? (
-                    <TextField
-                      type="date"
-                      value={editedAppointment?.appointmentDate || ''}
-                      onChange={(e) => handleEditChange('appointmentDate', e.target.value)}
-                      size="small"
-                      fullWidth
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: '8px',
-                          fontFamily: 'Inter, sans-serif'
-                        }
-                      }}
-                    />
+                    <>
+                      <TextField
+                        value={editedAppointment?.appointmentDate ? (() => {
+                          const [yyyy, mm, dd] = editedAppointment.appointmentDate.split('-');
+                          return `${mm}-${dd}-${yyyy}`;
+                        })() : ''}
+                        onClick={(e) => setAppointmentDateCalendarAnchor(e.currentTarget)}
+                        size="small"
+                        fullWidth
+                        InputProps={{
+                          readOnly: true,
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton onClick={(e) => setAppointmentDateCalendarAnchor(e.currentTarget)} edge="end">
+                                <CalendarToday sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                        placeholder="mm-dd-yyyy"
+                        sx={{ 
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '8px',
+                            fontFamily: 'Inter, sans-serif'
+                          }
+                        }}
+                      />
+                      <Popover
+                        open={Boolean(appointmentDateCalendarAnchor)}
+                        anchorEl={appointmentDateCalendarAnchor}
+                        onClose={() => setAppointmentDateCalendarAnchor(null)}
+                        anchorOrigin={{
+                          vertical: (() => {
+                            if (!appointmentDateCalendarAnchor) return 'bottom';
+                            const rect = appointmentDateCalendarAnchor.getBoundingClientRect();
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const spaceAbove = rect.top;
+                            return spaceBelow > spaceAbove ? 'bottom' : 'top';
+                          })(),
+                          horizontal: 'left',
+                        }}
+                        transformOrigin={{
+                          vertical: (() => {
+                            if (!appointmentDateCalendarAnchor) return 'top';
+                            const rect = appointmentDateCalendarAnchor.getBoundingClientRect();
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const spaceAbove = rect.top;
+                            return spaceBelow > spaceAbove ? 'top' : 'bottom';
+                          })(),
+                          horizontal: 'left',
+                        }}
+                      >
+                        <Box sx={{ p: 2 }}>
+                          <DateCalendar
+                            value={editedAppointment?.appointmentDate ? new Date(editedAppointment.appointmentDate) : null}
+                            onChange={(date) => {
+                              const yyyy = date.getFullYear();
+                              const mm = String(date.getMonth() + 1).padStart(2, '0');
+                              const dd = String(date.getDate()).padStart(2, '0');
+                              handleEditChange('appointmentDate', `${yyyy}-${mm}-${dd}`);
+                              setAppointmentDateCalendarAnchor(null);
+                            }}
+                          />
+                        </Box>
+                      </Popover>
+                    </>
                   ) : (
                     <Typography variant="body1" sx={{ 
                       fontFamily: 'Inter, sans-serif', 
@@ -2860,27 +2926,13 @@ const handleCloseModal = () => {
   )}
       
       {/* Success/Error Snackbars */}
-      <Snackbar 
-        open={updateSuccess} 
-        autoHideDuration={3000} 
-        onClose={() => setUpdateSuccess(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setUpdateSuccess(false)} severity="success">
-          {successMessage}
-        </Alert>
-      </Snackbar>
-      
-      <Snackbar 
-        open={!!updateError} 
-        autoHideDuration={6000} 
-        onClose={() => setUpdateError(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setUpdateError(null)} severity="error">
-          {updateError}
-        </Alert>
-      </Snackbar>
+      {/* Toast */}
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, open: false })}
+      />
       
       {/* Log Appointment Modal */}
       <LogAppointment 

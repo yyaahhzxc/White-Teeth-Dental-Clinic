@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -6,7 +6,15 @@ import {
   IconButton,
   Collapse,
   Chip,
+  ButtonGroup,
+  ClickAwayListener,
+  Grow,
+  Paper,
+  Popper,
+  MenuItem,
+  MenuList
 } from '@mui/material';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { useNavigate } from 'react-router-dom';
 
 import Header from '../components/header';
@@ -49,6 +57,30 @@ function ServiceList() {
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
+
+  // Split button state
+  const [openSplitButton, setOpenSplitButton] = useState(false);
+  const anchorRef = useRef(null);
+
+  const handleSplitButtonToggle = () => {
+    setOpenSplitButton((prevOpen) => !prevOpen);
+  };
+
+  const handleSplitButtonClose = (event) => {
+    if (anchorRef.current && anchorRef.current.contains(event.target)) {
+      return;
+    }
+    setOpenSplitButton(false);
+  };
+
+  const handleMenuItemClick = (action) => {
+    if (action === 'service') {
+      setShowServiceModal(true);
+    } else if (action === 'package') {
+      setShowPackageModal(true);
+    }
+    setOpenSplitButton(false);
+  };
 
   // Filter categories for services
   const filterCategories = [
@@ -251,55 +283,106 @@ function ServiceList() {
                 searchFields={['name']}
                 data={categoryFilteredServices}
               />
-              {/* Filter and Add Service buttons */}
+              {/* Filter and Add Service/Package Split Button */}
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
                 <FilterButton onClick={() => setShowFilterBox(v => !v)} />
-                <Button
+                <ButtonGroup
                   variant="contained"
-                  onClick={() => setShowServiceModal(true)}
+                  ref={anchorRef}
+                  aria-label="split button"
                   sx={{
-                    backgroundColor: '#2148c0',
-                    color: 'white',
-                    borderRadius: '8px',
-                    height: '38px',
-                    px: 3,
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '16px',
-                    fontFamily: 'Inter, sans-serif',
-                    boxShadow: 'none',
-                    '&:hover': {
-                      backgroundColor: '#1e3fa8',
+                    '& .MuiButton-root': {
+                      backgroundColor: '#2148c0',
+                      color: 'white',
+                      borderRadius: '8px',
+                      height: '38px',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '16px',
+                      fontFamily: 'Inter, sans-serif',
                       boxShadow: 'none',
-                    },
+                      '&:hover': {
+                        backgroundColor: '#1e3fa8',
+                        boxShadow: 'none',
+                      },
+                    }
                   }}
                 >
-                  Add Service
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => setShowPackageModal(true)}
+                  <Button
+                    onClick={() => setShowServiceModal(true)}
+                    sx={{ px: 3, borderTopRightRadius: '0 !important', borderBottomRightRadius: '0 !important' }}
+                  >
+                    Add Service
+                  </Button>
+                  <Button
+                    size="small"
+                    aria-controls={openSplitButton ? 'split-button-menu' : undefined}
+                    aria-expanded={openSplitButton ? 'true' : undefined}
+                    aria-label="select add option"
+                    aria-haspopup="menu"
+                    onClick={handleSplitButtonToggle}
+                    sx={{ px: 1, borderTopLeftRadius: '0 !important', borderBottomLeftRadius: '0 !important', borderLeft: '1px solid rgba(255, 255, 255, 0.3)' }}
+                  >
+                    <ArrowDropDownIcon />
+                  </Button>
+                </ButtonGroup>
+                <Popper
                   sx={{
-                    borderColor: '#2148c0',
-                    color: 'white',
-                    backgroundColor: '#2148c0',
-                    borderRadius: '8px',
-                    height: '38px',
-                    px: 3,
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '16px',
-                    fontFamily: 'Inter, sans-serif',
-                    boxShadow: 'none',
-                    ml: 1,
-                    '&:hover': {
-                      backgroundColor: '#1e3fa8',
-                      borderColor: '#1e3fa8'
-                    },
+                    zIndex: 1300,
                   }}
+                  open={openSplitButton}
+                  anchorEl={anchorRef.current}
+                  role={undefined}
+                  transition
+                  disablePortal
                 >
-                  Add Package
-                </Button>
+                  {({ TransitionProps, placement }) => (
+                    <Grow
+                      {...TransitionProps}
+                      style={{
+                        transformOrigin:
+                          placement === 'bottom' ? 'center top' : 'center bottom',
+                      }}
+                    >
+                      <Paper sx={{ width: anchorRef.current?.offsetWidth || 'auto' }}>
+                        <ClickAwayListener onClickAway={handleSplitButtonClose}>
+                          <MenuList id="split-button-menu" autoFocusItem>
+                            <MenuItem
+                              onClick={() => handleMenuItemClick('service')}
+                              sx={{ 
+                                fontFamily: 'Inter, sans-serif',
+                                color: '#2148c0',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                '&:hover': {
+                                  backgroundColor: '#e3f2fd',
+                                  color: '#1a3a9a'
+                                }
+                              }}
+                            >
+                              Add Service
+                            </MenuItem>
+                            <MenuItem
+                              onClick={() => handleMenuItemClick('package')}
+                              sx={{ 
+                                fontFamily: 'Inter, sans-serif',
+                                color: '#2148c0',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                '&:hover': {
+                                  backgroundColor: '#e3f2fd',
+                                  color: '#1a3a9a'
+                                }
+                              }}
+                            >
+                              Add Package
+                            </MenuItem>
+                          </MenuList>
+                        </ClickAwayListener>
+                      </Paper>
+                    </Grow>
+                  )}
+                </Popper>
               </Box>
             </Box>
             {/* Filter Bar UI with animation */}

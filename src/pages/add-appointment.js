@@ -10,12 +10,11 @@ import {
   Typography,
   Autocomplete,
   CircularProgress,
-  Snackbar,
-  Alert,
   IconButton
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { API_BASE } from '../apiConfig';
+import Toast from '../components/Toast';
 
 // Utility function
 const normalizeDateForStorage = (dateString) => {
@@ -55,12 +54,16 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Snackbar state
-  const [snackbar, setSnackbar] = useState({
+  // Toast state
+  const [toast, setToast] = useState({
     open: false,
     message: '',
-    severity: 'success'
+    type: 'info'
   });
+
+  const showToast = (message, type = 'info') => {
+    setToast({ open: true, message, type });
+  };
 
   // Helper functions
   const addMinutesToTime = (timeString, minutes) => {
@@ -93,11 +96,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   useEffect(() => {
     if (selectedServices.length > 0 && timeStart && appointmentDate) {
       if (!isValidBusinessTime(timeStart)) {
-        setSnackbar({
-          open: true,
-          message: 'Start time must be between 8:00 AM and 5:00 PM',
-          severity: 'error'
-        });
+        showToast('Start time must be between 8:00 AM and 5:00 PM', 'error');
         setTimeStart('');
         return;
       }
@@ -120,11 +119,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       const [endHours, endMinutes] = calculatedEndTime.split(':').map(Number);
       
       if (endHours > 17 || (endHours === 17 && endMinutes > 0)) {
-        setSnackbar({
-          open: true,
-          message: `Appointment would end after 5:00 PM (calculated end: ${calculatedEndTime}). Please select an earlier start time or fewer services.`,
-          severity: 'warning'
-        });
+        showToast(`Appointment would end after 5:00 PM (calculated end: ${calculatedEndTime}). Please select an earlier start time or fewer services.`, 'warning');
       }
     } else if (selectedServices.length === 0) {
       setTimeEnd('');
@@ -167,43 +162,23 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
   const validateForm = () => {
     if (!selectedPatient) {
-      setSnackbar({
-        open: true,
-        message: 'Please select a patient',
-        severity: 'error'
-      });
+      showToast('Please select a patient', 'error');
       return false;
     }
     if (selectedServices.length === 0) {
-      setSnackbar({
-        open: true,
-        message: 'Please select at least one service or package',
-        severity: 'error'
-      });
+      showToast('Please select at least one service or package', 'error');
       return false;
     }
     if (selectedServices.some(service => !service.id || service.quantity <= 0)) {
-      setSnackbar({
-        open: true,
-        message: 'Invalid service selected. Please reselect services.',
-        severity: 'error'
-      });
+      showToast('Invalid service selected. Please reselect services.', 'error');
       return false;
     }
     if (!appointmentDate || !timeStart || !timeEnd) {
-      setSnackbar({
-        open: true,
-        message: 'Please fill in all date and time fields',
-        severity: 'error'
-      });
+      showToast('Please fill in all date and time fields', 'error');
       return false;
     }
     if (!isValidBusinessTime(timeStart)) {
-      setSnackbar({
-        open: true,
-        message: 'Start time must be between 8:00 AM and 5:00 PM',
-        severity: 'error'
-      });
+      showToast('Start time must be between 8:00 AM and 5:00 PM', 'error');
       return false;
     }
     
@@ -215,22 +190,14 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       const endTime = endHours * 60 + endMins;
       
       if (endTime <= startTime) {
-        setSnackbar({
-          open: true,
-          message: 'End time must be after start time',
-          severity: 'error'
-        });
+        showToast('End time must be after start time', 'error');
         return false;
       }
     }
     
     const [endHours] = timeEnd.split(':').map(Number);
     if (endHours > 17) {
-      setSnackbar({
-        open: true,
-        message: 'End time cannot be after 5:00 PM',
-        severity: 'error'
-      });
+      showToast('End time cannot be after 5:00 PM', 'error');
       return false;
     }
     return true;
@@ -338,11 +305,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         const responseData = await response.json();
         console.log('✅ Appointment created successfully:', responseData);
         
-        setSnackbar({
-          open: true,
-          message: 'Appointment created successfully!',
-          severity: 'success'
-        });
+        showToast('Appointment created successfully!', 'success');
   
         // Clear form
         setSelectedPatient(null);
@@ -375,19 +338,11 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         const errorData = await response.text();
         console.error('❌ Failed to create appointment:', response.status, errorData);
         
-        setSnackbar({
-          open: true,
-          message: `Failed to create appointment: ${errorData}`,
-          severity: 'error'
-        });
+        showToast(`Failed to create appointment: ${errorData}`, 'error');
       }
     } catch (error) {
       console.error('❌ Error submitting appointment:', error);
-      setSnackbar({
-        open: true,
-        message: `Error: ${error.message}`,
-        severity: 'error'
-      });
+      showToast(`Error: ${error.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -990,11 +945,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                     if (hours <= 17) {
                       setTimeEnd(newTime);
                     } else {
-                      setSnackbar({
-                        open: true,
-                        message: 'End time cannot be after 5:00 PM',
-                        severity: 'error'
-                      });
+                      showToast('End time cannot be after 5:00 PM', 'error');
                     }
                   }}
                   fullWidth
@@ -1140,24 +1091,13 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ 
-            width: '100%',
-            fontFamily: 'Inter, sans-serif'
-          }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      {/* Toast */}
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, open: false })}
+      />
     </>
   );
 }
