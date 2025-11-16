@@ -487,7 +487,7 @@ useEffect(() => {
       setLoading(false);
     }
   };
-  
+
 
 
 // Add function to fetch history appointments (around line 450)
@@ -2866,7 +2866,7 @@ const handleCloseModal = () => {
       </Button>
       <Button 
         variant="contained"
-        onClick={handleSaveChanges}
+         onClick={handleSaveClick}
         disabled={updating || !selectedPatient || selectedServices.length === 0}
         sx={{ 
           fontFamily: 'Inter, sans-serif',
