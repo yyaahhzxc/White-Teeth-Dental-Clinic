@@ -120,7 +120,7 @@ if (typeof document !== 'undefined') {
 }
 
 // Teeth components based on odontogram structure
-function Teeth({ start, end, x, y, handleChange, selectedTeeth, onToothClick }) {
+function Teeth({ start, end, x, y, handleChange, selectedTeeth, onToothClick, readOnly }) {
     let tooths = getArray(start, end);
 
     return (
@@ -134,6 +134,7 @@ function Teeth({ start, end, x, y, handleChange, selectedTeeth, onToothClick }) 
                         positionX={Math.abs((i - start) * 22) + x}
                         isSelected={selectedTeeth.includes(i)}
                         onToothClick={onToothClick}
+                        readOnly={readOnly}
                     />
                 )
             }
@@ -141,16 +142,18 @@ function Teeth({ start, end, x, y, handleChange, selectedTeeth, onToothClick }) 
     )
 }
 
-function Tooth({ number, positionX, positionY, isSelected, onToothClick }) {
+function Tooth({ number, positionX, positionY, isSelected, onToothClick, readOnly }) {
     const translate = `translate(${positionX},${positionY})`;
     
     const handleClick = (e) => {
-        onToothClick(number, e);
+        if (!readOnly) {
+            onToothClick(number, e);
+        }
     };
 
     return (
         <svg className="tooth">
-            <g transform={translate} onClick={handleClick} style={{ cursor: 'pointer' }}>
+            <g transform={translate} onClick={handleClick} style={{ cursor: readOnly ? 'default' : 'pointer', opacity: readOnly ? 0.6 : 1 }}>
                 {/* Top section */}
                 <polygon
                     points="0,0 20,0 15,5 5,5"
@@ -241,6 +244,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
     const [newToothSummary, setNewToothSummary] = useState('');
     const [multiSelectMode, setMultiSelectMode] = useState(false); // Track if Ctrl/Shift was used
     const [pendingMultiSelectTeeth, setPendingMultiSelectTeeth] = useState([]); // Store teeth selected during multi-select
+    const [shouldNotifyParent, setShouldNotifyParent] = useState(false); // Flag to trigger parent notification
 
     // Mock tooth history data
     const toothHistory = [
@@ -248,7 +252,20 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
         { date: '02-05-2025', condition: 'Malfunctioning tooth' }
     ];
 
+    // Notify parent of changes via useEffect to avoid setState during render
+    useEffect(() => {
+        if (shouldNotifyParent && onTeethChange) {
+            onTeethChange(selectedTeeth, toothSummaries);
+            setShouldNotifyParent(false);
+        }
+    }, [shouldNotifyParent, selectedTeeth, toothSummaries]);
+
     const handleToothClick = (toothNumber, event) => {
+        // Prevent any interaction in read-only mode
+        if (readOnly) {
+            return;
+        }
+        
         // Prevent text selection during multi-select operations
         event.preventDefault();
         
@@ -269,10 +286,6 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                     ? prev.filter(t => t !== toothNumber) 
                     : [...prev, toothNumber];
                 
-                if (onTeethChange) {
-                    onTeethChange(newSelected);
-                }
-                
                 // Update pending teeth - only track teeth added during this multi-select session
                 setPendingMultiSelectTeeth(prevPending => {
                     if (isRemoving) {
@@ -287,6 +300,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                     }
                 });
                 
+                setShouldNotifyParent(true);
                 return newSelected;
             });
             setLastSelectedTooth(toothNumber);
@@ -318,10 +332,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                 
                 setSelectedTeeth(prev => {
                     const newSelected = [...new Set([...prev, ...rangeTeeth])];
-                    if (onTeethChange) {
-                        onTeethChange(newSelected);
-                    }
-                    
+                    setShouldNotifyParent(true);
                     return newSelected;
                 });
                 
@@ -357,10 +368,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                     setCurrentlySelectedTooth(toothNumber);
                 }
                 
-                if (onTeethChange) {
-                    onTeethChange(newSelected);
-                }
-                
+                setShouldNotifyParent(true);
                 return newSelected;
             });
             setLastSelectedTooth(toothNumber);
@@ -407,6 +415,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
             setBulkEditDialogOpen(false);
             setMultiSelectMode(false); // Reset multi-select mode
             setPendingMultiSelectTeeth([]); // Clear pending teeth
+            setShouldNotifyParent(true);
         }
     };
 
@@ -416,14 +425,12 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
         if (teethToRemove.length > 0) {
             setSelectedTeeth(prev => {
                 const newSelected = prev.filter(t => !teethToRemove.includes(t));
-                if (onTeethChange) {
-                    onTeethChange(newSelected);
-                }
                 // Update currentlySelectedTooth if needed
                 if (teethToRemove.includes(currentlySelectedTooth)) {
                     const remaining = newSelected.filter(t => !teethToRemove.includes(t));
                     setCurrentlySelectedTooth(remaining.length > 0 ? remaining[remaining.length - 1] : null);
                 }
+                setShouldNotifyParent(true);
                 return newSelected;
             });
         }
@@ -442,6 +449,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
         setToothSummaries(prev => ({ ...prev, [num]: editValue }));
         setEditingTooth(null);
         setEditValue('');
+        setShouldNotifyParent(true);
     };
 
     const handleDelete = (num) => {
@@ -452,10 +460,6 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
         setSelectedTeeth(prev => {
             const newSelected = prev.filter(t => t !== num);
             
-            if (onTeethChange) {
-                onTeethChange(newSelected);
-            }
-            
             // Update currentlySelectedTooth - select the most recent tooth
             if (currentlySelectedTooth === num) {
                 if (newSelected.length > 0) {
@@ -465,6 +469,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                 }
             }
             
+            setShouldNotifyParent(true);
             return newSelected;
         });
         
@@ -493,9 +498,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
         if (toothNum && newToothSummary.trim()) {
             setSelectedTeeth(prev => {
                 const newSelected = [...new Set([...prev, toothNum])];
-                if (onTeethChange) {
-                    onTeethChange(newSelected);
-                }
+                setShouldNotifyParent(true);
                 return newSelected;
             });
             setToothSummaries(prev => ({
@@ -505,6 +508,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
             setNewToothNumber('');
             setNewToothSummary('');
             setAddingTooth(false);
+            setShouldNotifyParent(true);
         }
     };
 
@@ -566,19 +570,19 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                 <svg version="1.1" height="240px" width="530px" viewBox="0 0 760 320" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
                     <g transform="translate(6,8) scale(2.0)">
                         {/* Adult teeth */}
-                        <Teeth start={18} end={11} x={0} y={0} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
-                        <Teeth start={21} end={28} x={200} y={0} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
+                        <Teeth start={18} end={11} x={0} y={0} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
+                        <Teeth start={21} end={28} x={200} y={0} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
 
                         {/* Primary teeth */}
-                        <Teeth start={55} end={51} x={66} y={40} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
-                        <Teeth start={61} end={65} x={200} y={40} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
+                        <Teeth start={55} end={51} x={66} y={40} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
+                        <Teeth start={61} end={65} x={200} y={40} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
 
-                        <Teeth start={85} end={81} x={66} y={80} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
-                        <Teeth start={71} end={75} x={200} y={80} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
+                        <Teeth start={85} end={81} x={66} y={80} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
+                        <Teeth start={71} end={75} x={200} y={80} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
 
                         {/* Adult lower teeth */}
-                        <Teeth start={48} end={41} x={0} y={120} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
-                        <Teeth start={31} end={38} x={200} y={120} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} />
+                        <Teeth start={48} end={41} x={0} y={120} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
+                        <Teeth start={31} end={38} x={200} y={120} selectedTeeth={selectedTeeth} onToothClick={handleToothClick} readOnly={readOnly} />
                     </g>
                 </svg>
             </Box>

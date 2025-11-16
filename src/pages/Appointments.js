@@ -291,10 +291,19 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   // Log Appointment modal state
   const [logAppointmentOpen, setLogAppointmentOpen] = useState(false);
   
+  // View log in read-only mode (for history)
+  const [viewLogAppointmentOpen, setViewLogAppointmentOpen] = useState(false);
+  const [viewLogAppointment, setViewLogAppointment] = useState(null);
+  
   // Success message state
   
 
   // Add state to track if appointment was logged
+  const [appointmentLogged, setAppointmentLogged] = useState(false);
+
+  // View Visit Log modal state (read-only)
+  const [viewLogModalOpen, setViewLogModalOpen] = useState(false);
+  const [currentVisitLog, setCurrentVisitLog] = useState(null);
 
   // Billing modal state
   const [billingModalOpen, setBillingModalOpen] = useState(false);
@@ -827,27 +836,53 @@ const handleCancelAppointment = async () => {
  const handleAppointmentClick = async (appointment) => {
   console.log('=== APPOINTMENT CLICK DEBUG ===');
   console.log('Clicked appointment:', appointment);
+
+  // CRITICAL FIX: Use appointment.appointmentId if it exists (from history tab), otherwise use appointment.id
+  const appointmentId = appointment.appointmentId || appointment.id;
+  console.log('Using effective appointment ID:', appointmentId);
+  
+  // Reset appointmentLogged state when opening a new appointment
+  setAppointmentLogged(false);
   
   try {
-    const response = await fetch(`${API_BASE}/appointments/${appointment.id}`);
+    const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
     if (!response.ok) {
       throw new Error('Failed to fetch appointment details');
     }
     
     const freshAppointmentData = await response.json();
     console.log('Fresh appointment data from backend:', freshAppointmentData);
+    console.log('Logged status from DB:', freshAppointmentData.logged);
+    
+    // Set appointmentLogged based on database value
+    if (freshAppointmentData.logged === 1 || freshAppointmentData.logged === true) {
+      setAppointmentLogged(true);
+      console.log('✅ Appointment is already logged');
+    } else {
+      setAppointmentLogged(false);
+      console.log('❌ Appointment not yet logged');
+    }
 
     // Check if billing already exists for this appointment
     let hasBilling = false;
     try {
-      const billingCheckResponse = await fetch(`${API_BASE}/billings/appointment/${appointment.id}`);
+      const billingCheckResponse = await fetch(`${API_BASE}/billings/appointment/${appointmentId}`);
       if (billingCheckResponse.ok) {
         const existingBilling = await billingCheckResponse.json();
-        hasBilling = !!existingBilling;
-        console.log('Billing exists for this appointment:', hasBilling);
+        // Ensure that an empty object or array doesn't evaluate to true
+        if (existingBilling && Object.keys(existingBilling).length > 0) {
+          hasBilling = true;
+          console.log('Billing exists for this appointment:', hasBilling);
+        } else {
+          hasBilling = false;
+          console.log('Billing check returned ok, but no billing data found.');
+        }
+      } else {
+        // Specifically handle 404 as a non-error case (no billing found)
+        console.log('No billing found for this appointment (404).');
       }
     } catch (billingError) {
-      console.log('No billing found for this appointment');
+      console.error('Network or other error during billing check:', billingError);
     }
 
     const currentTime = new Date();
@@ -875,7 +910,7 @@ const handleCancelAppointment = async () => {
     
     setSelectedAppointment(appointmentToShow);
     
-    await fetchAppointmentDetails(appointment.id);
+    await fetchAppointmentDetails(appointmentId);
     
     setModalOpen(true);
   } catch (error) {
@@ -968,23 +1003,59 @@ const handleCloseModal = () => {
   // Close the log modal
   setLogAppointmentOpen(false);
   
-  // Update the current appointment in state to mark it as logged
+  // CRITICAL: Set the appointmentLogged flag to show "Proceed to Billing" button
+  setAppointmentLogged(true);
+  
+  // Re-fetch the appointment details to get the fresh "logged" status from the DB
   if (selectedAppointment) {
-    setSelectedAppointment(prev => ({
-      ...prev,
-      logged: 1
-    }));
+    try {
+      const response = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}`);
+      if (response.ok) {
+        const freshAppointmentData = await response.json();
+        console.log('✅ Refreshed appointment data after logging:', freshAppointmentData);
+        
+        // Update the selected appointment state with the fresh data
+        setSelectedAppointment(prev => ({
+          ...prev,
+          ...freshAppointmentData,
+          logged: freshAppointmentData.logged // Explicitly update logged status
+        }));
+        
+        // Show success message inside the main modal
+        setSuccessMessage('Appointment logged successfully! You can now proceed to billing.');
+        setUpdateSuccess(true);
+      } else {
+        throw new Error('Failed to re-fetch appointment details');
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing appointment details after log:', error);
+      showToast('Could not refresh appointment status.', 'error');
+    }
   }
   
-  // Refresh the current calendar view
+  // Refresh the main calendar view in the background
   await refreshAppointments();
-  
-  // Show success message
-  setSuccessMessage('Appointment logged successfully! You can now proceed to billing.');
-  setUpdateSuccess(true);
-  
-  // Don't close the modal - let user click "Proceed to Billing" button
 };
+
+  // Fetch visit log for viewing
+  const fetchVisitLog = async (appointmentId) => {
+    try {
+      console.log('🔄 Fetching visit log for appointment:', appointmentId);
+      const response = await fetch(`${API_BASE}/visit-logs/appointment/${appointmentId}`);
+      
+      if (!response.ok) {
+        throw new Error('Visit log not found');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Visit log fetched:', data);
+      setCurrentVisitLog(data);
+      setViewLogModalOpen(true);
+    } catch (error) {
+      console.error('❌ Error fetching visit log:', error);
+      showToast('No visit log found for this appointment', 'error');
+    }
+  };
 
 
   // FIND AND REPLACE the handleProceedToBilling function (around line 900)
@@ -1543,7 +1614,21 @@ const handleCloseModal = () => {
                           cursor: 'pointer'
                         }
                       }}
-                      onClick={() => handleAppointmentClick(apt)}
+                      onClick={async () => {
+                        // For history tab, open LogAppointment modal in read-only mode
+                        const appointmentId = apt.appointmentId || apt.id;
+                        try {
+                          const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
+                          if (response.ok) {
+                            const appointmentData = await response.json();
+                            setViewLogAppointment(appointmentData);
+                            setViewLogAppointmentOpen(true);
+                          }
+                        } catch (error) {
+                          console.error('Error fetching appointment for view:', error);
+                          showToast('Failed to load appointment details', 'error');
+                        }
+                      }}
                     >
                       <Box sx={{ flex: '1.5', textAlign: 'left' }}>
                         <Typography sx={{
@@ -2956,7 +3041,7 @@ const handleCloseModal = () => {
           })()}
           
           {/* Show Log Appointment button if done and not logged yet */}
-          {selectedAppointment?.status === 'done' && !editMode && !appointmentLogged && (
+          {selectedAppointment?.status === 'done' && !editMode && !appointmentLogged && !selectedAppointment?.logged ? (
             <Button 
               variant="contained"
               onClick={() => setLogAppointmentOpen(true)}
@@ -2979,10 +3064,10 @@ const handleCloseModal = () => {
             >
               Log Appointment
             </Button>
-          )}
+          ) : null}
           
           {/* Show Proceed to Billing button if appointment was logged */}
-          {appointmentLogged && !editMode && (
+          {selectedAppointment?.status === 'done' && !editMode && (appointmentLogged || selectedAppointment?.logged) ? (
             <Button 
               variant="contained"
               onClick={handleProceedToBilling}
@@ -3004,6 +3089,31 @@ const handleCloseModal = () => {
               }}
             >
               Proceed to Billing
+            </Button>
+          ) : null}
+          
+          {/* Show View Log button if appointment is completed (status 'completed' from history) */}
+          {selectedAppointment?.status === 'completed' && !editMode && (
+            <Button 
+              variant="outlined"
+              onClick={() => fetchVisitLog(selectedAppointment.id)}
+              sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                textTransform: 'none',
+                fontSize: '16px',
+                fontWeight: 700,
+                borderRadius: '12px',
+                px: 4,
+                py: 1.5,
+                borderColor: '#2148C0',
+                color: '#2148C0',
+                '&:hover': {
+                  borderColor: '#1a3ba8',
+                  backgroundColor: 'rgba(33, 72, 192, 0.04)'
+                }
+              }}
+            >
+              View Log
             </Button>
           )}
             </>
@@ -3083,7 +3193,198 @@ const handleCloseModal = () => {
         onClose={() => setLogAppointmentOpen(false)}
         appointment={selectedAppointment}
         onAppointmentLogged={handleAppointmentLogged}
+        readOnly={false}
       />
+      
+      {/* View Log Appointment Modal (Read-Only for History) */}
+      <LogAppointment 
+        open={viewLogAppointmentOpen}
+        onClose={() => {
+          setViewLogAppointmentOpen(false);
+          setViewLogAppointment(null);
+        }}
+        appointment={viewLogAppointment}
+        onAppointmentLogged={() => {}} // No-op since it's read-only
+        readOnly={true}
+      />
+      
+      {/* View Visit Log Modal (Read-Only) */}
+      <Dialog
+        open={viewLogModalOpen}
+        onClose={() => setViewLogModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '16px',
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          p: 3,
+          borderBottom: '1px solid #e0e0e0'
+        }}>
+          <Typography variant="h5" sx={{ 
+            fontWeight: 700,
+            fontFamily: 'Inter, sans-serif',
+            color: '#1a1a1a'
+          }}>
+            Visit Log Details
+          </Typography>
+          <IconButton onClick={() => setViewLogModalOpen(false)} size="small">
+            <Close />
+          </IconButton>
+        </Box>
+
+        <DialogContent sx={{ p: 3 }}>
+          {currentVisitLog && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Visit Information Section */}
+              <Box>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 600, 
+                  mb: 2,
+                  color: '#2148C0',
+                  fontFamily: 'Inter, sans-serif'
+                }}>
+                  Visit Information
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Visit Date
+                    </Typography>
+                    <TextField
+                      value={currentVisitLog.visitDate ? new Date(currentVisitLog.visitDate).toLocaleDateString() : ''}
+                      fullWidth
+                      size="small"
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Time
+                    </Typography>
+                    <TextField
+                      value={`${currentVisitLog.timeStart || ''} - ${currentVisitLog.timeEnd || ''}`}
+                      fullWidth
+                      size="small"
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                  <Box sx={{ gridColumn: '1 / -1' }}>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Attending Dentist
+                    </Typography>
+                    <TextField
+                      value={currentVisitLog.attendingDentist || ''}
+                      fullWidth
+                      size="small"
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* Clinical Information Section */}
+              <Box>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 600, 
+                  mb: 2,
+                  color: '#2148C0',
+                  fontFamily: 'Inter, sans-serif'
+                }}>
+                  Clinical Information
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Chief Concern
+                    </Typography>
+                    <TextField
+                      value={currentVisitLog.concern || ''}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Procedures Done
+                    </Typography>
+                    <TextField
+                      value={currentVisitLog.proceduresDone || ''}
+                      fullWidth
+                      multiline
+                      rows={3}
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Progress Notes
+                    </Typography>
+                    <TextField
+                      value={currentVisitLog.progressNotes || ''}
+                      fullWidth
+                      multiline
+                      rows={3}
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#666', fontSize: '13px', mb: 0.5 }}>
+                      Additional Notes
+                    </Typography>
+                    <TextField
+                      value={currentVisitLog.notes || ''}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      InputProps={{ readOnly: true }}
+                      sx={{ '& .MuiInputBase-input': { fontWeight: 500 } }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #e0e0e0' }}>
+          <Button
+            onClick={() => setViewLogModalOpen(false)}
+            variant="contained"
+            sx={{
+              bgcolor: '#2148C0',
+              color: 'white',
+              fontWeight: 600,
+              px: 4,
+              py: 1.5,
+              borderRadius: '8px',
+              textTransform: 'none',
+              fontSize: '16px',
+              fontFamily: 'Inter, sans-serif',
+              '&:hover': {
+                bgcolor: '#1a3ba8'
+              }
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       {/* Billing Appointment Summary Modal */}
       <BillingAppointmentSummary

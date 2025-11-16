@@ -21,7 +21,7 @@ const API_BASE = 'http://localhost:3001';
 
 
 
-function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
+function LogAppointment({ open, onClose, appointment, onAppointmentLogged, readOnly = false }) {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [visitDateCalendarAnchor, setVisitDateCalendarAnchor] = useState(null);
@@ -265,7 +265,7 @@ useEffect(() => {
             pb: 2
           }}
         >
-          Log Appointment
+          {readOnly ? 'View Appointment Log' : 'Log Appointment'}
         </Typography>
 
         {/* Tabs */}
@@ -609,17 +609,18 @@ useEffect(() => {
                           const [yyyy, mm, dd] = visitLog.date.split('-');
                           return `${mm}-${dd}-${yyyy}`;
                         })() : ''}
-                        onClick={(e) => setVisitDateCalendarAnchor(e.currentTarget)}
+                        onClick={(e) => !readOnly && setVisitDateCalendarAnchor(e.currentTarget)}
                         fullWidth
+                        disabled={readOnly}
                         InputProps={{
                           readOnly: true,
-                          endAdornment: (
+                          endAdornment: !readOnly ? (
                             <InputAdornment position="end">
                               <IconButton onClick={(e) => setVisitDateCalendarAnchor(e.currentTarget)} edge="end">
                                 <CalendarToday sx={{ fontSize: 18 }} />
                               </IconButton>
                             </InputAdornment>
-                          )
+                          ) : null
                         }}
                         placeholder="mm-dd-yyyy"
                         sx={{
@@ -631,7 +632,7 @@ useEffect(() => {
                         }}
                       />
                       <Popover
-                        open={Boolean(visitDateCalendarAnchor)}
+                        open={!readOnly && Boolean(visitDateCalendarAnchor)}
                         anchorEl={visitDateCalendarAnchor}
                         onClose={() => setVisitDateCalendarAnchor(null)}
                         anchorOrigin={{
@@ -699,8 +700,10 @@ useEffect(() => {
                         value={visitLog.timeStart}
                         onChange={(e) => setVisitLog({ ...visitLog, timeStart: e.target.value })}
                         fullWidth
+                        disabled={readOnly}
                         InputProps={{
-                          endAdornment: <AccessTime sx={{ color: '#757575' }} />
+                          readOnly: readOnly,
+                          endAdornment: !readOnly ? <AccessTime sx={{ color: '#757575' }} /> : null
                         }}
                         sx={{
                           '& .MuiInputBase-root': {
@@ -740,8 +743,10 @@ useEffect(() => {
                         value={visitLog.timeEnd}
                         onChange={(e) => setVisitLog({ ...visitLog, timeEnd: e.target.value })}
                         fullWidth
+                        disabled={readOnly}
                         InputProps={{
-                          endAdornment: <AccessTime sx={{ color: '#757575' }} />
+                          readOnly: readOnly,
+                          endAdornment: !readOnly ? <AccessTime sx={{ color: '#757575' }} /> : null
                         }}
                         sx={{
                           '& .MuiInputBase-root': {
@@ -764,6 +769,10 @@ useEffect(() => {
                         value={visitLog.concern}
                         onChange={(e) => setVisitLog({ ...visitLog, concern: e.target.value })}
                         fullWidth
+                        disabled={readOnly}
+                        InputProps={{
+                          readOnly: readOnly
+                        }}
                         sx={{
                           '& .MuiInputBase-root': {
                             backgroundColor: 'white',
@@ -780,6 +789,10 @@ useEffect(() => {
                         value={visitLog.attendingDentist}
                         onChange={(e) => setVisitLog({ ...visitLog, attendingDentist: e.target.value })}
                         fullWidth
+                        disabled={readOnly}
+                        InputProps={{
+                          readOnly: readOnly
+                        }}
                         sx={{
                           '& .MuiInputBase-root': {
                             backgroundColor: 'white',
@@ -802,6 +815,10 @@ useEffect(() => {
                         fullWidth
                         multiline
                         rows={4}
+                        disabled={readOnly}
+                        InputProps={{
+                          readOnly: readOnly
+                        }}
                         sx={{
                           '& .MuiInputBase-root': {
                             backgroundColor: 'white',
@@ -820,6 +837,10 @@ useEffect(() => {
                         fullWidth
                         multiline
                         rows={4}
+                        disabled={readOnly}
+                        InputProps={{
+                          readOnly: readOnly
+                        }}
                         sx={{
                           '& .MuiInputBase-root': {
                             backgroundColor: 'white',
@@ -841,6 +862,10 @@ useEffect(() => {
                       fullWidth
                       multiline
                       rows={3}
+                      disabled={readOnly}
+                      InputProps={{
+                        readOnly: readOnly
+                      }}
                       sx={{
                         '& .MuiInputBase-root': {
                           backgroundColor: 'white',
@@ -891,14 +916,17 @@ useEffect(() => {
               key={`${appointment.patientId}-${teethData.loadTimestamp}`}
               selectedTeeth={teethData.selectedTeeth}
               toothSummaries={teethData.toothSummaries}
-              onTeethChange={(updatedTeeth) => {
-                console.log('🔄 TeethChart update received:', updatedTeeth);
-                setTeethData({
-                  ...teethData,
-                  selectedTeeth: updatedTeeth || []
-                });
+              onTeethChange={(updatedTeeth, updatedSummaries) => {
+                console.log('🔄 TeethChart update received');
+                console.log('  - Selected teeth:', updatedTeeth);
+                console.log('  - Tooth summaries:', updatedSummaries);
+                setTeethData(prev => ({
+                  ...prev,
+                  selectedTeeth: updatedTeeth || [],
+                  toothSummaries: updatedSummaries || {}
+                }));
               }}
-              readOnly={false}
+              readOnly={readOnly}
             />
           ) : (
             <Box sx={{ backgroundColor: 'white', borderRadius: '8px', p: 2 }}>
@@ -1097,29 +1125,51 @@ useEffect(() => {
             pb: 3,
             pt: 2,
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: readOnly ? 'center' : 'flex-end',
             backgroundColor: '#f9f9f9'
           }}
         >
-          <Button
-            variant="contained"
-            onClick={handleLog}
-            sx={{
-              backgroundColor: '#2148c0',
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 800,
-              fontSize: '20.1px',
-              textTransform: 'capitalize',
-              borderRadius: '8px',
-              px: 4,
-              py: 1,
-              '&:hover': {
-                backgroundColor: '#1a3a9a'
-              }
-            }}
-          >
-            Log
-          </Button>
+          {readOnly ? (
+            <Button
+              variant="contained"
+              onClick={onClose}
+              sx={{
+                backgroundColor: '#2148c0',
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 800,
+                fontSize: '20.1px',
+                textTransform: 'capitalize',
+                borderRadius: '8px',
+                px: 4,
+                py: 1,
+                '&:hover': {
+                  backgroundColor: '#1a3a9a'
+                }
+              }}
+            >
+              Close
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={handleLog}
+              sx={{
+                backgroundColor: '#2148c0',
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 800,
+                fontSize: '20.1px',
+                textTransform: 'capitalize',
+                borderRadius: '8px',
+                px: 4,
+                py: 1,
+                '&:hover': {
+                  backgroundColor: '#1a3a9a'
+                }
+              }}
+            >
+              Log
+            </Button>
+          )}
         </Box>
       </DialogContent>
 
