@@ -223,20 +223,22 @@ const handleSaveClick = async () => {
   JSON.stringify(toothChartData.toothSummaries) !== JSON.stringify(originalToothChartData.toothSummaries || {})
 );
 
-console.log('🔍 Change Detection:', {
-  patientDataChanged,
-  medicalDataChanged,
-  toothChartChanged
-});
+if (toothChartChanged) {
+      changedFieldsCount++;
+    }
 
-let updateCount = 0;
-let hasAnyChanges = patientDataChanged || medicalDataChanged || toothChartChanged;
+    console.log('🔍 Change Detection:', {
+      patientDataChanged,
+      medicalDataChanged,
+      toothChartChanged,
+      totalChanges: changedFieldsCount
+    });
 
-if (!hasAnyChanges) {
-  showToast('No changes detected.', 'info');
-  setEditMode(false);
-  return;
-}
+    if (changedFieldsCount === 0) {
+      showToast('No changes detected.', 'info');
+      setEditMode(false);
+      return;
+    }
 
        // Only update what actually changed
        if (patientDataChanged) {
@@ -861,12 +863,12 @@ if (!hasAnyChanges) {
           <TeethChart 
             selectedTeeth={toothChartData.selectedTeeth}
             toothSummaries={toothChartData.toothSummaries}
-            onTeethChange={(updatedTeeth) => {
+            onTeethChange={(updatedTeeth, updatedSummaries) => {
               if (editMode) {
-                setToothChartData(prev => ({
-                  ...prev,
-                  selectedTeeth: updatedTeeth
-                }));
+                setToothChartData({
+                  selectedTeeth: updatedTeeth,
+                  toothSummaries: updatedSummaries
+                });
               }
             }}
             readOnly={!editMode}

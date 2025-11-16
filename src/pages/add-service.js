@@ -32,6 +32,11 @@ const statusOptions = [
   { value: 'Inactive', label: 'Inactive', color: '#f44336' }
 ];
 
+const serviceTypes = [
+  { value: 'Single Treatment', label: 'Single Treatment', desc: 'One-time service' },
+  { value: 'Package Treatment', label: 'Package Treatment', desc: 'Multiple sessions' }
+];
+
 import { API_BASE } from '../apiConfig';
 
 const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {

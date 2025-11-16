@@ -196,6 +196,43 @@ export default function FilterComponent({
     return age;
   };
 
+  // Helper function to check if date is within range
+  const isDateInRange = (dateString, rangeType) => {
+    if (!dateString) return false;
+    
+    // Parse the date string - handle various formats
+    let itemDate;
+    try {
+      // Try parsing as is first
+      itemDate = new Date(dateString);
+      
+      // If invalid, try parsing formatted date like "October 30, 2025"
+      if (isNaN(itemDate.getTime())) {
+        itemDate = new Date(dateString);
+      }
+      
+      if (isNaN(itemDate.getTime())) return false;
+    } catch (e) {
+      return false;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const daysDiff = Math.floor((today - itemDate) / (1000 * 60 * 60 * 24));
+    
+    switch (rangeType) {
+      case 'Last 7 days':
+        return daysDiff >= 0 && daysDiff <= 7;
+      case 'Last 30 days':
+        return daysDiff >= 0 && daysDiff <= 30;
+      case 'Last 90 days':
+        return daysDiff >= 0 && daysDiff <= 90;
+      default:
+        return true;
+    }
+  };
+
   // Apply filters to data
   useEffect(() => {
     if (onFilteredData && data.length > 0) {
@@ -241,15 +278,42 @@ export default function FilterComponent({
               case '120+ mins': return duration > 120;
               default: return true;
             }
+          } else if (filter.category === 'dateRange') {
+            // Check multiple possible date fields
+            const dateField = item.dateCreated || item.appointmentDate || item.createdAt || item.date;
+            return isDateInRange(dateField, filter.type);
+          } else if (filter.category === 'type') {
+            // Special handling for type field in services/packages
+            // Map filter types to actual values
+            const typeMapping = {
+              'Single Treatment': 'service',
+              'Package Treatment': 'package'
+            };
+            const expectedValue = typeMapping[filter.type] || filter.type;
+            const itemValue = item.source_type || item.type;
+            
+            if (typeof itemValue === 'string' && typeof expectedValue === 'string') {
+              return itemValue.toLowerCase() === expectedValue.toLowerCase();
+            }
+            return itemValue === expectedValue;
           } else {
-            // Handle direct field matching (like status, type, sex, etc.)
-            const itemValue = item[filter.category];
+            // Handle direct field matching (like status, sex, etc.)
+            const categoryObj = filterCategories.find(c => c.value === filter.category);
+            const accessor = categoryObj?.accessor || filter.category;
+            const itemValue = item[accessor];
+            // Case-insensitive comparison for string values
+            if (typeof itemValue === 'string' && typeof filter.type === 'string') {
+              return itemValue.toLowerCase() === filter.type.toLowerCase();
+            }
             return itemValue === filter.type;
           }
         });
       });
 
       onFilteredData(filtered);
+    } else {
+      // When no filters or filter box is hidden, return all data
+      onFilteredData(data);
     }
   }, [activeFilters, data, onFilteredData, showFilterBox]);
 

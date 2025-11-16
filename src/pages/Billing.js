@@ -144,7 +144,7 @@ const fetchBillings = async () => {
 
   // Filter categories for billing
   const filterCategories = [
-    { label: 'Status', value: 'status', types: ['Paid', 'Partial'] },
+    { label: 'Status', value: 'status', accessor: 'status', types: ['Paid', 'Partial', 'Unpaid'] },
     { label: 'Date Range', value: 'dateRange', types: ['Last 7 days', 'Last 30 days', 'Last 90 days'] },
   ];
 
@@ -175,6 +175,11 @@ useEffect(() => {
   useEffect(() => {
     setCategoryFilteredBillings(billings);
   }, [billings]);
+
+  // Callback to receive filtered data from FilterComponent
+  const handleFilteredData = (filteredData) => {
+    setCategoryFilteredBillings(filteredData);
+  };
 
   // Reset page when filters change
   useEffect(() => {
@@ -256,11 +261,18 @@ const handleViewInvoice = (billing) => {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#2148c0',
+        bgcolor: '#2148C0',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
+      <FilterComponent
+        filterCategories={filterCategories}
+        data={billings}
+        onFilteredData={handleFilteredData}
+        activeFilters={activeFilters}
+        showFilterBox={showFilterBox}
+      />
       <Header />
       
       {/* Billing Title */}
