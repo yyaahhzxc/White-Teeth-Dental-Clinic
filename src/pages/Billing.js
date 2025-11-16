@@ -18,6 +18,7 @@ import DualSortableHeader, { sortDualData } from '../components/DualSortableHead
 import Pagination from '../components/Pagination';
 import BillingAppointmentSummary from './BillingAppointmentSummary';
 import InvoiceGallery from './InvoiceGallery';
+import LogAppointment from './LogAppointment';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 const API_BASE = 'http://localhost:3001';
@@ -72,6 +73,8 @@ function Billing() {
 
 const [invoiceGalleryOpen, setInvoiceGalleryOpen] = useState(false);
 const [selectedBillingForInvoices, setSelectedBillingForInvoices] = useState(null);
+const [viewLogAppointmentOpen, setViewLogAppointmentOpen] = useState(false);
+const [viewLogAppointment, setViewLogAppointment] = useState(null);
   
   
 
@@ -224,9 +227,22 @@ const handleViewInvoice = (billing) => {
   setInvoiceGalleryOpen(true);
 };
 
-  const handleViewAppointment = (billing) => {
+  const handleViewAppointment = async (billing) => {
     console.log('View appointment for:', billing);
-    // TODO: Implement view appointment functionality
+    try {
+      // Fetch the appointment details using appointmentId from billing
+      const response = await fetch(`${API_BASE}/appointments/${billing.appointmentId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch appointment details');
+      }
+      const appointmentData = await response.json();
+      console.log('📋 Fetched appointment data:', appointmentData);
+      
+      setViewLogAppointment(appointmentData);
+      setViewLogAppointmentOpen(true);
+    } catch (error) {
+      console.error('❌ Error fetching appointment:', error);
+    }
   };
 
   const handleCloseModal = () => {
@@ -679,6 +695,19 @@ const handleViewInvoice = (billing) => {
     }}
     billingId={selectedBillingForInvoices.id}
     billingData={selectedBillingForInvoices}
+  />
+)}
+
+{/* View Appointment Log Modal (Read-Only) */}
+{viewLogAppointment && (
+  <LogAppointment
+    open={viewLogAppointmentOpen}
+    onClose={() => {
+      setViewLogAppointmentOpen(false);
+      setViewLogAppointment(null);
+    }}
+    appointment={viewLogAppointment}
+    readOnly={true}
   />
 )}
       
