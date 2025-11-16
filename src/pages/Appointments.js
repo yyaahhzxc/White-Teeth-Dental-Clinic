@@ -271,7 +271,6 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
 
   // Add state to track if appointment was logged
-  const [appointmentLogged, setAppointmentLogged] = useState(false);
 
   // Billing modal state
   const [billingModalOpen, setBillingModalOpen] = useState(false);
@@ -812,16 +811,21 @@ const handleSaveClick = async () => {
 
 
 
-  // Close modal
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setSelectedAppointment(null);
-    setEditMode(false);
-    setEditedAppointment(null);
-    setEditedServices([]);
-    setServiceInputValue('');
-    setAppointmentLogged(false);
-  };
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  setSelectedAppointment(null);
+  setEditMode(false);
+  setEditedAppointment(null);
+  setUpdateSuccess(false);
+  setSuccessMessage('');
+  setLogAppointmentOpen(false);
+  // REMOVE THIS LINE: setAppointmentLogged(false);
+  setShowCancelConfirm(false);
+  setSelectedServices([]);
+  setServiceInputValue('');
+  setSelectedPatient(null);
+  setPatientInputValue('');
+};
 
   // Handler for marking appointment as done
   const handleMarkAsDone = async () => {
@@ -881,47 +885,46 @@ const handleSaveClick = async () => {
 
 
  // Update the handleAppointmentLogged function (around line 800)
- const handleAppointmentLogged = () => {
+ const handleAppointmentLogged = async () => {
   console.log('📝 Appointment logged, refreshing data...');
   
   // Close the log modal
   setLogAppointmentOpen(false);
   
-  // Show success state
-  setAppointmentLogged(true);
+  // Update the current appointment in state to mark it as logged
+  if (selectedAppointment) {
+    setSelectedAppointment(prev => ({
+      ...prev,
+      logged: 1
+    }));
+  }
   
   // Refresh the current calendar view
-  refreshAppointments();
+  await refreshAppointments();
   
-  // Switch to history tab and fetch history data
-  setStatusTab('history');
+  // Show success message
+  setSuccessMessage('Appointment logged successfully! You can now proceed to billing.');
+  setUpdateSuccess(true);
   
-  // Give a small delay to ensure state updates, then fetch history
-  setTimeout(() => {
-    fetchHistoryAppointments();
-  }, 300);
+  // Don't close the modal - let user click "Proceed to Billing" button
 };
 
 
   // Handler for proceeding to billing
   const handleProceedToBilling = () => {
-    // Close the appointment details modal
-    setModalOpen(false);
-    // Pass billing data via navigation state
-    navigate('/billing', {
-      state: {
-        openBillingModal: true,
-        billingData: {
-          patient: {
-            firstName: selectedAppointment.firstName,
-            lastName: selectedAppointment.lastName
-          },
-          appointmentId: selectedAppointment.id,
-          appointmentDate: selectedAppointment.appointmentDate
-        }
-      }
-    });
-  };
+  console.log('💳 Proceeding to billing for appointment:', selectedAppointment?.id);
+  
+  // Close the appointment modal
+  handleCloseModal();
+  
+  // Navigate to billing page (you'll need to import useNavigate from react-router-dom)
+  // If you haven't imported it yet, add: import { useNavigate } from 'react-router-dom';
+  // And add: const navigate = useNavigate(); at the top of your component
+  
+  // For now, let's just show an alert - you can replace this with navigation
+  alert('Navigating to billing page...');
+  // When you're ready to navigate: navigate('/billing', { state: { appointmentId: selectedAppointment.id } });
+};
 
   const statusColors = {
     cancelled: '#ea4335',
@@ -2654,115 +2657,205 @@ const handleSaveClick = async () => {
         )}
         
         <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'flex-end', gap: 2 }}>
-          <Button 
-            onClick={handleCloseModal}
-            disabled={updating}
-            sx={{ 
-              color: '#5f6368',
-              fontFamily: 'Inter, sans-serif',
-              textTransform: 'none',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            Close
-          </Button>
-          
-          {/* Show Mark as Done button if appointment is currently ongoing and not in edit mode */}
-          {(() => {
-            const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
-            const aptDateStr = selectedAppointment?.appointmentDate?.split('T')[0];
-            const todayStr = new Date().toISOString().split('T')[0];
-            const isToday = aptDateStr === todayStr;
-            
-            let isOngoing = false;
-            if (isToday && selectedAppointment?.timeStart && selectedAppointment?.timeEnd) {
-              const [sH, sM] = selectedAppointment.timeStart.split(':').map(Number);
-              const [eH, eM] = selectedAppointment.timeEnd.split(':').map(Number);
-              const startTotal = sH * 60 + (sM || 0);
-              const endTotal = eH * 60 + (eM || 0);
-              isOngoing = nowTotal >= startTotal && nowTotal < endTotal;
+  <Button 
+    onClick={handleCloseModal}
+    disabled={updating}
+    sx={{ 
+      color: '#5f6368',
+      fontFamily: 'Inter, sans-serif',
+      textTransform: 'none',
+      fontSize: '14px',
+      fontWeight: '500'
+    }}
+  >
+    Close
+  </Button>
+  
+  {editMode && (
+    <>
+      <Button 
+        onClick={() => {
+          setEditMode(false);
+          setEditedAppointment(null);
+          setSelectedServices([]);
+          setSelectedPatient(null);
+        }}
+        disabled={updating}
+        sx={{ 
+          color: '#5f6368',
+          fontFamily: 'Inter, sans-serif',
+          textTransform: 'none',
+          fontSize: '14px',
+          fontWeight: '500'
+        }}
+      >
+        Cancel Edit
+      </Button>
+      <Button 
+        variant="contained"
+        onClick={handleSaveChanges}
+        disabled={updating || !selectedPatient || selectedServices.length === 0}
+        sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          textTransform: 'none',
+          fontSize: '14px',
+          fontWeight: '600',
+          borderRadius: '8px',
+          px: 3,
+          background: 'linear-gradient(135deg, #1a73e8 0%, #1557b0 100%)',
+          '&:hover': {
+            background: 'linear-gradient(135deg, #1557b0 0%, #0d47a1 100%)',
+          }
+        }}
+      >
+        {updating ? <CircularProgress size={20} color="inherit" /> : 'Save Changes'}
+      </Button>
+    </>
+  )}
+  
+  {!editMode && selectedAppointment?.status !== 'cancelled' && (
+    <Button 
+      variant="outlined"
+      onClick={handleEditClick}
+      disabled={updating}
+      sx={{ 
+        fontFamily: 'Inter, sans-serif',
+        textTransform: 'none',
+        fontSize: '14px',
+        fontWeight: '500',
+        borderColor: '#1a73e8',
+        color: '#1a73e8',
+        '&:hover': {
+          borderColor: '#1557b0',
+          backgroundColor: 'rgba(26, 115, 232, 0.04)'
+        }
+      }}
+    >
+      Edit Appointment
+    </Button>
+  )}
+  
+  {/* Show Mark as Done button ONLY if status is scheduled/ongoing and NOT in edit mode */}
+  {(() => {
+    const now = new Date();
+    const aptDate = selectedAppointment?.appointmentDate 
+      ? normalizeDateFromStorage(selectedAppointment.appointmentDate)
+      : null;
+    const [aptStartHour, aptStartMin] = (selectedAppointment?.timeStart || '00:00').split(':').map(Number);
+    const aptStartTime = new Date(aptDate);
+    if (aptDate && !isNaN(aptStartTime.getTime())) {
+      aptStartTime.setHours(aptStartHour, aptStartMin, 0, 0);
+    }
+    
+    const isPastStartTime = aptDate && now >= aptStartTime;
+    const canMarkDone = 
+      (selectedAppointment?.status === 'scheduled' || selectedAppointment?.status === 'ongoing') && 
+      isPastStartTime && 
+      !editMode;
+
+    if (canMarkDone) {
+      return (
+        <Button 
+          variant="contained"
+          onClick={handleMarkAsDone}
+          disabled={updating}
+          sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            textTransform: 'none',
+            fontSize: '14px',
+            fontWeight: '600',
+            borderRadius: '8px',
+            px: 3,
+            background: 'linear-gradient(135deg, #0d652d 0%, #0a4d23 100%)',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #0a4d23 0%, #083a1b 100%)',
             }
-            
-            return isOngoing && selectedAppointment?.status !== 'done' && !editMode && (
-              <Button 
-                variant="contained"
-                onClick={handleMarkAsDone}
-                disabled={updating}
-                sx={{ 
-                  fontFamily: 'Inter, sans-serif',
-                  textTransform: 'none',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  borderRadius: '12px',
-                  px: 4,
-                  py: 1.5,
-                  background: 'linear-gradient(135deg, #0d652d 0%, #0a4d22 100%)',
-                  boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #0a4d22 0%, #083b1a 100%)',
-                    boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
-                    transform: 'translateY(-1px)'
-                  }
-                }}
-              >
-                Mark as Done
-              </Button>
-            );
-          })()}
-          
-          {/* Show Log Appointment button if done and not logged yet */}
-          {selectedAppointment?.status === 'done' && !editMode && !appointmentLogged && (
-            <Button 
-              variant="contained"
-              onClick={() => setLogAppointmentOpen(true)}
-              sx={{ 
-                fontFamily: 'Inter, sans-serif',
-                textTransform: 'none',
-                fontSize: '16px',
-                fontWeight: 700,
-                borderRadius: '12px',
-                px: 4,
-                py: 1.5,
-                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-                boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
-                  boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
-                  transform: 'translateY(-1px)'
-                }
-              }}
-            >
-              Log Appointment
-            </Button>
-          )}
-          
-          {/* Show Proceed to Billing button if appointment was logged */}
-          {appointmentLogged && !editMode && (
-            <Button 
-              variant="contained"
-              onClick={handleProceedToBilling}
-              sx={{ 
-                fontFamily: 'Inter, sans-serif',
-                textTransform: 'none',
-                fontSize: '16px',
-                fontWeight: 700,
-                borderRadius: '12px',
-                px: 4,
-                py: 1.5,
-                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-                boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
-                  boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
-                  transform: 'translateY(-1px)'
-                }
-              }}
-            >
-              Proceed to Billing
-            </Button>
-          )}
-        </DialogActions>
+          }}
+        >
+          {updating ? <CircularProgress size={20} color="inherit" /> : 'Mark as Done'}
+        </Button>
+      );
+    }
+    return null;
+  })()}
+  
+  {/* Show Log Appointment button ONLY if status is 'done' AND not yet logged AND not in edit mode */}
+  {selectedAppointment?.status === 'done' && 
+   !selectedAppointment?.logged && 
+   !editMode && (
+    <Button 
+      variant="contained"
+      onClick={() => setLogAppointmentOpen(true)}
+      sx={{ 
+        fontFamily: 'Inter, sans-serif',
+        textTransform: 'none',
+        fontSize: '16px',
+        fontWeight: 700,
+        borderRadius: '12px',
+        px: 4,
+        py: 1.5,
+        background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+        boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
+        '&:hover': {
+          background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
+          boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
+          transform: 'translateY(-1px)'
+        }
+      }}
+    >
+      Log Appointment
+    </Button>
+  )}
+  
+  {/* Show Proceed to Billing button ONLY if appointment is logged AND not in edit mode */}
+  {selectedAppointment?.status === 'done' && 
+   selectedAppointment?.logged && 
+   !editMode && (
+    <Button 
+      variant="contained"
+      onClick={handleProceedToBilling}
+      sx={{ 
+        fontFamily: 'Inter, sans-serif',
+        textTransform: 'none',
+        fontSize: '16px',
+        fontWeight: 700,
+        borderRadius: '12px',
+        px: 4,
+        py: 1.5,
+        background: 'linear-gradient(135deg, #0d652d 0%, #0a4d23 100%)',
+        boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
+        '&:hover': {
+          background: 'linear-gradient(135deg, #0a4d23 0%, #083a1b 100%)',
+          boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
+          transform: 'translateY(-1px)'
+        }
+      }}
+    >
+      💳 Proceed to Billing
+    </Button>
+  )}
+  
+  {!editMode && 
+   selectedAppointment?.status !== 'cancelled' && 
+   selectedAppointment?.status !== 'done' && (
+    <Button 
+      variant="contained"
+      color="error"
+      onClick={() => setShowCancelConfirm(true)}
+      disabled={updating}
+      sx={{ 
+        fontFamily: 'Inter, sans-serif',
+        textTransform: 'none',
+        fontSize: '14px',
+        fontWeight: '600',
+        borderRadius: '8px',
+        px: 3
+      }}
+    >
+      Cancel Appointment
+    </Button>
+  )}
+</DialogActions>
   </Dialog>
   )}
       
