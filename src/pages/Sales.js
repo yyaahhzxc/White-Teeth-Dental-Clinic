@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, Grid, Button, Paper, Collapse, FormControl, Select, MenuItem } from '@mui/material';
+import { Box, Container, Typography, Grid, Button, Paper, Collapse, FormControl, Select, MenuItem, useTheme } from '@mui/material';
 import AddExpenseDialog from './add-expense';
 import { ArrowDropDown } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -24,9 +24,9 @@ const DashboardContainer = ({ children }) => (
     sx={{
       flexGrow: 1,
       zIndex: 1,
-      backgroundColor: 'white',
+      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
       borderRadius: '20px',
-      boxShadow: '0 -4px 10px rgba(0, 0, 0, 0.1)',
+      boxShadow: (theme) => theme.palette.mode === 'dark' ? 'none' : '0 -4px 10px rgba(0, 0, 0, 0.1)',
       mt: 2, // Space from the title
       overflow: 'hidden',
       p: 3,
@@ -125,6 +125,7 @@ const computeServiceBreakdown = (aggregatedArray) => {
 
 // Minimal SVG pie renderer
 function PieSVG({ data = [], size = 150, centerLabelMain = '', centerLabelSub = '' }) {
+  const theme = useTheme();
   const radius = size / 2 - 4;
   const center = size / 2;
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
@@ -147,15 +148,15 @@ function PieSVG({ data = [], size = 150, centerLabelMain = '', centerLabelSub = 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {segments.map((s, i) => (
-        <path key={i} d={s.path} fill={s.color} stroke="#ffffff" strokeWidth="0.5" />
+        <path key={i} d={s.path} fill={s.color} stroke={theme.palette.mode === 'dark' ? theme.palette.background.default : '#ffffff'} strokeWidth="0.5" />
       ))}
-      <circle cx={center} cy={center} r={radius * 0.45} fill="#ffffff" />
+      <circle cx={center} cy={center} r={radius * 0.45} fill={theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff'} />
       {/* optional center labels (main and sub) */}
       {centerLabelMain ? (
         <g>
-          <text x={center} y={center - 6} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 13, fontWeight: 800, fill: '#333' }}>{centerLabelMain}</text>
+          <text x={center} y={center - 6} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 13, fontWeight: 800, fill: theme.palette.text.primary }}>{centerLabelMain}</text>
           {centerLabelSub ? (
-            <text x={center} y={center + 12} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 11, fill: '#666' }}>{centerLabelSub}</text>
+            <text x={center} y={center + 12} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 11, fill: theme.palette.text.secondary }}>{centerLabelSub}</text>
           ) : null}
         </g>
       ) : null}
@@ -811,11 +812,13 @@ useEffect(() => {
 
   
 
+  const theme = useTheme();
+
   return (
     <Box
       sx={{
         height: '70%',
-        backgroundColor: '#2148c0', // Blue background
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -833,12 +836,13 @@ useEffect(() => {
           px: 2,
         }}
       >
-        <Typography
+          <Typography
           variant="h3"
+          className="no-scale-sales-title"
           sx={{
-            color: 'white',
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'white',
             fontWeight: 800,
-            fontSize: '39.14px',
+            fontSize: '2.45rem',
             fontFamily: 'Inter, sans-serif',
           }}
         >
@@ -855,9 +859,9 @@ useEffect(() => {
             onClick={() => { setActiveTab('revenue'); setPage(0); }}
             sx={{
               mr: 1,
-              bgcolor: activeTab === 'revenue' ? '#4A69BD' : 'transparent',
-              color: activeTab === 'revenue' ? '#fff' : '#4A69BD',
-              border: activeTab === 'revenue' ? '1px solid #4A69BD' : '1px solid #e0e0e0',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'revenue' ? theme.palette.primary.main : 'transparent') : (activeTab === 'revenue' ? '#4A69BD' : 'transparent'),
+              color: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'revenue' ? theme.palette.primary.contrastText : theme.palette.primary.main) : (activeTab === 'revenue' ? '#fff' : '#4A69BD'),
+              border: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'revenue' ? `1px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`) : (activeTab === 'revenue' ? '1px solid #4A69BD' : '1px solid #e0e0e0'),
               borderRadius: '10px',
               px: 2,
               textTransform: 'none',
@@ -868,9 +872,9 @@ useEffect(() => {
           <Button
             onClick={() => { setActiveTab('expenses'); setPage(0); }}
             sx={{
-              bgcolor: activeTab === 'expenses' ? '#c23b3b' : 'transparent',
-              color: activeTab === 'expenses' ? '#fff' : '#c23b3b',
-              border: activeTab === 'expenses' ? '1px solid #c23b3b' : '1px solid #e0e0e0',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'expenses' ? theme.palette.error.main : 'transparent') : (activeTab === 'expenses' ? '#c23b3b' : 'transparent'),
+              color: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'expenses' ? theme.palette.error.contrastText : theme.palette.error.main) : (activeTab === 'expenses' ? '#fff' : '#c23b3b'),
+              border: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'expenses' ? `1px solid ${theme.palette.error.main}` : `1px solid ${theme.palette.divider}`) : (activeTab === 'expenses' ? '1px solid #c23b3b' : '1px solid #e0e0e0'),
               borderRadius: '10px',
               px: 2,
               textTransform: 'none',
@@ -903,20 +907,21 @@ useEffect(() => {
                               displayEmpty
                               inputProps={{ 'aria-label': 'period-select' }}
                               sx={{
-                                backgroundColor: '#4A69BD',
-                                color: 'white',
-                                border: '1px solid #4A69BD',
+                                backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#4A69BD',
+                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
+                                border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.primary.main}` : '1px solid #4A69BD',
                                 borderRadius: '10px',
                                 height: '38px',
                                 px: 2,
                                 textTransform: 'none',
                                 fontWeight: 500,
                                 fontSize: '16px',
-                                fontFamily: 'DM Sans, sans-serif',
+                                fontSize: '1rem',
+                              fontFamily: 'DM Sans, sans-serif',
                                 minWidth: 99,
                                 boxShadow: 1,
-                                '& .MuiSvgIcon-root': { color: 'white' },
-                                '&:hover': { backgroundColor: '#2148c0', border: '1px solid #2148c0' },
+                                '& .MuiSvgIcon-root': { color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white' },
+                                '&:hover': { backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.dark : '#2148c0', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.primary.dark}` : '1px solid #2148c0' },
                               }}
                             >
                               <MenuItem value="Daily">Daily</MenuItem>
@@ -958,15 +963,15 @@ useEffect(() => {
                   <Box sx={{ px: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '200px', maxHeight: '550px', overflow: 'auto' }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
                       {displayRows && displayRows.length > 0 ? displayRows.map((row) => (
-                        <Box key={`rev-${row.id || row.dateSort || row.label || row.date}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.label || formatLongDate(row.date || row.dateSort)}</Box>
-                          <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.revenue}</Box>
+                        <Box key={`rev-${row.id || row.dateSort || row.label || row.date}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', boxSizing: 'border-box', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb', '&:hover': { backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action?.hover || theme.palette.background.paper : '#f0f4f8', cursor: 'pointer' } }}>
+                          <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.label || formatLongDate(row.date || row.dateSort)}</Box>
+                          <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.revenue}</Box>
                         </Box>
                       )) : (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.label}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.revenue}</Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', boxSizing: 'border-box', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb' }}>
+                          <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760, boxSizing: 'border-box', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb' }}>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.label}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.revenue}</Box>
                           </Box>
                         </Box>
                       )}
@@ -985,11 +990,11 @@ useEffect(() => {
 
             <Grid item xs={12} md={5} sx={{ width: '38.5%' }}>
               {/* Right Panel: Metrics and Chart (kept from previous content) */}
-              <Paper elevation={3} sx={{ backgroundColor: '#38761D', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
+              <Paper elevation={3} sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.success.main : '#38761D', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
                 <Typography variant="h4" fontWeight="bold">{formatCurrency(revenueTotal)}</Typography>
                 <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{periodGrossLabel}</Typography>
               </Paper>
-              <Paper elevation={3} sx={{ backgroundColor: '#0056b3', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
+              <Paper elevation={3} sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#0056b3', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
                 <Typography variant="h4" fontWeight="bold">{formatCurrency(netTotal)}</Typography>
                 <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{periodNetLabel}</Typography>
               </Paper>
@@ -1005,7 +1010,7 @@ useEffect(() => {
                   <Grid item xs={7}>
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                       {breakdownRevenue.map((d) => (
-                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, backgroundColor: '#f3f4f6', borderRadius: 1 }}>
+                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f3f4f6', borderRadius: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ width: 12, height: 12, backgroundColor: d.color, borderRadius: 1 }} />
                             <Typography variant="body2">{d.name}</Typography>
@@ -1023,18 +1028,18 @@ useEffect(() => {
             </Grid>
           </Grid>
         ) : (
-          <Grid container spacing={3} sx={{
+          <Grid container spacing={3} sx={(theme) => ({
             // scope button color overrides to only the actions area inside Expenses
             '& .expenses-actions .MuiButton-root': {
-              backgroundColor: '#c23b3b',
+              backgroundColor: theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b',
               color: '#fff',
-              borderColor: '#c23b3b',
+              borderColor: theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b',
               '&:hover': {
-                backgroundColor: '#a02f2f',
-                borderColor: '#a02f2f',
+                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.error.dark : '#a02f2f',
+                borderColor: theme.palette.mode === 'dark' ? theme.palette.error.dark : '#a02f2f',
               },
             },
-          }}>
+          })}>
             <Grid item xs={12} md={7} sx={{ width: '60%' }}>
               <DataTable
                 paperAlign="left"
@@ -1051,9 +1056,9 @@ useEffect(() => {
                             displayEmpty
                             inputProps={{ 'aria-label': 'period-select' }}
                             sx={{
-                              backgroundColor: '#c23b3b',
+                              backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b',
                               color: 'white',
-                              border: '1px solid #c23b3b',
+                              border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.error.main}` : '1px solid #c23b3b',
                               borderRadius: '10px',
                               height: '38px',
                               px: 2,
@@ -1064,7 +1069,7 @@ useEffect(() => {
                               minWidth: 99,
                               boxShadow: 1,
                               '& .MuiSvgIcon-root': { color: 'white' },
-                              '&:hover': { backgroundColor: '#a02f2f', border: '1px solid #a02f2f' },
+                              '&:hover': { backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#a02f2f', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.error.dark}` : '1px solid #a02f2f' },
                             }}
                           >
                             <MenuItem value="Daily">Daily</MenuItem>
@@ -1112,35 +1117,35 @@ useEffect(() => {
                             row.id 
                               ? `exp-${row.id}` 
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
-                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ flex: 3, textAlign: 'left', color: '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
+                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         ) : (
                           <Box key={
                             row.id
                               ? `exp-${row.id}`
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
-                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{formatLongDate(row.date)}</Box>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.expense}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'left', color: '#6d6b80' }}>{row.category}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
+                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{formatLongDate(row.date)}</Box>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.expense}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.category}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         )
                       )) : (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
                             {period !== 'Daily' ? (
                               <>
-                                <Box sx={{ flex: 3, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
-                                <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                                <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
+                                <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
                               </>
                             ) : (
                               <>
-                                <Box sx={{ flex: 2, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
+                                <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
                                 <Box sx={{ flex: 2 }} />
-                                <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                                <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
                               </>
                             )}
                           </Box>
@@ -1161,12 +1166,12 @@ useEffect(() => {
 
             <Grid item xs={12} md={5} sx={{ width: '38.5%' }}>
               {/* Right Panel: Metrics and Chart (copied from Revenue view) */}
-              <Paper elevation={3} sx={{ backgroundColor: '#c23b3b', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
+              <Paper elevation={3} sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
                 <Typography variant="h4" fontWeight="bold">{formatCurrency(expenseTotal)}</Typography>
                 <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{period === 'Daily' ? 'Daily Expenses' : period === 'Monthly' ? 'Monthly Expenses' : 'Yearly Expenses'}</Typography>
               </Paper>
               <Box sx={{ mb: 2 }}>
-                <Button fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '115px', backgroundColor: '#0056b3', fontSize: '24px', color: 'white', py: 1.5 }}>Add Expense</Button>
+                <Button className="no-scale" fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '7.1875rem', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#0056b3', fontSize: '1.5rem', color: 'white', py: 1.5 }}>Add Expense</Button>
               </Box>
               <Paper elevation={3} sx={{ p: 2, pt: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -1181,7 +1186,7 @@ useEffect(() => {
                   <Grid item xs={7}>
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                       {(expensePieData || []).map((d) => (
-                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, backgroundColor: '#f3f4f6', borderRadius: 1 }}>
+                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f3f4f6', borderRadius: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ width: 12, height: 12, backgroundColor: d.color, borderRadius: 1 }} />
                             <Typography variant="body2">{d.name}</Typography>

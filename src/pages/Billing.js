@@ -6,7 +6,7 @@ import {
   Collapse,
   Chip,
 } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
@@ -65,6 +65,16 @@ function Billing() {
   const [selectedBilling, setSelectedBilling] = useState(null);
 
   const navigate = useNavigate();
+
+  // Theme detection — only alter styles when dark mode is active
+  const resolveMode = (theme) => {
+    if (!theme || theme === 'System') {
+      try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      catch (e) { return 'light'; }
+    }
+    return String(theme).toLowerCase();
+  };
+  const [isDark, setIsDark] = useState(() => resolveMode(localStorage.getItem('appTheme')) === 'dark');
   const location = useLocation();
 
 
@@ -116,28 +126,21 @@ const fetchBillings = async () => {
 
   // Check if we should open billing modal from navigation state
   useEffect(() => {
-    // Handle navigation state (from route navigation)
-    if (location.state?.openBillingModal && location.state?.billingData) {
-      console.log('🔔 Opening billing modal from navigation:', location.state.billingData);
-      setModalOpen(true);
-      setSelectedBilling(location.state.billingData);
-      // Clear the state to prevent reopening on refresh
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  
-    // Handle custom event (from same-page action)
-    const handleOpenBillingModal = (event) => {
-      console.log('🔔 Opening billing modal from event:', event.detail);
-      setModalOpen(true);
-      setSelectedBilling(event.detail);
+    const onTheme = (e) => {
+      try {
+        const t = (e && e.detail && e.detail.theme) || localStorage.getItem('appTheme');
+        setIsDark(resolveMode(t) === 'dark');
+      } catch (err) {}
     };
-  
-    window.addEventListener('openBillingModal', handleOpenBillingModal);
-    
-    return () => {
-      window.removeEventListener('openBillingModal', handleOpenBillingModal);
+    window.addEventListener('appThemeChanged', onTheme);
+    const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    const onMedia = (ev) => {
+      try { const theme = localStorage.getItem('appTheme') || 'System'; if (theme === 'System') setIsDark(ev.matches); } catch (e) {}
     };
-  }, [location, navigate]);
+    if (mq && mq.addEventListener) mq.addEventListener('change', onMedia);
+    try { setIsDark(resolveMode(localStorage.getItem('appTheme')) === 'dark'); } catch (e) {}
+    return () => { window.removeEventListener('appThemeChanged', onTheme); if (mq && mq.removeEventListener) mq.removeEventListener('change', onMedia); };
+  }, []);
 
   // Filter categories for billing
   const filterCategories = [
@@ -240,7 +243,7 @@ const handleViewInvoice = (billing) => {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#2148c0',
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -258,10 +261,10 @@ const handleViewInvoice = (billing) => {
           px: 2,
         }}
       >
-        <Typography 
+          <Typography 
           variant="h3" 
           sx={{ 
-            color: 'white',
+            color: isDark ? 'var(--app-text)' : 'white',
             fontWeight: 800,
             fontSize: '39.14px',
             fontFamily: 'Inter, sans-serif',
@@ -418,14 +421,14 @@ const handleViewInvoice = (billing) => {
               width: '6px',
             },
             '&::-webkit-scrollbar-track': {
-              background: '#f1f1f1',
+              background: isDark ? 'rgba(255,255,255,0.02)' : '#f1f1f1',
               borderRadius: '3px',
             },
             '&::-webkit-scrollbar-thumb': {
-              background: '#c1c1c1',
+              background: isDark ? 'rgba(255,255,255,0.06)' : '#c1c1c1',
               borderRadius: '3px',
               '&:hover': {
-                background: '#a8a8a8',
+                background: isDark ? 'rgba(255,255,255,0.12)' : '#a8a8a8',
               },
             },
           }}>
@@ -471,11 +474,13 @@ const handleViewInvoice = (billing) => {
                       px: 2,
                       py: 0.875,
                       alignItems: 'center',
-                      backgroundColor: '#f9fafc',
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc',
                       borderRadius: '10px',
                       height: 60,
+                      boxSizing: 'border-box',
+                      border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb',
                       '&:hover': { 
-                        backgroundColor: '#f0f4f8',
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action?.hover || theme.palette.background.paper : '#f0f4f8',
                         cursor: 'pointer'
                       }
                     }}
@@ -486,7 +491,7 @@ const handleViewInvoice = (billing) => {
                           fontFamily: 'Roboto, sans-serif',
                           fontWeight: 400,
                           fontSize: '15px',
-                          color: '#6d6b80',
+                          color: isDark ? 'var(--app-text-secondary)' : '#6d6b80',
                           lineHeight: '22px',
                           letterSpacing: '0.5px',
                         }}
@@ -501,7 +506,7 @@ const handleViewInvoice = (billing) => {
                           fontFamily: 'Roboto, sans-serif',
                           fontWeight: 400,
                           fontSize: '15px',
-                          color: '#6d6b80',
+                          color: isDark ? 'var(--app-text-secondary)' : '#6d6b80',
                           lineHeight: '22px',
                           letterSpacing: '0.5px',
                         }}
@@ -565,10 +570,11 @@ const handleViewInvoice = (billing) => {
                       <Chip
                         label={billing.status}
                         sx={{
-                          backgroundColor: 
-                            billing.status === 'Paid' ? '#4CAF50' : 
-                            billing.status === 'Partial' ? '#FF9800' : 
-                            '#F44336',
+                          backgroundColor: (
+                            isDark
+                              ? (billing.status === 'Paid' ? 'var(--card-success-bg)' : billing.status === 'Partial' ? 'var(--card-warning-bg)' : 'var(--card-danger-bg)')
+                              : (billing.status === 'Paid' ? '#4CAF50' : billing.status === 'Partial' ? '#FF9800' : '#F44336')
+                          ),
                           color: 'white',
                           fontWeight: 500,
                           fontSize: '12.5px',
@@ -591,7 +597,7 @@ const handleViewInvoice = (billing) => {
                           textTransform: 'none',
                           fontFamily: 'Roboto, sans-serif',
                           fontSize: '13.3px',
-                          color: '#2148c0',
+                          color: isDark ? 'var(--app-accent)' : '#2148c0',
                           fontWeight: 500,
                           textDecoration: 'none',
                           '&:hover': {
@@ -616,7 +622,7 @@ const handleViewInvoice = (billing) => {
                           textTransform: 'none',
                           fontFamily: 'Roboto, sans-serif',
                           fontSize: '13.3px',
-                          color: '#2148c0',
+                          color: isDark ? 'var(--app-accent)' : '#2148c0',
                           fontWeight: 500,
                           textDecoration: 'none',
                           '&:hover': {

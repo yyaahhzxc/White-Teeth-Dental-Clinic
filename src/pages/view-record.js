@@ -377,7 +377,7 @@ if (!hasAnyChanges) {
     >
       <DialogTitle
         sx={{
-          color: '#2148C0',
+          color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148C0',
           fontSize: 32,
           fontWeight: 800,
           textAlign: 'center',
@@ -392,75 +392,66 @@ if (!hasAnyChanges) {
             position: 'absolute',
             right: 8,
             top: 8,
-            color: (theme) => theme.palette.grey[700],
+            color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.text.primary : theme.palette.grey[700]),
+            '&:hover': { backgroundColor: 'transparent' },
           }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <Box display="flex" sx={{ px: 3, pt: 1, pb: 1 }}>
+      <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
         <Tabs
           value={tabIndex}
           onChange={handleTabChange}
-          sx={{
-            minHeight: '36px',
-            '& .MuiTabs-indicator': {
-              display: 'none'
-            }
-          }}
+          TabIndicatorProps={{ style: { display: 'none' } }}
+          sx={{ ml: 1 }}
         >
           <Tab
             label="Patient Information"
-            sx={{
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 700,
-              fontSize: '14px',
-              textTransform: 'none',
-              borderRadius: '12px',
-              border: '1px solid #2148c0',
-              mr: 1.5,
-              minHeight: '32px',
-              py: 0.5,
+            sx={(theme) => ({
+              fontWeight: 'bold',
+              borderRadius: 2,
               px: 2,
-              backgroundColor: tabIndex === 0 ? '#2148c0' : 'transparent',
-              color: tabIndex === 0 ? '#ffffff !important' : '#2148c0',
-              '&:hover': {
-                backgroundColor: tabIndex === 0 ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
-              },
+              textTransform: 'none',
+              zIndex: 2,
+              // default (unselected)
+              color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#000',
+              backgroundColor: 'transparent',
+              // selected state
               '&.Mui-selected': {
-                color: '#ffffff !important'
-              }
-            }}
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.getContrastText(theme.palette.primary.main),
+              },
+              '&.Mui-selected:hover': {
+                backgroundColor: theme.palette.primary.dark || theme.palette.primary.main,
+              },
+            })}
           />
           <Tab
             label="Medical Information"
-            sx={{
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 700,
-              fontSize: '14px',
-              textTransform: 'none',
-              borderRadius: '12px',
-              border: '1px solid #2148c0',
-              mr: 1.5,
-              minHeight: '32px',
-              py: 0.5,
+            sx={(theme) => ({
+              fontWeight: 'bold',
+              borderRadius: 2,
               px: 2,
-              backgroundColor: tabIndex === 1 ? '#2148c0' : 'transparent',
-              color: tabIndex === 1 ? '#ffffff !important' : '#2148c0',
-              '&:hover': {
-                backgroundColor: tabIndex === 1 ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
-              },
+              textTransform: 'none',
+              zIndex: 2,
+              color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#000',
+              backgroundColor: 'transparent',
               '&.Mui-selected': {
-                color: '#ffffff !important'
-              }
-            }}
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.getContrastText(theme.palette.primary.main),
+              },
+              '&.Mui-selected:hover': {
+                backgroundColor: theme.palette.primary.dark || theme.palette.primary.main,
+              },
+            })}
           />
         </Tabs>
       </Box>
       <DialogContent
         dividers
         sx={{
-          backgroundColor: '#f5f7fa',
+          backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f5f7fa'),
           minHeight: 200,
           maxHeight: 'calc(90vh - 180px)',
           overflowY: 'auto',
@@ -486,7 +477,7 @@ if (!hasAnyChanges) {
           <Paper
             elevation={0}
             sx={{
-              bgcolor: '#ddd',
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ddd'),
               borderRadius: 4,
               p: 3,
               display: 'flex',
@@ -503,7 +494,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="First Name *"
-                    sx={{ width: 400, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 400, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={firstName}
                     onChange={e => setFirstName(e.target.value)}
                     disabled={!editMode}
@@ -513,7 +504,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Suffix"
-                    sx={{ width: 90, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 90, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={suffix}
                     onChange={e => setSuffix(e.target.value)}
                     disabled={!editMode}
@@ -523,7 +514,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Middle Name"
-                    sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={middleName}
                     onChange={e => setMiddleName(e.target.value)}
                     disabled={!editMode}
@@ -533,7 +524,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Last Name *"
-                    sx={{ width: 350, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 350, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={lastName}
                     onChange={e => setLastName(e.target.value)}
                     disabled={!editMode}
@@ -544,7 +535,7 @@ if (!hasAnyChanges) {
                     select
                     fullWidth
                     label="Marital Status *"
-                    sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 140, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={maritalStatus}
                     onChange={e => setMaritalStatus(e.target.value)}
                     disabled={!editMode}
@@ -557,7 +548,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Contact Number *"
-                    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={contactNumber}
                     onChange={e => setContactNumber(e.target.value)}
                     disabled={!editMode}
@@ -567,7 +558,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Occupation *"
-                    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={occupation}
                     onChange={e => setOccupation(e.target.value)}
                     disabled={!editMode}
@@ -579,7 +570,7 @@ if (!hasAnyChanges) {
                     label="Address *"
                     multiline
                     rows={3}
-                    sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }}
+                    sx={{ mb: 0.8, width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={address}
                     onChange={e => setAddress(e.target.value)}
                     disabled={!editMode}
@@ -590,7 +581,7 @@ if (!hasAnyChanges) {
                     fullWidth
                     label="Date of Birth *"
                     type="date"
-                    sx={{ width: 250, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 250, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     InputLabelProps={{ shrink: true }}
                     value={dateOfBirth}
                     onChange={e => setDateOfBirth(e.target.value)}
@@ -626,7 +617,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Name *"
-                    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={contactPersonName}
                     onChange={e => setContactPersonName(e.target.value)}
                     disabled={!editMode}
@@ -636,7 +627,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Relationship *"
-                    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={contactPersonRelationship}
                     onChange={e => setContactPersonRelationship(e.target.value)}
                     disabled={!editMode}
@@ -646,7 +637,7 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Contact Number"
-                    sx={{ width: 245, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 245, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={contactPersonNumber}
                     onChange={e => setContactPersonNumber(e.target.value)}
                     disabled={!editMode}
@@ -658,7 +649,7 @@ if (!hasAnyChanges) {
                     label="Address"
                     multiline
                     rows={3}
-                    sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+                    sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
                     value={contactPersonAddress}
                     onChange={e => setContactPersonAddress(e.target.value)}
                     disabled={!editMode}
@@ -672,7 +663,7 @@ if (!hasAnyChanges) {
   <Paper
     elevation={0}
     sx={{
-      bgcolor: '#ddd',
+      bgcolor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ddd'),
       borderRadius: 4,
       p: 3,
       display: 'flex',
@@ -693,7 +684,7 @@ if (!hasAnyChanges) {
             <TextField
               fullWidth
               label="Allergies"
-              sx={{ width: 350, backgroundColor: '#ffffff9e' }}
+              sx={{ width: 350, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
               value={allergies}
               onChange={(e) => setAllergies(e.target.value)}
               disabled={!editMode}
@@ -704,7 +695,7 @@ if (!hasAnyChanges) {
               select
               fullWidth
               label="Blood Type *"
-              sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+              sx={{ width: 140, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
               value={bloodType}
               onChange={(e) => setBloodType(e.target.value)}
               disabled={!editMode}
@@ -723,7 +714,7 @@ if (!hasAnyChanges) {
             <TextField
               fullWidth
               label="Bloodborne Diseases"
-              sx={{ width: 350, backgroundColor: '#ffffff9e' }}
+              sx={{ width: 350, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
               value={bloodborneDiseases}
               onChange={(e) => setBloodborneDiseases(e.target.value)}
               disabled={!editMode}
@@ -734,7 +725,7 @@ if (!hasAnyChanges) {
               select
               fullWidth
               label="Pregnancy Status"
-              sx={{ width: 140, backgroundColor: '#ffffff9e' }}
+              sx={{ width: 140, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
               value={pregnancyStatus}
               onChange={(e) => setPregnancyStatus(e.target.value)}
               disabled={!editMode}
@@ -747,7 +738,7 @@ if (!hasAnyChanges) {
             <TextField
               fullWidth
               label="Medications"
-              sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+              sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
               value={medications}
               onChange={(e) => setMedications(e.target.value)}
               disabled={!editMode}
@@ -759,7 +750,7 @@ if (!hasAnyChanges) {
               label="Additional Notes"
               multiline
               rows={3}
-              sx={{ width: 498, backgroundColor: '#ffffff9e' }}
+              sx={{ width: 498, backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#ffffff9e') }}
               value={additionalNotes}
               onChange={(e) => setAdditionalNotes(e.target.value)}
               disabled={!editMode}
@@ -830,8 +821,8 @@ if (!hasAnyChanges) {
           onClick={editMode ? handleSaveClick : handleEditClick}
           sx={{
             borderRadius: 8,
-            backgroundColor: '#2148C0',
-            color: '#fff',
+            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148C0'),
+            color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : '#fff'),
             px: 2,
             fontWeight: 'bold',
             fontSize: 18,
@@ -865,5 +856,202 @@ if (!hasAnyChanges) {
     </Dialog>
   );
 };
+
+// **ADD THIS: Tooth Chart Component**
+const teethNumbers = [
+  [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26],
+  [55, 54, 53, 52, 51, 61, 62, 63, 64, 65],
+  [85, 84, 83, 82, 81, 71, 72, 73, 74, 75],
+  [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36],
+];
+
+function ToothChart({ onDataChange, initialData = { selectedTeeth: [], toothSummaries: {} }, readOnly = false }) {
+  const [selectedTeeth, setSelectedTeeth] = useState(initialData.selectedTeeth || []);
+  const [toothSummaries, setToothSummaries] = useState(initialData.toothSummaries || {});
+  const [editingTooth, setEditingTooth] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  useEffect(() => {
+    setSelectedTeeth(initialData.selectedTeeth || []);
+    setToothSummaries(initialData.toothSummaries || {});
+  }, [initialData]);
+
+  useEffect(() => {
+    if (onDataChange) {
+      onDataChange({
+        selectedTeeth,
+        toothSummaries
+      });
+    }
+  }, [selectedTeeth, toothSummaries, onDataChange]);
+
+  const toggleTooth = (num) => {
+    if (readOnly) return;
+    setSelectedTeeth((prev) => {
+      const newSelected = prev.includes(num) 
+        ? prev.filter((t) => t !== num) 
+        : [...prev, num];
+      
+      if (prev.includes(num)) {
+        setToothSummaries((prevSummaries) => {
+          const copy = { ...prevSummaries };
+          delete copy[num];
+          return copy;
+        });
+      }
+      
+      return newSelected;
+    });
+  };
+
+  const handleEdit = (num) => {
+    if (readOnly) return;
+    setEditingTooth(num);
+    setEditValue(toothSummaries[num] || '');
+  };
+
+  const handleEditSave = (num) => {
+    setToothSummaries((prev) => ({ ...prev, [num]: editValue }));
+    setEditingTooth(null);
+    setEditValue('');
+  };
+
+  const handleDelete = (num) => {
+    if (readOnly) return;
+    setSelectedTeeth((prev) => prev.filter((t) => t !== num));
+    setToothSummaries((prev) => {
+      const copy = { ...prev };
+      delete copy[num];
+      return copy;
+    });
+    if (editingTooth === num) {
+      setEditingTooth(null);
+      setEditValue('');
+    }
+  };
+
+  return (
+    <Paper sx={{ p: 2, borderRadius: 3, bgcolor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : 'transparent') }}>
+      <Box sx={{ backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.default : 'white'), p: 2, borderRadius: 3 }}>
+         {teethNumbers.map((row, rowIndex) => (
+           <Grid container justifyContent="center" spacing={1} key={rowIndex} sx={{ mb: 2 }}>
+             {row.map((num) => (
+               <Grid item key={num}>
+                 <Box
+                   onClick={() => toggleTooth(num)}
+                   sx={{
+                     width: 27,
+                     height: 35,
+                     borderRadius: 1,
+                     cursor: readOnly ? "default" : "pointer",
+                     backgroundColor: (theme) => selectedTeeth.includes(num)
+                       ? (theme.palette.mode === 'dark' ? theme.palette.error.main : '#f45252d4')
+                       : 'transparent',
+                     "&:hover": readOnly
+                       ? {}
+                       : (theme) => ({ backgroundColor: theme.palette.action.hover || (theme.palette.mode === 'dark' ? theme.palette.action.hover : '#e3f2fd') }),
+                     display: "flex",
+                     alignItems: "center",
+                     justifyContent: "center",
+                     fontSize: 12,
+                   }}
+                 >
+                   ⊠
+                 </Box>
+                 <Typography variant="caption" display="block" align="center" sx={{ mt: 0.5, color: (theme) => theme.palette.text.primary }}>
+                   {num}
+                 </Typography>
+               </Grid>
+             ))}
+           </Grid>
+         ))}
+       </Box>
+      <Box
+        sx={{
+          mt: 3,
+          maxHeight: 150,
+          overflowY: 'auto',
+          // ensure the inner table and cells use theme colors
+          '& table': {
+            width: '100%',
+            borderCollapse: 'collapse',
+            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.background.paper : '#fafafa'),
+          },
+          '& th, & td': {
+            padding: 1,
+            color: (theme) => theme.palette.text.primary,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+          },
+          '& thead th': {
+            textAlign: 'left',
+            padding: 1,
+            fontWeight: 600,
+            color: (theme) => theme.palette.text.primary,
+          }
+        }}
+      >
+        <table>
+           <thead>
+             <tr>
+              <th>Tooth Number</th>
+              <th>Tooth Summary</th>
+              {!readOnly && <th style={{ width: 80 }}></th>}
+             </tr>
+           </thead>
+           <tbody>
+             {selectedTeeth.length === 0 ? (
+               <tr>
+                <td colSpan={readOnly ? 2 : 3} style={{ textAlign: 'center', color: 'var(--no-teeth-color, #aaa)', padding: 16 }}>
+                  No teeth selected.
+                </td>
+               </tr>
+             ) : (
+               selectedTeeth.map((num) => (
+                 <tr key={num} style={{ borderBottom: '1px solid #eee' }}>
+                  <td>{num}</td>
+                  <td>
+                     {editingTooth === num ? (
+                       <Box display="flex" alignItems="center">
+                         <TextField
+                           size="small"
+                           value={editValue}
+                           onChange={e => setEditValue(e.target.value)}
+                           autoFocus
+                           sx={{ mr: 1, width: 120 }}
+                         />
+                         <Button
+                           size="small"
+                           variant="contained"
+                           color="primary"
+                           onClick={() => handleEditSave(num)}
+                           sx={{ minWidth: 32, px: 1, fontSize: 12 }}
+                         >
+                           Save
+                         </Button>
+                       </Box>
+                     ) : (
+                       toothSummaries[num] || <span style={{ color: '#aaa' }}>No summary</span>
+                     )}
+                   </td>
+                   {!readOnly && (
+                     <td>
+                       <IconButton size="small" onClick={() => handleEdit(num)} disabled={editingTooth === num}>
+                         <EditIcon fontSize="small" />
+                       </IconButton>
+                       <IconButton size="small" onClick={() => handleDelete(num)}>
+                         <CloseIcon fontSize="small" />
+                       </IconButton>
+                     </td>
+                   )}
+                 </tr>
+               ))
+             )}
+           </tbody>
+         </table>
+       </Box>
+     </Paper>
+   );
+ }
+
 
 export default ViewRecord;

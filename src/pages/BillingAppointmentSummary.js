@@ -330,7 +330,7 @@ const handlePayBill = () => {
       }}
       PaperProps={{
         sx: {
-          backgroundColor: '#f9f9f9',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f9f9f9',
           borderRadius: '10px',
           p: 0,
           width: '1450px',
@@ -344,7 +344,7 @@ const handlePayBill = () => {
         <Typography 
           variant="h4" 
           sx={{ 
-            color: '#2148c0',
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
             fontWeight: 800,
             fontSize: '32px',
             fontFamily: 'Inter, sans-serif',
@@ -384,18 +384,18 @@ const handlePayBill = () => {
           backgroundColor: 'transparent',
         },
         '&::-webkit-scrollbar-thumb': {
-          backgroundColor: '#c1c1c1',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#c1c1c1',
           borderRadius: '10px',
         },
         '&::-webkit-scrollbar-thumb:hover': {
-          backgroundColor: '#a8a8a8',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : '#a8a8a8',
         },
       }}>
         {/* Left Side - Editable Form */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
           <Typography 
             sx={{ 
-              color: '#2148c0',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
               fontWeight: 'bold',
               fontSize: '32px',
               fontFamily: 'Inter, sans-serif',
@@ -408,7 +408,7 @@ const handlePayBill = () => {
 
           {/* All sections in one container */}
           <Box sx={{ 
-            backgroundColor: '#dfdfdf', 
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#dfdfdf', 
             borderRadius: '10px', 
             p: 3, 
             display: 'flex', 
@@ -423,7 +423,7 @@ const handlePayBill = () => {
             <Box>
               <Typography 
                 sx={{ 
-                  color: 'black',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black',
                   fontWeight: 500,
                   fontSize: '14.81px',
                   fontFamily: 'Raleway, sans-serif',
@@ -436,17 +436,17 @@ const handlePayBill = () => {
               {/* Column Headers */}
               <Box sx={{ display: 'flex', gap: 3, mb: 1.5, alignItems: 'center' }}>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '12.81px', fontWeight: 'bold', color: '#666' }}>
+                  <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '12.81px', fontWeight: 'bold', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#666' }}>
                     Service
                   </Typography>
                 </Box>
                 <Box sx={{ width: 60 }}>
-                  <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '12.81px', fontWeight: 'bold', color: '#666', textAlign: 'center' }}>
+                  <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '12.81px', fontWeight: 'bold', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#666', textAlign: 'center' }}>
                     Quantity
                   </Typography>
                 </Box>
                 <Box sx={{ width: 120 }}>
-                  <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '12.81px', fontWeight: 'bold', color: '#666', textAlign: 'center' }}>
+                  <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '12.81px', fontWeight: 'bold', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#666', textAlign: 'center' }}>
                     Amount
                   </Typography>
                 </Box>
@@ -465,14 +465,14 @@ const handlePayBill = () => {
                       flex: 1,
                       minWidth: 200,
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: 'white',
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                         fontSize: '14.81px',
                         fontFamily: 'Raleway, sans-serif',
                       }
                     }}
                   />
                   <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', ml: 'auto' }}>
-                    <TextField
+                      <TextField
                       placeholder="1"
                       type="text"
                       value={service.quantity}
@@ -482,7 +482,7 @@ const handlePayBill = () => {
                       sx={{ 
                         width: 60,
                         '& .MuiOutlinedInput-root': {
-                          backgroundColor: 'white',
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                           fontSize: '14.81px',
                           fontFamily: 'Raleway, sans-serif',
                         },
@@ -505,7 +505,7 @@ const handlePayBill = () => {
                         sx={{ 
                           flex: 1,
                           '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'white',
+                            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                             fontSize: '14.81px',
                             fontFamily: 'Raleway, sans-serif',
                           }
@@ -516,7 +516,7 @@ const handlePayBill = () => {
                       size="small" 
                       onClick={() => handleDeleteService(service.id)}
                       disabled={isLocked}
-                      sx={{ color: '#d32f2f', ml: 0.5 }}
+                      sx={{ color: (theme) => theme.palette.error.main, ml: 0.5 }}
                     >
                       <CloseIcon fontSize="small" />
                     </IconButton>
@@ -528,7 +528,7 @@ const handlePayBill = () => {
                 onClick={handleAddService}
                 disabled={isLocked}
                 sx={{ 
-                  color: '#274fc7',
+                  color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#274fc7'),
                   fontWeight: 'bold',
                   fontSize: '14.81px',
                   fontFamily: 'Roboto, sans-serif',
@@ -547,7 +547,7 @@ const handlePayBill = () => {
             <Box>
               <Typography 
                 sx={{ 
-                  color: 'black',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black',
                   fontWeight: 500,
                   fontSize: '14.81px',
                   fontFamily: 'Raleway, sans-serif',
@@ -589,7 +589,7 @@ const handlePayBill = () => {
                       flex: 1,
                       minWidth: 200,
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: 'white',
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                         fontSize: '14.81px',
                         fontFamily: 'Raleway, sans-serif',
                       }
@@ -606,7 +606,7 @@ const handlePayBill = () => {
                       sx={{ 
                         width: 60,
                         '& .MuiOutlinedInput-root': {
-                          backgroundColor: 'white',
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                           fontSize: '14.81px',
                           fontFamily: 'Raleway, sans-serif',
                         },
@@ -629,7 +629,7 @@ const handlePayBill = () => {
                         sx={{ 
                           flex: 1,
                           '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'white',
+                            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                             fontSize: '14.81px',
                             fontFamily: 'Raleway, sans-serif',
                           }
@@ -640,7 +640,7 @@ const handlePayBill = () => {
                       size="small" 
                       onClick={() => handleDeleteCharge(charge.id)}
                       disabled={isLocked}
-                      sx={{ color: '#d32f2f', ml: 0.5 }}
+                      sx={{ color: (theme) => theme.palette.error.main, ml: 0.5 }}
                     >
                       <CloseIcon fontSize="small" />
                     </IconButton>
@@ -652,7 +652,7 @@ const handlePayBill = () => {
                 onClick={handleAddCharge}
                 disabled={isLocked}
                 sx={{ 
-                  color: '#274fc7',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#274fc7',
                   fontWeight: 'bold',
                   fontSize: '14.81px',
                   fontFamily: 'Roboto, sans-serif',
@@ -671,7 +671,7 @@ const handlePayBill = () => {
             <Box>
               <Typography 
                 sx={{ 
-                  color: 'black',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black',
                   fontWeight: 500,
                   fontSize: '14.81px',
                   fontFamily: 'Raleway, sans-serif',
@@ -713,7 +713,7 @@ const handlePayBill = () => {
                       flex: 1,
                       minWidth: 200,
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: 'white',
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                         fontSize: '14.81px',
                         fontFamily: 'Raleway, sans-serif',
                       }
@@ -730,7 +730,7 @@ const handlePayBill = () => {
                       sx={{ 
                         width: 60,
                         '& .MuiOutlinedInput-root': {
-                          backgroundColor: 'white',
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                           fontSize: '14.81px',
                           fontFamily: 'Raleway, sans-serif',
                         },
@@ -753,7 +753,7 @@ const handlePayBill = () => {
                         sx={{ 
                           flex: 1,
                           '& .MuiOutlinedInput-root': {
-                            backgroundColor: 'white',
+                            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                             fontSize: '14.81px',
                             fontFamily: 'Raleway, sans-serif',
                           }
@@ -764,7 +764,7 @@ const handlePayBill = () => {
                       size="small" 
                       onClick={() => handleDeleteDiscount(discount.id)}
                       disabled={isLocked}
-                      sx={{ color: '#d32f2f', ml: 0.5 }}
+                      sx={{ color: (theme) => theme.palette.error.main, ml: 0.5 }}
                     >
                       <CloseIcon fontSize="small" />
                     </IconButton>
@@ -776,7 +776,7 @@ const handlePayBill = () => {
                 onClick={handleAddDiscount}
                 disabled={isLocked}
                 sx={{ 
-                  color: '#274fc7',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#274fc7',
                   fontWeight: 'bold',
                   fontSize: '14.81px',
                   fontFamily: 'Roboto, sans-serif',
@@ -800,7 +800,7 @@ const handlePayBill = () => {
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 0, pb: 4, pl: 6 }}>
           <Typography 
             sx={{ 
-              color: '#2148c0',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
               fontWeight: 'bold',
               fontSize: '32px',
               fontFamily: 'Inter, sans-serif',
@@ -819,13 +819,13 @@ const handlePayBill = () => {
           }}>
             {/* Header Row */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: '#1a1c21', flex: 1 }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', flex: 1 }}>
                 Service
               </Typography>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: '#1a1c21', width: 70, textAlign: 'center' }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', width: 70, textAlign: 'center' }}>
                 Quantity
               </Typography>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: '#1a1c21', width: 90, textAlign: 'right' }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', width: 90, textAlign: 'right' }}>
                 Amount
               </Typography>
             </Box>
@@ -833,13 +833,13 @@ const handlePayBill = () => {
             {/* Services Summary */}
             {calculations.validServices.map((service) => (
               <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 3 }}>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, flex: 1 }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, flex: 1 }}>
                   {service.name}
                 </Typography>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
                   {service.quantity || 1}
                 </Typography>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
                   {(parseFloat(service.price) * (service.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
               </Box>
@@ -847,10 +847,10 @@ const handlePayBill = () => {
 
             {/* Subtotal after Services */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
                 Subtotal
               </Typography>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
+              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
                 {calculations.servicesTotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Typography>
             </Box>
@@ -858,27 +858,27 @@ const handlePayBill = () => {
             {/* Additional Charges */}
             {calculations.validCharges.length > 0 && (
               <>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', mt: 1 }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', mt: 1 }}>
                   Additional Charge/s
                 </Typography>
                 {calculations.validCharges.map((charge) => (
                   <Box key={charge.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 3 }}>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, flex: 1 }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, flex: 1 }}>
                       {charge.name}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
                       {charge.quantity || 1}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
                       {(parseFloat(charge.price) * (charge.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </Box>
                 ))}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
                     Subtotal
                   </Typography>
-                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
                     {calculations.subtotalAfterCharges.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </Box>
@@ -963,13 +963,13 @@ const handlePayBill = () => {
                 pt: 1,
                 borderTop: '2px solid #e0e0e0',
               }}>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 800 }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 800 }}>
                   {initialBillingData.amountPaid > 0 ? 'REMAINING BALANCE' : 'TOTAL'}
                 </Typography>
                 <Typography sx={{ 
                   fontFamily: 'Inter, sans-serif', 
                   fontSize: '15.117px', 
-                  color: initialBillingData.amountPaid > 0 ? '#F44336' : '#1a1c21', 
+                  color: initialBillingData.amountPaid > 0 ? '#F44336' : (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', 
                   fontWeight: 900, 
                   width: 90, 
                   textAlign: 'right' 
@@ -990,8 +990,8 @@ const handlePayBill = () => {
               variant="contained"
               onClick={handlePayBill}
               sx={{
-                backgroundColor: '#2148c0',
-                color: 'white',
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
+                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
                 fontWeight: 800,
                 fontSize: '20.1px',
                 fontFamily: 'Inter, sans-serif',
@@ -1002,7 +1002,7 @@ const handlePayBill = () => {
                 width: '180px',
                 mb: 1,
                 '&:hover': {
-                  backgroundColor: '#1a3a9c',
+                  backgroundColor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1a3a9c',
                 }
               }}
             >
@@ -1042,7 +1042,7 @@ const handlePayBill = () => {
         }}
       >
         <DialogTitle sx={{ 
-          color: '#2148c0', 
+          color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0', 
           fontWeight: 'bold', 
           fontFamily: 'Inter, sans-serif',
           pb: 1,
@@ -1050,7 +1050,7 @@ const handlePayBill = () => {
           Confirm Bill Details
         </DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontFamily: 'Inter, sans-serif', color: '#1a1c21' }}>
+          <Typography sx={{ fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21' }}>
             Are you sure you want to proceed? You won't be able to edit the billing details after confirmation.
           </Typography>
         </DialogContent>
@@ -1058,7 +1058,7 @@ const handlePayBill = () => {
           <Button 
             onClick={() => setConfirmDialogOpen(false)}
             sx={{ 
-              color: '#666',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#666',
               textTransform: 'none',
               fontFamily: 'Inter, sans-serif',
             }}
@@ -1069,11 +1069,11 @@ const handlePayBill = () => {
             onClick={handleConfirmPayBill}
             variant="contained"
             sx={{ 
-              backgroundColor: '#2148c0',
+              backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
               textTransform: 'none',
               fontFamily: 'Inter, sans-serif',
               '&:hover': {
-                backgroundColor: '#1a3a9c',
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1a3a9c',
               }
             }}
           >

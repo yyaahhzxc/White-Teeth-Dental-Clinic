@@ -245,8 +245,8 @@ function QuickActionButton() {
           top: 0,
           width: '100%',
           height: '100%',
-          // darker overlay
-          bgcolor: 'rgba(0,0,0,0.54)',
+          // darker overlay: use theme-aware color so dark mode can adjust
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.54)',
           opacity: showActions ? 1 : 0,
           transition: 'opacity 180ms ease',
           zIndex: 1500,
@@ -326,15 +326,24 @@ function QuickActionButton() {
                               transform: topTransform,
                             }}
                           >
-                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && topGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                              
-                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && topGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                                
-                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => {
+                              <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : 'background.paper', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: (theme) => theme.palette.mode === 'dark' ? theme.palette.getContrastText(theme.palette.action.hover) : 'primary.main', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && topGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: `opacity 200ms ease ${topTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${topTransitionDelay}` }}>{labelText}</Box>                                                                                                                
+                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : 'background.paper', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: (theme) => theme.palette.mode === 'dark' ? theme.palette.getContrastText(theme.palette.action.hover) : 'primary.main', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && topGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: `opacity 200ms ease ${topTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${topTransitionDelay}` }}>{labelText}</Box>                                                                                                                   
+                            <Fab
+                              sx={{
+                                zIndex: 2,
+                                width: ACTION_SIZE,
+                                height: ACTION_SIZE,
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.light : '#1976d2',
+                                color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'white',
+                                '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#155a9c' },
+                              }}
+                              onClick={(e) => {
                               e.stopPropagation();
                               setShowActions(false);
                               if (i === 0) setShowAddAppointment(true); // <-- open dialog
                               else setShowAddPatient(true); // <-- open patient record dialog
                             }}>
-                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}                                                                                                      
+                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px`, color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'inherit' }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px`, color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'inherit' }} />}
                             </Fab>
                           </Box>
 
@@ -350,15 +359,24 @@ function QuickActionButton() {
                               transform: bottomTransform,
                             }}
                           >
-                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && bottomGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                           
-                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: 'white', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: '#1746A2', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && bottomGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.2,.9,.2,1)' }}>{labelText}</Box>                                                                                                             
-                            <Fab color="primary" sx={{ zIndex: 2, width: ACTION_SIZE, height: ACTION_SIZE }} onClick={(e) => {
+                            <Box sx={{ position: 'absolute', right: '100%', mr: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : 'background.paper', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: (theme) => theme.palette.mode === 'dark' ? theme.palette.getContrastText(theme.palette.action.hover) : 'primary.main', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'right', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (!isLeft && bottomGroupVisible) ? 1 : 0, transform: leftLabelTransform, transition: `opacity 200ms ease ${bottomTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${bottomTransitionDelay}` }}>{labelText}</Box>                                                                                                             
+                            <Box sx={{ position: 'absolute', left: '100%', ml: `${Math.min(window.innerWidth, window.innerHeight) * 0.012}px`, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : 'background.paper', px: `${Math.min(window.innerWidth, window.innerHeight) * 0.01}px`, py: `${Math.min(window.innerWidth, window.innerHeight) * 0.003}px`, borderRadius: `${Math.min(window.innerWidth, window.innerHeight) * 0.008}px`, boxShadow: 1, fontWeight: 500, color: (theme) => theme.palette.mode === 'dark' ? theme.palette.getContrastText(theme.palette.action.hover) : 'primary.main', minWidth: `${Math.min(window.innerWidth, window.innerHeight) * 0.18}px`, whiteSpace: 'nowrap', textAlign: 'left', fontSize: `${Math.min(window.innerWidth, window.innerHeight) * 0.024}px`, opacity: (isLeft && bottomGroupVisible) ? 1 : 0, transform: rightLabelTransform, transition: `opacity 200ms ease ${bottomTransitionDelay}, transform 200ms cubic-bezier(.2,.9,.2,1) ${bottomTransitionDelay}` }}>{labelText}</Box>                                                                                                                
+                            <Fab
+                              sx={{
+                                zIndex: 2,
+                                width: ACTION_SIZE,
+                                height: ACTION_SIZE,
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.light : '#1976d2',
+                                color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'white',
+                                '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#155a9c' },
+                              }}
+                              onClick={(e) => {
                               e.stopPropagation();
                               setShowActions(false);
                               if (i === 0) setShowAddAppointment(true); // <-- open dialog
                               else setShowAddPatient(true); // <-- open patient record dialog
                             }}>
-                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px` }} />}                                                                                                      
+                              {i === 0 ? <EventAvailableIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px`, color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'inherit' }} /> : <PersonAddIcon sx={{ fontSize: `${ACTION_SIZE * 0.44}px`, color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'inherit' }} />}
                             </Fab>
                           </Box>
                         </React.Fragment>
@@ -370,8 +388,7 @@ function QuickActionButton() {
                   <Box sx={{ position: 'absolute', left: 0, top: 0, width: MAIN_SIZE, height: MAIN_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>                                                                                                
                     <Fab
                       data-testid="quick-main-fab"
-                      color="primary"
-                      sx={{ width: MAIN_SIZE, height: MAIN_SIZE, zIndex: 9999 }}
+                      sx={{ width: MAIN_SIZE, height: MAIN_SIZE, zIndex: 9999, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.light : '#1976d2', color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'white', '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#155a9c' } }}
                       onClick={(e) => { e.stopPropagation();
                         // if we just dragged, ignore the click caused by mouseup
                         if (movedRef.current) { movedRef.current = false; return; }
@@ -382,7 +399,7 @@ function QuickActionButton() {
                       aria-controls="quick-action-group"
                       title={showActions ? 'Close quick actions' : 'Open quick actions'}
                     >
-                      <AddIcon sx={{ fontSize: `${MAIN_SIZE * 0.56}px`, transform: showActions ? 'rotate(45deg)' : 'none', transition: 'transform 200ms cubic-bezier(.2,.9,.2,1)' }} />                                                                                     
+                      <AddIcon sx={{ fontSize: `${MAIN_SIZE * 0.56}px`, transform: showActions ? 'rotate(45deg)' : 'none', transition: 'transform 200ms cubic-bezier(.2,.9,.2,1)', color: (theme) => theme.palette.mode === 'dark' ? '#000' : 'inherit' }} />                                                                                     
                     </Fab>
                   </Box>
                 </>

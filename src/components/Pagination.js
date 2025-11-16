@@ -44,17 +44,40 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
     >
       {/* Show by dropdown */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography sx={{ fontSize: '14px', color: '#7f7f7f', fontWeight: 500 }}>
+        <Typography sx={{ fontSize: '14px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#7f7f7f', fontWeight: 500 }}>
           Show by
         </Typography>
         <FormControl size="small" sx={{ minWidth: 70 }}>
           <Select
             value={rowsPerPage}
             onChange={e => onRowsPerPageChange(Number(e.target.value))}
-            sx={{ fontSize: '14px', background: 'white', borderRadius: 1 }}
+            sx={{
+              fontSize: '14px',
+              background: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
+              borderRadius: 1,
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'inherit',
+              border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #ddd',
+            }}
+            MenuProps={{
+              PaperProps: {
+                sx: {
+                  backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'inherit',
+                }
+              }
+            }}
           >
             {rowsPerPageOptions.map(opt => (
-              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              <MenuItem
+                key={opt}
+                value={opt}
+                sx={{
+                  backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'inherit',
+                }}
+              >
+                {opt}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -74,7 +97,7 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
         {totalPages > 0 ? pageItems.map((item, idx) => {
           if (item === 'ellipsis') {
             return (
-              <Typography key={`ellipsis-${idx}`} sx={{ mx: 0.5, color: 'text.secondary' }}>
+              <Typography key={`ellipsis-${idx}`} sx={{ mx: 0.5, color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : 'text.secondary' }}>
                 ...
               </Typography>
             );
@@ -93,11 +116,11 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
                 mx: 0.5,
                 py: 0.5,
                 px: 1,
-                    backgroundColor: isActive ? (activeColor || '#1746A2') : 'transparent',
-                    color: isActive ? 'white' : 'inherit',
-                borderColor: '#ddd',
+                    backgroundColor: (theme) => isActive ? (activeColor || (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#1746A2')) : 'transparent',
+                    color: (theme) => isActive ? (activeColor ? 'white' : 'white') : (theme.palette.mode === 'dark' ? theme.palette.text.primary : 'inherit'),
+                borderColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.divider : '#ddd',
                 '&:hover': {
-                      backgroundColor: isActive ? (activeHoverColor || '#1746A2') : '#f4f4f4',
+                      backgroundColor: (theme) => isActive ? (activeHoverColor || (theme.palette.mode === 'dark' ? theme.palette.primary.dark : '#1746A2')) : (theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f4f4f4'),
                 },
                 textTransform: 'none',
                 fontSize: '0.9rem',
@@ -115,7 +138,7 @@ const Pagination = ({ page, totalPages, onPageChange, rowsPerPage, onRowsPerPage
               mx: 0.5,
               py: 0.5,
               px: 1,
-              backgroundColor: activeColor || '#1746A2',
+              backgroundColor: (theme) => activeColor || (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#1746A2'),
               color: 'white',
               textTransform: 'none',
               fontSize: '0.9rem',
