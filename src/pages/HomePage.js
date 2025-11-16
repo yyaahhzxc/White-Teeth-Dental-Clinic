@@ -313,7 +313,7 @@ export default function HomePage() {
 
     // header
     return (
-    <Box sx={{ bgcolor: "primary.main", minHeight: '100vh' }}>
+    <Box sx={{ bgcolor: '#f4f4f4', minHeight: '100vh' }}>
             <AppBar
                 ref={headerRef}
                 position="sticky"
@@ -339,7 +339,7 @@ export default function HomePage() {
                                     onClick={() => handleNavClick(item.section)}
                                     variant={activeSection === item.section ? "contained" : "text"}
                                     sx={{
-                                        bgcolor: activeSection === item.section ? "primary.main" : "transparent",
+                                        bgcolor: activeSection === item.section ? '#2148c0' : "transparent",
                                         color: activeSection === item.section ? "white" : "black",
                                         px: { xs: '2vw', md: '1.2vw' },
                                         py: { xs: '0.8vh', md: '1vh' },
@@ -379,7 +379,7 @@ export default function HomePage() {
                             <Typography
                                 variant="h1"
                                 sx={{
-                                    color: 'primary.main',
+                                    color: '#2148c0', 
                                     fontSize: { xs: 40, md: '12vh' },
                                     fontWeight: 900,
                                     lineHeight: 1,
@@ -393,7 +393,7 @@ export default function HomePage() {
                             <Typography
                                 variant="h6"
                                 sx={{
-                                    color: 'primary.main',
+                                    color: '#2148c0',
                                     fontSize: { xs: 18, md: 28 },
                                     fontWeight: 500,
                                     mb: 4,
@@ -405,7 +405,7 @@ export default function HomePage() {
                                 <Button
                                     variant="contained"
                                     sx={{
-                                        bgcolor: 'primary.main',
+                                        bgcolor: '#2148c0',
                                         color: 'white',
                                         borderRadius: 2.5,
                                         fontSize: 16,
@@ -566,7 +566,7 @@ export default function HomePage() {
                 ref={dentistRef}
                 sx={{
                     position: 'relative',
-                    bgcolor: "primary.main",
+                    bgcolor: '#2148c0',
                     py: 0,
                     height: dentistSectionHeight,
                     minHeight: dentistSectionHeight,
@@ -628,15 +628,15 @@ export default function HomePage() {
                                     Our dental expert
                                 </Typography>
                                 <Typography
-                                    variant="h1"
-                                    sx={{
-                                        color: "white",
-                                        fontSize: 'clamp(28px, 6vw, 100px)',
-                                        fontWeight: 900,
-                                        lineHeight: 1,
-                                        textAlign: "right",
-                                    }}
-                                >
+                                        variant="h1"
+                                        sx={{
+                                            color: "white",
+                                            fontSize: 'clamp(28px, 6vw, 100px)',
+                                            fontWeight: 900,
+                                            lineHeight: 1,
+                                            textAlign: "right",
+                                        }}
+                                    >
                                     Dr. Sarah Gerona
                                 </Typography>
                                 <Typography
@@ -663,7 +663,7 @@ export default function HomePage() {
             <Typography
                         variant="h1"
                         sx={{
-                            color: "primary.main",
+                                    color: '#2148c0',
                             fontSize: 75,
                             fontWeight: 900,
                 textAlign: "center",
@@ -678,7 +678,7 @@ export default function HomePage() {
                                 {leftServices.map((service, i) => (
                                     <Stack key={i} direction="row" spacing={3} alignItems="center" justifyContent="flex-start">
                                         <Box component="img" src="/White-Teeth-Logo.png" alt="Service icon" sx={{ width: { xs: '12vw', md: '4vw' }, height: 'auto', maxWidth: { md: 80 } }} />
-                                        <Typography sx={{ color: "primary.main", fontSize: { xs: '5.5vw', md: '2.5vw' }, fontWeight: 500, textAlign: 'left' }}>{service.name}</Typography>
+                                        <Typography sx={{ color: '#2148c0', fontSize: { xs: '5.5vw', md: '2.5vw' }, fontWeight: 500, textAlign: 'left' }}>{service.name}</Typography>
                                     </Stack>
                                 ))}
                             </Stack>
@@ -689,7 +689,7 @@ export default function HomePage() {
                                 {rightServices.map((service, i) => (
                                     <Stack key={i} direction="row" spacing={3} alignItems="center" justifyContent="flex-start">
                                         <Box component="img" src="/White-Teeth-Logo.png" alt="Service icon" sx={{ width: { xs: '12vw', md: '4vw' }, height: 'auto', maxWidth: { md: 80 } }} />
-                                        <Typography sx={{ color: "primary.main", fontSize: { xs: '5.5vw', md: '2.5vw' }, fontWeight: 500, textAlign: 'left' }}>{service.name}</Typography>
+                                        <Typography sx={{ color: '#2148c0', fontSize: { xs: '5.5vw', md: '2.5vw' }, fontWeight: 500, textAlign: 'left' }}>{service.name}</Typography>
                                     </Stack>
                                 ))}
                             </Stack>
@@ -775,7 +775,7 @@ export default function HomePage() {
                     <Typography
                         variant="h1"
                         sx={{
-                            color: "primary.main",
+                            color: '#2148c0',
                             fontSize: 75,
                             fontWeight: 900,
                             textAlign: "center",
@@ -787,10 +787,10 @@ export default function HomePage() {
 
                     <Stack spacing={4} alignItems="center">
                         <Stack direction="row" spacing={2} alignItems="center">
-                            <CallEnd sx={{ fontSize: 77, color: "primary.main" }} />
+                            <CallEnd sx={{ fontSize: 77, color: '#2148c0' }} />
                             <Typography
                                 sx={{
-                                    color: "primary.main",
+                                    color: '#2148c0',
                                     fontSize: 50,
                                     fontWeight: 700,
                                 }}
@@ -800,10 +800,10 @@ export default function HomePage() {
                         </Stack>
 
                         <Stack direction="row" spacing={2} alignItems="center">
-                            <Email sx={{ fontSize: 52, color: "primary.main" }} />
+                            <Email sx={{ fontSize: 52, color: '#2148c0' }} />
                             <Typography
                                 sx={{
-                                    color: "primary.main",
+                                    color: '#2148c0',
                                     fontSize: 50,
                                     fontWeight: 700,
                                 }}
@@ -815,7 +815,7 @@ export default function HomePage() {
                         <Button
                             variant="contained"
                             sx={{
-                                bgcolor: "primary.main",
+                                bgcolor: '#2148c0',
                                 color: "white",
                                 px: 6,
                                 py: 3,

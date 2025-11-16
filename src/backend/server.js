@@ -175,6 +175,66 @@ function migratePackagesToSeparateTable() {
                         console.error(`❌ Error migrating package service relation:`, relInsertErr);
                       } else {
                         console.log(`✅ Migrated package service relation for package ${newPackageId}`);
+
+          // Ensure unique index on (sourceType, sourceId) to avoid duplicate revenue rows
+          db.run(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_revenues_source_unique ON revenues (sourceType, sourceId)
+          `, (err) => {
+            if (err) {
+              console.error('Error creating unique index on revenues:', err);
+            } else {
+              console.log('✅ Unique index on revenues(sourceType, sourceId) created/verified');
+            }
+          });
+
+          // Backfill revenues from existing invoices (runs at startup). This will insert
+          // a revenue row for every invoice that does not yet have a corresponding
+          // revenues record (sourceType='invoice', sourceId=invoice.id).
+          db.serialize(() => {
+            db.all(`SELECT id, billingId, appointmentId, patientId, amountPaid, invoiceNumber, createdAt FROM invoices`, [], (err, rows) => {
+              if (err) {
+                console.error('❌ Error reading existing invoices for revenues backfill:', err);
+                return;
+              }
+
+              console.log(`🔁 Backfilling revenues from ${rows.length} invoices (if not already recorded)...`);
+
+              rows.forEach((inv) => {
+                db.get(`SELECT id FROM revenues WHERE sourceType = ? AND sourceId = ?`, ['invoice', inv.id], (gErr, existing) => {
+                  if (gErr) {
+                    console.error('❌ Error checking existing revenue for invoice', inv.id, gErr);
+                    return;
+                  }
+
+                  if (existing) {
+                    // already recorded
+                    return;
+                  }
+
+                  const insertSql = `
+                    INSERT INTO revenues (sourceType, sourceId, billingId, appointmentId, patientId, amount, notes, recordedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                  `;
+
+                  const recordedAt = inv.createdAt || new Date().toISOString();
+                  const notes = inv.invoiceNumber ? `Invoice ${inv.invoiceNumber}` : `Invoice ${inv.id}`;
+                  const amount = Number(inv.amountPaid || 0);
+
+                  db.run(insertSql, ['invoice', inv.id, inv.billingId, inv.appointmentId, inv.patientId, amount, notes, recordedAt], function(insErr) {
+                    if (insErr) {
+                      // If unique constraint somehow violated, skip
+                      if (insErr.message && insErr.message.includes('UNIQUE')) {
+                        return;
+                      }
+                      console.error('❌ Failed to insert revenue for invoice', inv.id, insErr);
+                      return;
+                    }
+                    console.log(`➕ Inserted revenue row ${this.lastID} for invoice ${inv.id} (amount=${amount})`);
+                  });
+                });
+              });
+            });
+          });
                       }
                     }
                   );
@@ -447,6 +507,7 @@ db.run(`
     seq INTEGER NOT NULL,
     name TEXT NOT NULL,
     category TEXT,
+    notes TEXT,
     amount REAL NOT NULL,
     date TEXT NOT NULL,             -- ISO date string
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -454,6 +515,18 @@ db.run(`
 `, (err) => {
   if (err) console.error('Error creating expenses table:', err);
   else console.log('✅ Expenses table ready');
+});
+
+// Migration: add notes column to expenses if it doesn't exist
+db.run(`
+  ALTER TABLE expenses
+  ADD COLUMN notes TEXT DEFAULT ''
+`, (err) => {
+  if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) {
+    console.error('❌ Error adding notes column to expenses:', err);
+  } else {
+    console.log('✅ notes column added/verified in expenses table');
+  }
 });
 
 //TABLE CREATION FUNCTIONS
@@ -467,6 +540,8 @@ db.run(`
 // FIND the GET /appointments/date-range endpoint (around line 1000) and UPDATE:
 
 // FIND the GET /appointments/date-range endpoint (around line 494) and REPLACE with:
+
+
 
 app.get('/appointments/date-range', (req, res) => {
   const { startDate, endDate } = req.query;
@@ -579,6 +654,45 @@ app.get('/appointments/date-range', (req, res) => {
     
     res.json(rows);
   });
+});
+
+app.get('/revenues', (req, res) => {
+  // Try a dedicated revenues table first, then fallback to billings with amountPaid
+  const tryQueries = [
+    `SELECT id, amount, recordedAt, notes, billingId, appointmentId, patientId FROM revenues ORDER BY recordedAt DESC LIMIT 1000;`,
+    `SELECT id, amountPaid AS amount, dateCreated AS recordedAt, status AS notes, id AS billingId, appointmentId, patientId FROM billings WHERE amountPaid IS NOT NULL AND amountPaid > 0 ORDER BY dateCreated DESC LIMIT 1000;`
+  ];
+
+  // Attempt each query until one succeeds
+  const tryNext = (i) => {
+    if (i >= tryQueries.length) {
+      return res.json([]); // nothing found
+    }
+    db.all(tryQueries[i], (err, rows) => {
+      if (err) {
+        // try next query
+        console.warn('query failed, trying next fallback:', err && err.message);
+        return tryNext(i + 1);
+      }
+      if (Array.isArray(rows) && rows.length > 0) {
+        // Normalize returned rows for frontend (id, amount, recordedAt, notes, billingId, appointmentId, patientId)
+        const mapped = rows.map(r => ({
+          id: r.id,
+          amount: Number(r.amount || r.amountPaid || 0),
+          recordedAt: r.recordedAt || r.createdAt || r.dateCreated || null,
+          notes: r.notes || r.status || '',
+          billingId: r.billingId || null,
+          appointmentId: r.appointmentId || null,
+          patientId: r.patientId || null,
+        }));
+        return res.json(mapped);
+      }
+      // empty => try fallback
+      tryNext(i + 1);
+    });
+  };
+
+  tryNext(0);
 });
 
 
@@ -3874,7 +3988,7 @@ app.post('/users', requireRole('admin'), (req, res) => {
 });
 
 app.post('/expenses', (req, res) => {
-  const { expense: name, amount, date, category } = req.body;
+  const { expense: name, amount, date, category, notes } = req.body;
   if (!name || !amount || !date) {
     return res.status(400).json({ error: 'name, amount and date are required' });
   }
@@ -3888,9 +4002,9 @@ app.post('/expenses', (req, res) => {
     const id = `${year}-${String(seq).padStart(4, '0')}`;
     const createdAt = new Date().toISOString();
 
-    const q = `INSERT INTO expenses (id, year, seq, name, category, amount, date, createdAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    db.run(q, [id, year, seq, name, category || '', amount, date, createdAt], function(insertErr) {
+    const q = `INSERT INTO expenses (id, year, seq, name, category, notes, amount, date, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.run(q, [id, year, seq, name, category || '', notes || '', amount, date, createdAt], function(insertErr) {
       if (insertErr) {
         console.error('Error inserting expense:', insertErr);
         return res.status(500).json({ error: insertErr.message });
@@ -3898,7 +4012,7 @@ app.post('/expenses', (req, res) => {
       // return created expense
       res.status(201).json({
         success: true,
-        expense: { id, year, seq, name, category: category || '', amount, date, createdAt }
+        expense: { id, year, seq, name, category: category || '', notes: notes || '', amount, date, createdAt }
       });
     });
   });
@@ -5290,6 +5404,27 @@ db.run(`
   }
 });
 
+db.run(`
+  CREATE TABLE IF NOT EXISTS revenues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sourceType TEXT,        -- 'invoice' | 'payment' etc
+    sourceId INTEGER,       -- invoiceId or paymentId
+    billingId INTEGER,
+    appointmentId INTEGER,
+    patientId INTEGER,
+    amount REAL,
+    notes TEXT,
+    recordedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (billingId) REFERENCES billings(id)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating revenues table:', err);
+  } else {
+    console.log('✅ Revenues table created/verified');
+  }
+});
+
 // GET all billings
 app.get('/billings', (req, res) => {
   console.log('💰 GET /billings - Fetching all billings');
@@ -5515,22 +5650,47 @@ app.post('/invoices', (req, res) => {
         
         console.log(`✅ Billing ${billingId} updated: amountPaid=${newAmountPaid}, balance=${newBalance}, status=${newStatus}`);
         
-        // Return created invoice
-        db.get('SELECT * FROM invoices WHERE id = ?', [invoiceId], (getErr, invoice) => {
-          if (getErr) {
-            console.error('❌ Error fetching invoice:', getErr);
-            return res.status(500).json({ error: 'Invoice created but failed to retrieve' });
+        // Record revenue for this invoice, then return created invoice
+        const revenueInsert = `
+          INSERT INTO revenues (sourceType, sourceId, billingId, appointmentId, patientId, amount, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const revenueNotes = (paymentMethod ? `Method: ${paymentMethod}; ` : '') + (notes || '');
+
+        db.run(revenueInsert, [
+          'invoice',
+          invoiceId,
+          billingId,
+          appointmentId,
+          patientId,
+          amountPaid,
+          revenueNotes
+        ], function(revErr) {
+          if (revErr) {
+            console.error('❌ Error recording revenue for invoice:', revErr);
+            // Log the error but continue to return the invoice result
+          } else {
+            console.log(`💵 Revenue recorded for invoice ${invoiceId} (revenue id ${this.lastID})`);
           }
-          
-          res.status(201).json({
-            success: true,
-            message: 'Invoice created successfully',
-            invoice: invoice,
-            updatedBilling: {
-              amountPaid: newAmountPaid,
-              balance: newBalance,
-              status: newStatus
+
+          // Fetch and return the created invoice
+          db.get('SELECT * FROM invoices WHERE id = ?', [invoiceId], (getErr, invoice) => {
+            if (getErr) {
+              console.error('❌ Error fetching invoice:', getErr);
+              return res.status(500).json({ error: 'Invoice created but failed to retrieve' });
             }
+
+            res.status(201).json({
+              success: true,
+              message: 'Invoice created successfully',
+              invoice: invoice,
+              updatedBilling: {
+                amountPaid: newAmountPaid,
+                balance: newBalance,
+                status: newStatus
+              }
+            });
           });
         });
       });

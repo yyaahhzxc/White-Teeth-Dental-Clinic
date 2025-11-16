@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Box, Paper, TextField, Button, Typography, InputAdornment, IconButton } from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
@@ -27,6 +29,91 @@ import GlobalToast from './components/GlobalToast';
 
 
 function App() {
+  // Theme: Light | Dark | System
+  const [appTheme, setAppTheme] = useState(() => {
+    try { return localStorage.getItem('appTheme') || 'System'; } catch (e) { return 'System'; }
+  });
+
+  const resolveMode = (theme) => {
+    if (!theme || theme === 'System') {
+      try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { return 'light'; }
+    }
+    return String(theme).toLowerCase();
+  };
+
+  const mode = resolveMode(appTheme);
+
+  const muiTheme = useMemo(() => createTheme({
+    palette: {
+      mode,
+      primary: { main: mode === 'dark' ? '#90caf9' : '#2148C0' },
+      background: {
+        default: mode === 'dark' ? '#0b1220' : '#f5f7fb',
+        paper: mode === 'dark' ? '#0f1720' : '#ffffff'
+      },
+      text: {
+        primary: mode === 'dark' ? '#e6eef8' : '#0f1720',
+        secondary: mode === 'dark' ? '#9aa7b8' : '#4b5563'
+      }
+    }
+  }), [mode]);
+
+  // expose CSS variables for non-MUI/custom CSS
+  useEffect(() => {
+    try {
+      const root = document.documentElement;
+      root.style.setProperty('--app-bg', muiTheme.palette.background.default);
+      root.style.setProperty('--app-surface', muiTheme.palette.background.paper);
+      root.style.setProperty('--app-text', muiTheme.palette.text.primary);
+      root.style.setProperty('--app-text-secondary', muiTheme.palette.text.secondary);
+      root.style.setProperty('--app-accent', muiTheme.palette.primary.main);
+    } catch (e) {}
+  }, [muiTheme]);
+
+  // Listen for Settings change broadcasts
+  useEffect(() => {
+    const onThemeChanged = (e) => {
+      try {
+        const t = e && e.detail && e.detail.theme;
+        if (t) {
+          setAppTheme(t);
+          try { localStorage.setItem('appTheme', t); } catch (e) {}
+        }
+      } catch (err) {}
+    };
+    window.addEventListener('appThemeChanged', onThemeChanged);
+    return () => window.removeEventListener('appThemeChanged', onThemeChanged);
+  }, []);
+
+  // On mount, if logged in, try to load per-user settings from server
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const res = await fetch(`${API_BASE}/user/settings`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const settings = await res.json();
+            if (settings && settings.appTheme) {
+              setAppTheme(settings.appTheme);
+              try { localStorage.setItem('appTheme', settings.appTheme); } catch (e) {}
+            }
+            if (settings && settings.appTextSizeLevel != null) {
+              const v = Number(settings.appTextSizeLevel);
+              if (!Number.isNaN(v)) {
+                const sizeMap = {1:13,2:14.5,3:16,4:18,5:20};
+                const px = sizeMap[v] || 16;
+                document.documentElement.style.fontSize = `${px}px`;
+                document.documentElement.style.setProperty('--app-ui-font', `${px}px`);
+                document.documentElement.style.setProperty('--app-ui-scale', String(px/16));
+                try { window.dispatchEvent(new CustomEvent('appTextSizeChanged', { detail: { level: v } })); } catch (e) {}
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    })();
+  }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -117,6 +204,11 @@ function App() {
           label="Username"
           variant="outlined"
           margin="normal"
+          sx={{
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#2148c0' },
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#183a93' },
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2148c0' }, color: '#000'
+          }}
           value={username}
           inputRef={usernameRef}
           onChange={(e) => setUsername(e.target.value)}
@@ -128,7 +220,7 @@ function App() {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <PersonIcon />
+                <PersonIcon sx={{ color: '#2148c0' }} />
               </InputAdornment>
             ),
           }}
@@ -138,6 +230,11 @@ function App() {
           label="Password"
           variant="outlined"
           margin="normal"
+          sx={{
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#2148c0' },
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#183a93' },
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2148c0' }, color: '#000'
+          }}
           type={showPassword ? 'text' : 'password'}
           value={password}
           inputRef={passwordRef}
@@ -150,13 +247,13 @@ function App() {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <LockIcon />
+                <LockIcon sx={{ color: '#2148c0' }} />
               </InputAdornment>
             ),
             endAdornment: (
               <InputAdornment position="end">
                 <IconButton edge="end" onClick={() => setShowPassword(s => !s)}>
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                  {showPassword ? <VisibilityOff sx={{ color: '#2148c0' }} /> : <Visibility sx={{ color: '#2148c0' }} />}
                 </IconButton>
               </InputAdornment>
             ),
@@ -164,18 +261,16 @@ function App() {
         />
         <Button
           variant="contained"
-          color="primary"
           fullWidth
-          sx={{ mt: 2 }}
+          sx={{ mt: 2, backgroundColor: '#2148c0', color: 'white', '&:hover': { backgroundColor: '#183a93' } }}
           onClick={handleLogin}
         >
           Login
         </Button>
         <Button
           variant="text"
-          color="primary"
           fullWidth
-          sx={{ mt: 1 }}
+          sx={{ mt: 1, color: '#2148c0' }}
           onClick={() => navigate('/forgot-password')}
         >
           Forgot Password?
@@ -190,37 +285,41 @@ function App() {
   );
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        backgroundImage: 'url("/White-Teeth-BG.png")',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <Routes>
-        <Route path="/" element={<HomePage />} />
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <Box
+        sx={{
+          minHeight: '100vh',
+          backgroundImage: 'url("/White-Teeth-BG.png")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#f5f7fb'
+        }}
+      >
+        <Routes>
+          <Route path="/" element={<HomePage />} />
   <Route path="/login" element={loginForm} />
   <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
   <Route path="/add-patient" element={<PatientList />} />
   <Route path="/services" element={<ServiceList />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/logs" element={<Logs />} />
-        <Route path="/accounts" element={<Accounts />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/logs" element={<Logs />} />
+          <Route path="/accounts" element={<Accounts />} />
   <Route path="/appointments" element={<Appointments />} />
   <Route path="/invoice" element={<Invoice />} />
   <Route path="/billing" element={<Billing />} />
-          <Route path="/sales" element={<Sales />} />
+            <Route path="/sales" element={<Sales />} />
 
   {/* Service Page */}
   <Route path="/service-page" element={<ServiceList />} />
-      </Routes>
-      <GlobalToast />
-    </Box>
+        </Routes>
+        <GlobalToast />
+      </Box>
+    </ThemeProvider>
   );
 }
 

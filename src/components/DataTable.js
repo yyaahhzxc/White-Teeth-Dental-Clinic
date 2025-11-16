@@ -29,7 +29,11 @@ export default function DataTable({
       }}
     >
       <Paper
+        className="data-table"
         sx={{
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : undefined,
+          color: (theme) => theme.palette.text.primary,
+          fontSize: 'inherit',
           width: '100%',
           maxWidth: 'calc(100vw - 32px)',
           minHeight: whiteMinHeight,
@@ -49,7 +53,9 @@ export default function DataTable({
             mx: 3,
             mt: 1,
             mb: 3,
-            backgroundColor: '#dfdfdf',
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#dfdfdf',
+            border: (theme) => theme.palette.mode === 'dark' ? '1px solid' : undefined,
+            borderColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.divider : undefined,
             borderRadius: '10px',
             overflow: 'hidden',
             minHeight: grayMinHeight,

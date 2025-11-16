@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, Grid, Button, Paper, Collapse, FormControl, Select, MenuItem } from '@mui/material';
+import { Box, Container, Typography, Grid, Button, Paper, Collapse, FormControl, Select, MenuItem, useTheme } from '@mui/material';
 import AddExpenseDialog from './add-expense';
 import { ArrowDropDown } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+
+const API_BASE = 'http://localhost:3001';
 
 // Local components
 import Header from '../components/header';
@@ -22,9 +24,9 @@ const DashboardContainer = ({ children }) => (
     sx={{
       flexGrow: 1,
       zIndex: 1,
-      backgroundColor: 'white',
+      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
       borderRadius: '20px',
-      boxShadow: '0 -4px 10px rgba(0, 0, 0, 0.1)',
+      boxShadow: (theme) => theme.palette.mode === 'dark' ? 'none' : '0 -4px 10px rgba(0, 0, 0, 0.1)',
       mt: 2, // Space from the title
       overflow: 'hidden',
       p: 3,
@@ -40,6 +42,64 @@ const DashboardContainer = ({ children }) => (
 
 // Simple SVG Pie + legend helper (no external deps)
 const formatCurrency = (n) => `Php ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Format a date value as "MonthName DD, YYYY" (e.g. November 16, 2025)
+const formatLongDate = (value) => {
+  if (!value && value !== 0) return '';
+  try {
+    // If value is already a Date, use it directly
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) return String(value);
+      return value.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    // If value is a YYYY-MM-DD string, construct a local Date to avoid UTC shift
+    const isoDateOnly = String(value).match(/^\d{4}-\d{2}-\d{2}$/);
+    if (isoDateOnly) {
+      const [y, m, d] = String(value).split('-').map(Number);
+      const local = new Date(y, m - 1, d);
+      if (isNaN(local.getTime())) return String(value);
+      return local.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    // Fallback: let Date parse other ISO strings (with time) or other formats
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) {
+    return String(value);
+  }
+};
+
+// Helper: produce a YYYY-MM-DD key for a value (Date or string), using local date
+const toDateKey = (value) => {
+  if (!value && value !== 0) return null;
+  if (value instanceof Date) {
+    const d = value;
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const s = String(value);
+  const isoOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoOnly) return `${isoOnly[1]}-${isoOnly[2]}-${isoOnly[3]}`;
+  const parsed = new Date(s);
+  if (isNaN(parsed.getTime())) return null;
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const todayKey = (() => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+})();
 
 const computeServiceBreakdown = (aggregatedArray) => {
   // Fixed service list and colors (easy to replace with backend values later)
@@ -67,6 +127,7 @@ const computeServiceBreakdown = (aggregatedArray) => {
 function PieSVG({ data = [], size = 150, centerLabelMain = '', centerLabelSub = '' }) {
   const [hoveredIndex, setHoveredIndex] = React.useState(null);
   const [tooltipPos, setTooltipPos] = React.useState({ x: 0, y: 0 });
+  const theme = useTheme();
   const radius = size / 2 - 4;
   const center = size / 2;
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
@@ -188,11 +249,29 @@ const [isInitialized, setIsInitialized] = useState(false);
   // start empty; will load from backend
   const [expenses, setExpenses] = useState([]);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
+  // revenues loaded from backend (replaces placeholder revenueData)
+  const [revenues, setRevenues] = useState([]);
+  const [loadingRevenues, setLoadingRevenues] = useState(false);
 
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [activeFilters, setActiveFilters] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const categoryFilteredData = revenueData;
+  // Map backend revenues into the shape expected by aggregateData (date + revenue string)
+  const categoryFilteredData = (revenues || []).map(r => {
+    // server returns recordedAt and amount (number)
+    const date = r.recordedAt || r.date || r.createdAt || r.invoiceDate || r.dateCreated || new Date().toISOString();
+    const amountNum = Number(r.amount || r.amountNumber || 0) || 0;
+    return {
+      id: r.id,
+      date,
+      revenue: `Php ${amountNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      revenueNumber: amountNum,
+      notes: r.notes,
+      billingId: r.billingId,
+      appointmentId: r.appointmentId,
+      patientId: r.patientId,
+    };
+  });
   const [period, setPeriod] = useState('Daily');
   const [activeTab, setActiveTab] = useState('revenue');
 
@@ -219,7 +298,7 @@ const [isInitialized, setIsInitialized] = useState(false);
         const m = String(parsed.getMonth() + 1).padStart(2, '0');
         const d = String(parsed.getDate()).padStart(2, '0');
         keySort = `${y}-${m}-${d}`;
-        label = parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        label = formatLongDate(parsed);
       } else if (period === 'Monthly') {
         const y = parsed.getFullYear();
         const m = String(parsed.getMonth() + 1).padStart(2, '0');
@@ -314,11 +393,84 @@ if (typeof window !== 'undefined') {
   window.forceRefreshExpenses = forceRefreshExpenses;
 }
 
+  // Fetch revenues from backend and update state
+  const fetchRevenues = async () => {
+    setLoadingRevenues(true);
+    try {
+      const res = await fetch(`${API_BASE}/revenues`);
+      if (!res.ok) {
+        console.error('Failed to fetch revenues', res.status);
+        setRevenues([]);
+        setLoadingRevenues(false);
+        return;
+      }
+      const data = await res.json();
+      console.log('Fetched revenues count:', (data || []).length);
+      // Normalize rows: expect amount and recordedAt
+      const mapped = (data || []).map(r => ({
+        id: r.id,
+        amount: Number(r.amount || 0),
+        recordedAt: r.recordedAt || r.createdAt || r.date || null,
+        notes: r.notes || '',
+        billingId: r.billingId,
+        appointmentId: r.appointmentId,
+        patientId: r.patientId,
+      }));
+      setRevenues(mapped);
+    } catch (e) {
+      console.error('Error fetching revenues', e);
+      setRevenues([]);
+    } finally {
+      setLoadingRevenues(false);
+    }
+  };
+
+  useEffect(() => {
+    // initial load
+    fetchRevenues();
+
+    // refresh when a billing/invoice is created elsewhere in the app
+    const onBillingCreated = () => fetchRevenues();
+    const onInvoiceCreated = () => fetchRevenues();
+    window.addEventListener('billingCreated', onBillingCreated);
+    window.addEventListener('invoiceCreated', onInvoiceCreated);
+    return () => {
+      window.removeEventListener('billingCreated', onBillingCreated);
+      window.removeEventListener('invoiceCreated', onInvoiceCreated);
+    };
+  }, []);
+
 
 
 
 
   const aggregated = aggregateData(categoryFilteredData || [], period);
+
+  // Map backend revenues into row-level format (like expensesRows) so the Revenue tab
+  // can show individual revenue rows directly from the `revenues` table.
+  const revenuesRows = (revenues || []).map((r) => ({
+    id: r.id,
+    // ensure date is in a parsable ISO-like format
+    date: (r.recordedAt || r.date || r.createdAt || new Date().toISOString()).split('T')[0],
+    dateSort: (r.recordedAt || r.date || r.createdAt || new Date().toISOString()).split('T')[0],
+    revenueNumber: Number(r.amount || r.amountNumber || 0) || 0,
+    revenue: `Php ${Number(r.amount || r.amountNumber || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    notes: r.notes || '',
+    billingId: r.billingId,
+    appointmentId: r.appointmentId,
+    patientId: r.patientId,
+  }));
+
+  // Apply search/filter/sort/pagination on row-level revenues (for the Revenue tab)
+  const filteredRevenuesRows = (revenuesRows || []).filter((item) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (item.date || '').toLowerCase().includes(q) || (item.notes || '').toLowerCase().includes(q) || (item.revenue || '').toLowerCase().includes(q);
+  });
+
+  const sortedRevenuesRows = sortData(filteredRevenuesRows, sortConfig || {});
+  const totalPagesRevenues = Math.max(1, Math.ceil(sortedRevenuesRows.length / rowsPerPage));
+  const visibleRevenues = sortedRevenuesRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   // --- Expenses aggregation (for breakdown only) ---
   // We keep row-level `expenses` for the table; aggregatedExpenses is derived for charts/stats.
@@ -480,6 +632,12 @@ const handleExpenseSubmit = (savedOrPayload) => {
   const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
   const visible = sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
+  // Decide which dataset to display in the main Revenue table:
+  // - If period === 'Daily', show individual revenue rows (payments/invoices)
+  // - Otherwise (Monthly/Yearly), show aggregated rows
+  const displayRows = period === 'Daily' ? visibleRevenues : visible;
+  const displayTotalPages = period === 'Daily' ? totalPagesRevenues : totalPages;
+
   // Example placeholder row depending on selected period
   const exampleRow = period === 'Daily'
     ? { label: 'e.g. October 30, 2025', revenue: 'Php 20,500.00' }
@@ -615,6 +773,7 @@ const handleExpenseSubmit = (savedOrPayload) => {
       date: row.date ? row.date.split('T')[0] : (new Date()).toISOString().split('T')[0],
       expense: row.name || row.expense || 'Expense',
       category: row.category || 'General',
+      notes: row.notes || '',
       amountNumber,
       amount: `Php ${amountNumber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       createdAt: row.createdAt,
@@ -697,11 +856,13 @@ useEffect(() => {
 
   
 
+  const theme = useTheme();
+
   return (
     <Box
       sx={{
         height: '70%',
-        backgroundColor: '#2148c0', // Blue background
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -719,12 +880,13 @@ useEffect(() => {
           px: 2,
         }}
       >
-        <Typography
+          <Typography
           variant="h3"
+          className="no-scale-sales-title"
           sx={{
-            color: 'white',
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'white',
             fontWeight: 800,
-            fontSize: '39.14px',
+            fontSize: '2.45rem',
             fontFamily: 'Inter, sans-serif',
           }}
         >
@@ -741,9 +903,9 @@ useEffect(() => {
             onClick={() => { setActiveTab('revenue'); setPage(0); }}
             sx={{
               mr: 1,
-              bgcolor: activeTab === 'revenue' ? '#274fc7' : 'transparent',
-              color: activeTab === 'revenue' ? '#fff' : '#274fc7',
-              border: activeTab === 'revenue' ? '1px solid #274fc7' : '1px solid #e0e0e0',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'revenue' ? theme.palette.primary.main : 'transparent') : (activeTab === 'revenue' ? '#4A69BD' : 'transparent'),
+              color: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'revenue' ? theme.palette.primary.contrastText : theme.palette.primary.main) : (activeTab === 'revenue' ? '#fff' : '#4A69BD'),
+              border: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'revenue' ? `1px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`) : (activeTab === 'revenue' ? '1px solid #4A69BD' : '1px solid #e0e0e0'),
               borderRadius: '10px',
               px: 2,
               textTransform: 'none',
@@ -758,9 +920,9 @@ useEffect(() => {
           <Button
             onClick={() => { setActiveTab('expenses'); setPage(0); }}
             sx={{
-              bgcolor: activeTab === 'expenses' ? '#c23b3b' : 'transparent',
-              color: activeTab === 'expenses' ? '#fff' : '#c23b3b',
-              border: activeTab === 'expenses' ? '1px solid #c23b3b' : '1px solid #e0e0e0',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'expenses' ? theme.palette.error.main : 'transparent') : (activeTab === 'expenses' ? '#c23b3b' : 'transparent'),
+              color: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'expenses' ? theme.palette.error.contrastText : theme.palette.error.main) : (activeTab === 'expenses' ? '#fff' : '#c23b3b'),
+              border: (theme) => theme.palette.mode === 'dark' ? (activeTab === 'expenses' ? `1px solid ${theme.palette.error.main}` : `1px solid ${theme.palette.divider}`) : (activeTab === 'expenses' ? '1px solid #c23b3b' : '1px solid #e0e0e0'),
               borderRadius: '10px',
               px: 2,
               textTransform: 'none',
@@ -780,53 +942,52 @@ useEffect(() => {
               <DataTable
                 paperAlign="left"
                 topContent={
-                  <>
+                  <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', px: 3, pt: 3, pb: 2, gap: 2, boxSizing: 'border-box' }}>
                       <SearchBar value={search} onChange={setSearch} placeholder="Search by date" searchFields={["date"]} data={categoryFilteredData} />
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
-                        <FilterButton onClick={() => setShowFilterBox(v => !v)} />
-                        <FormControl size="small" sx={{ minWidth: 120, ml: 1 }}>
-                          <Select
-                            value={period}
-                            onChange={(e) => { setPeriod(e.target.value); setPage(0); }}
-                            displayEmpty
-                            inputProps={{ 'aria-label': 'period-select' }}
-                            sx={{
-                              backgroundColor: '#274fc7',
-                              color: 'white',
-                              border: '1px solid #274fc7',
-                              borderRadius: '10px',
-                              height: '38px',
-                              px: 2,
-                              textTransform: 'none',
-                              fontWeight: 500,
-                              fontSize: '16px',
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                        <Box sx={{ color: 'white', fontWeight: 600, mr: 1 }}>
+                          {loadingRevenues ? 'Loading revenues...' : `${revenues.length || 0} revenues`}
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                          <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                          <FormControl size="small" sx={{ minWidth: 120, ml: 1 }}>
+                            <Select
+                              value={period}
+                              onChange={(e) => { setPeriod(e.target.value); setPage(0); }}
+                              displayEmpty
+                              inputProps={{ 'aria-label': 'period-select' }}
+                              sx={{
+                                backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#4A69BD',
+                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
+                                border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.primary.main}` : '1px solid #4A69BD',
+                                borderRadius: '10px',
+                                height: '38px',
+                                px: 2,
+                                textTransform: 'none',
+                                fontWeight: 500,
+                                fontSize: '16px',
+                                fontSize: '1rem',
                               fontFamily: 'DM Sans, sans-serif',
-                              border: '1px solid #4A69BD',
-                              borderRadius: '10px',
-                              height: '38px',
-                              px: 2,
-                              textTransform: 'none',
-                              fontWeight: 500,
-                              fontSize: '16px',
-                              fontFamily: 'DM Sans, sans-serif',
-                              minWidth: 99,
-                              boxShadow: 1,
-                              '& .MuiSvgIcon-root': { color: 'white' },
-                              '&:hover': { backgroundColor: '#2148c0', border: '1px solid #2148c0' },
-                            }}
-                          >
-                            <MenuItem value="Daily">Daily</MenuItem>
-                            <MenuItem value="Monthly">Monthly</MenuItem>
-                            <MenuItem value="Yearly">Yearly</MenuItem>
-                          </Select>
-                        </FormControl>
+                                minWidth: 99,
+                                boxShadow: 1,
+                                '& .MuiSvgIcon-root': { color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white' },
+                                '&:hover': { backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.dark : '#2148c0', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.primary.dark}` : '1px solid #2148c0' },
+                              }}
+                            >
+                              <MenuItem value="Daily">Daily</MenuItem>
+                              <MenuItem value="Monthly">Monthly</MenuItem>
+                              <MenuItem value="Yearly">Yearly</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Box>
                       </Box>
                     </Box>
                     <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
                       <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
                     </Collapse>
-                  </>
+                  </Box>
                 }
                 tableHeader={
                   <Box sx={{ px: 3, pt: 3, pb: 3 }}>
@@ -853,16 +1014,16 @@ useEffect(() => {
                 tableRows={
                   <Box sx={{ px: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '200px', maxHeight: '550px', overflow: 'auto' }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
-                      {visible.length > 0 ? visible.map((row) => (
-                        <Box key={`rev-${row.id || row.dateSort || row.label}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.label || row.date}</Box>
-                          <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.revenue}</Box>
+                      {displayRows && displayRows.length > 0 ? displayRows.map((row) => (
+                        <Box key={`rev-${row.id || row.dateSort || row.label || row.date}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', boxSizing: 'border-box', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb', '&:hover': { backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action?.hover || theme.palette.background.paper : '#f0f4f8', cursor: 'pointer' } }}>
+                          <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.label || formatLongDate(row.date || row.dateSort)}</Box>
+                          <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.revenue}</Box>
                         </Box>
                       )) : (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.label}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.revenue}</Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', boxSizing: 'border-box', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb' }}>
+                          <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760, boxSizing: 'border-box', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb' }}>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.label}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRow.revenue}</Box>
                           </Box>
                         </Box>
                       )}
@@ -871,7 +1032,7 @@ useEffect(() => {
                 }
                 pagination={
                   <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
-                    <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} rowsPerPage={rowsPerPage} onRowsPerPageChange={handleRowsPerPageChange} />
+                    <Pagination page={page} totalPages={displayTotalPages} onPageChange={handlePageChange} rowsPerPage={rowsPerPage} onRowsPerPageChange={handleRowsPerPageChange} />
                   </Box>
                 }
                 grayMinHeight={'450px'}
@@ -882,11 +1043,11 @@ useEffect(() => {
             <Grid item xs={12} md={5} sx={{ width: '38.5%' }}>
               {/* Right Panel: Metrics and Chart */}
               <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
-                <Paper elevation={3} sx={{ backgroundColor: '#38761D', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
+                <Paper elevation={3} sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.success.main : '#38761D', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
                   <Typography variant="h5" fontWeight="bold">{formatCurrency(revenueTotal)}</Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>{periodGrossLabel}</Typography>
                 </Paper>
-                <Paper elevation={3} sx={{ backgroundColor: '#0056b3', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
+                <Paper elevation={3} sx={{ backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#0056b3', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
                   <Typography variant="h5" fontWeight="bold">{formatCurrency(netTotal)}</Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>{periodNetLabel}</Typography>
                 </Paper>
@@ -905,7 +1066,7 @@ useEffect(() => {
                     <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       {breakdownRevenue.map((d) => (
                         <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Box sx={{ width: 14, height: 14, backgroundColor: d.color, borderRadius: 1, flexShrink: 0 }} />
+                          <Box sx={{ width: 14, height: 14, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : d.color, borderRadius: 1, flexShrink: 0 }} />
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="body2" fontWeight={600} noWrap>{d.name}</Typography>
                             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -922,18 +1083,18 @@ useEffect(() => {
             </Grid>
           </Grid>
         ) : (
-          <Grid container spacing={3} sx={{
+          <Grid container spacing={3} sx={(theme) => ({
             // scope button color overrides to only the actions area inside Expenses
             '& .expenses-actions .MuiButton-root': {
-              backgroundColor: '#c23b3b',
+              backgroundColor: theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b',
               color: '#fff',
-              borderColor: '#c23b3b',
+              borderColor: theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b',
               '&:hover': {
-                backgroundColor: '#a02f2f',
-                borderColor: '#a02f2f',
+                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.error.dark : '#a02f2f',
+                borderColor: theme.palette.mode === 'dark' ? theme.palette.error.dark : '#a02f2f',
               },
             },
-          }}>
+          })}>
             <Grid item xs={12} md={7} sx={{ width: '60%' }}>
               <DataTable
                 paperAlign="left"
@@ -950,9 +1111,9 @@ useEffect(() => {
                             displayEmpty
                             inputProps={{ 'aria-label': 'period-select' }}
                             sx={{
-                              backgroundColor: '#c23b3b',
+                              backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.main : '#c23b3b',
                               color: 'white',
-                              border: '1px solid #c23b3b',
+                              border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.error.main}` : '1px solid #c23b3b',
                               borderRadius: '10px',
                               height: '38px',
                               px: 2,
@@ -963,7 +1124,7 @@ useEffect(() => {
                               minWidth: 99,
                               boxShadow: 1,
                               '& .MuiSvgIcon-root': { color: 'white' },
-                              '&:hover': { backgroundColor: '#a02f2f', border: '1px solid #a02f2f' },
+                              '&:hover': { backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#a02f2f', border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.error.dark}` : '1px solid #a02f2f' },
                             }}
                           >
                             <MenuItem value="Daily">Daily</MenuItem>
@@ -987,10 +1148,11 @@ useEffect(() => {
                           currentSort={sortConfig}
                           onSort={handleSort}
                           textAlign="left"
-                          sx={{ flex: period !== 'Daily' ? '3' : '2' }}
+                          sx={{ flex: period !== 'Daily' ? '2.5' : '2' }}
                         />
-                        <Box sx={{ flex: period !== 'Daily' ? 0 : 2, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Expense</Box>
-                        <Box sx={{ flex: period !== 'Daily' ? 0 : 1, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Category</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 0.8, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Expense</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 0.8, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Category</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 3, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Notes</Box>
                         <SortableHeader
                           label="Amount"
                           sortKey="amountNumber"
@@ -1011,35 +1173,40 @@ useEffect(() => {
                             row.id 
                               ? `exp-${row.id}` 
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
-                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ flex: 3, textAlign: 'left', color: '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
+                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
+                              <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         ) : (
                           <Box key={
                             row.id
                               ? `exp-${row.id}`
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
-                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{new Date(row.date).toLocaleDateString()}</Box>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.expense}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'left', color: '#6d6b80' }}>{row.category}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
+                          } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{formatLongDate(row.date)}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.expense}</Box>
+                            <Box sx={{ flex: 0.8, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.category}</Box>
+                            <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80', pr: 1 }}>
+                              <Box component="span" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={row.notes || ''}>
+                                {row.notes && String(row.notes).trim() !== '' ? row.notes : '-'}
+                              </Box>
+                            </Box>
+                            <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         )
                       )) : (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
+                            <Box sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px', width: '100%', maxWidth: 760 }}>
                             {period !== 'Daily' ? (
                               <>
-                                <Box sx={{ flex: 3, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
-                                <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                                <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
+                                <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
                               </>
                             ) : (
                               <>
-                                <Box sx={{ flex: 2, textAlign: 'left', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
+                                <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.label}</Box>
                                 <Box sx={{ flex: 2 }} />
-                                <Box sx={{ flex: 1, textAlign: 'right', color: '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
+                                <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#9aa0b4', fontStyle: 'italic' }}>{exampleRowExpenses.amount}</Box>
                               </>
                             )}
                           </Box>
@@ -1081,7 +1248,7 @@ useEffect(() => {
                     <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       {(expensePieData || []).map((d) => (
                         <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Box sx={{ width: 14, height: 14, backgroundColor: d.color, borderRadius: 1, flexShrink: 0 }} />
+                          <Box sx={{ width: 14, height: 14, backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : d.color, borderRadius: 1, flexShrink: 0 }} />
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="body2" fontWeight={600} noWrap>{d.name}</Typography>
                             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>

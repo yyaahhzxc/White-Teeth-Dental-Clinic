@@ -6,6 +6,7 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('General');
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -14,12 +15,13 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]); // Set today's date
       setCategory('General');
+      setNotes('');
     }
   }, [open]);
 
   const handleSubmit = async () => {
     const parsedAmt = Number(String(amount).replace(/[^0-9.-]+/g, '')) || 0;
-    const payload = { expense: description.trim(), amount: parsedAmt, date, category };
+    const payload = { expense: description.trim(), amount: parsedAmt, date, category, notes: notes.trim() };
 
     try {
       // POST to backend expenses endpoint
@@ -52,14 +54,15 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ bgcolor: '#2148c0', color: 'white', borderTopLeftRadius: 6, borderTopRightRadius: 6, mb: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>Add Expense</Typography>
-      </DialogTitle>
-      <DialogContent sx={{ pt: 3, pb: 2 }}>
+      <DialogTitle sx={{ bgcolor: '#2148c0', color: 'white', borderTopLeftRadius: 6, borderTopRightRadius: 6, mb: 4, fontSize: '1.25rem' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 'inherit' }}>Add Expense</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 2, fontSize: '1rem' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField label="Expense Name" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth variant="outlined" />
           <TextField label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} fullWidth variant="outlined" placeholder="0.00" />
           <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth variant="outlined" />
+          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth variant="outlined" multiline minRows={2} placeholder="Optional notes about this expense" />
           <FormControl fullWidth>
             <InputLabel id="expense-category-label">Category</InputLabel>
             <Select labelId="expense-category-label" label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -68,13 +71,14 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
               <MenuItem value="Rent">Rent</MenuItem>
               <MenuItem value="Utilities">Utilities</MenuItem>
               <MenuItem value="Payroll">Payroll</MenuItem>
+              <MenuItem value="Others">Others...</MenuItem>
             </Select>
           </FormControl>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} variant="text" sx={{ color: '#2148c0', textTransform: 'none' }}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit} disabled={!isValid()} sx={{ backgroundColor: '#2148c0', '&:hover': { backgroundColor: '#173b8a' }, textTransform: 'none' }}>Add Expense</Button>
+      <DialogActions sx={{ px: 3, pb: 2, fontSize: '1rem' }}>
+        <Button onClick={onClose} variant="text" sx={{ color: '#2148c0', textTransform: 'none', fontSize: 'inherit' }}>Cancel</Button>
+        <Button variant="contained" onClick={handleSubmit} disabled={!isValid()} sx={{ backgroundColor: '#2148c0', '&:hover': { backgroundColor: '#173b8a' }, textTransform: 'none', fontSize: 'inherit' }}>Add Expense</Button>
       </DialogActions>
     </Dialog>
   );
