@@ -215,6 +215,7 @@ const [loadingServiceDetails, setLoadingServiceDetails] = useState(false);
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [activeFilters, setActiveFilters] = useState([{ category: '', type: '' }]);
   const [categoryFilteredAppointments, setCategoryFilteredAppointments] = useState([]);
+  const [categoryFilteredHistory, setCategoryFilteredHistory] = useState([]);
   // History table state
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -1219,6 +1220,15 @@ const handleCloseModal = () => {
   { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
   ];
 
+  // Initialize filtered data
+  useEffect(() => {
+    setCategoryFilteredAppointments(appointments);
+  }, [appointments]);
+  
+  useEffect(() => {
+    setCategoryFilteredHistory(historyAppointments);
+  }, [historyAppointments]);
+
   // Filter categories for appointments (used by FilterComponent)
   const filterCategories = [
     { label: 'Status', value: 'status', types: ['scheduled', 'done', 'cancelled', 'ongoing'] }, // <-- Added 'ongoing'
@@ -1298,7 +1308,7 @@ const handleCloseModal = () => {
     const day = String(currentDisplayDate.getDate()).padStart(2, '0');
     const targetDateStr = `${year}-${month}-${day}`;
     
-    const slotAppointments = appointments.filter(apt => {
+    const slotAppointments = categoryFilteredAppointments.filter(apt => {
 
       const aptDateStr = apt.appointmentDate.split('T')[0];
       if (aptDateStr !== targetDateStr) return false;
@@ -1516,7 +1526,7 @@ const handleCloseModal = () => {
           <Fade in={statusTab === 'history'} timeout={300} unmountOnExit>
   <Box sx={{ height: '100%', overflowY: 'auto' }}>
     {(() => {
-      const sourceAppointments = historyAppointments;
+      const sourceAppointments = categoryFilteredHistory;
       
       const normalizedSearch = (search || '').toLowerCase().trim();
       const filtered = normalizedSearch
@@ -1811,8 +1821,8 @@ const handleCloseModal = () => {
             <Fade in={statusTab !== 'history'} timeout={300} unmountOnExit>
               <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {calendarView === 'Month' ? (
-                  <MonthGrid 
-                    appointments={appointments}
+                  <MonthGrid
+                    appointments={categoryFilteredAppointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled')}
                     currentDate={currentDate}
                     statusColors={statusColors}
                     onAppointmentClick={handleAppointmentClick}
@@ -3467,6 +3477,14 @@ const handleCloseModal = () => {
         filterCategories={filterCategories}
         data={appointments}
         onFilteredData={setCategoryFilteredAppointments}
+        activeFilters={activeFilters}
+        showFilterBox={showFilterBox}
+      />
+      {/* FilterComponent for history appointments */}
+      <FilterComponent
+        filterCategories={filterCategories}
+        data={historyAppointments}
+        onFilteredData={setCategoryFilteredHistory}
         activeFilters={activeFilters}
         showFilterBox={showFilterBox}
       />

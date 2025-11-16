@@ -96,7 +96,7 @@ function PatientList() {
 
   // Filter categories for patient records
   const filterCategories = [
-    { label: 'Sex', value: 'sex', types: ['Male', 'Female'] },
+    { label: 'Sex', value: 'sex', accessor: 'sex', types: ['M', 'F'] },
     { label: 'Age Range', value: 'ageRange', types: ['0-18', '19-35', '36-50', '51-65', '65+'] },
   ];
 

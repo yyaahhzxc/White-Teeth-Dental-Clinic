@@ -12,10 +12,13 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
-  IconButton
+  IconButton,
+  Popover,
+  InputAdornment
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CalendarToday } from '@mui/icons-material';
 import { API_BASE } from '../apiConfig';
+import DateCalendar from '../components/DateCalendar';
 
 // Utility function
 const normalizeDateForStorage = (dateString) => {
@@ -54,6 +57,9 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   const [comments, setComments] = useState('');
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Date calendar state
+  const [dateCalendarAnchor, setDateCalendarAnchor] = useState(null);
 
   // Snackbar state
   const [snackbar, setSnackbar] = useState({
@@ -923,21 +929,55 @@ const handleSubmit = async () => {
                   Date *
                 </Typography>
                 <TextField
-                  type="date"
-                  value={appointmentDate}
-                  onChange={(e) => setAppointmentDate(e.target.value)}
+                  value={appointmentDate ? (() => {
+                    const [yyyy, mm, dd] = appointmentDate.split('-');
+                    return `${mm}-${dd}-${yyyy}`;
+                  })() : ''}
+                  onClick={(e) => setDateCalendarAnchor(e.currentTarget)}
                   fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{
-                    min: new Date().toISOString().split('T')[0]
+                  InputProps={{
+                    readOnly: true,
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={(e) => setDateCalendarAnchor(e.currentTarget)} edge="end">
+                          <CalendarToday sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </InputAdornment>
+                    )
                   }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: '8px',
-                      fontFamily: 'Inter, sans-serif'
+                      fontFamily: 'Inter, sans-serif',
+                      cursor: 'pointer'
                     }
                   }}
                 />
+                <Popover
+                  open={Boolean(dateCalendarAnchor)}
+                  anchorEl={dateCalendarAnchor}
+                  onClose={() => setDateCalendarAnchor(null)}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
+                  }}
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                  }}
+                >
+                  <DateCalendar
+                    currentDate={appointmentDate ? new Date(appointmentDate) : new Date()}
+                    onDateSelect={(date) => {
+                      const year = date.getFullYear();
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const day = String(date.getDate()).padStart(2, '0');
+                      setAppointmentDate(`${year}-${month}-${day}`);
+                      setDateCalendarAnchor(null);
+                    }}
+                    minDate={new Date()}
+                  />
+                </Popover>
               </Box>
 
               <Box>
