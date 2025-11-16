@@ -4153,7 +4153,15 @@ app.delete('/users/:id', requireRole('admin'), (req, res) => {
 app.get('/dashboard/stats', (req, res) => {
   console.log('📊 GET /dashboard/stats - Fetching dashboard statistics');
   
-  const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  // Use local date instead of UTC
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const today = `${year}-${month}-${day}`; // Format: YYYY-MM-DD
+  
+  console.log('📅 Today\'s date (local):', today);
+  console.log('📅 Server time:', now.toString());
   
   const stats = {
     completedToday: 0,
@@ -4164,12 +4172,22 @@ app.get('/dashboard/stats', (req, res) => {
   let queriesCompleted = 0;
   const totalQueries = 3;
   
-  // Query 1: Count completed appointments today
+  // First, let's see what appointments we have
+  db.all(`SELECT id, appointmentDate, status FROM appointments ORDER BY appointmentDate DESC LIMIT 20`, [], (err, rows) => {
+    if (!err) {
+      console.log('📋 Recent appointments in database:');
+      rows.forEach(row => {
+        console.log(`  ID: ${row.id}, Date: ${row.appointmentDate}, Status: ${row.status}`);
+      });
+    }
+  });
+  
+  // Query 1: Count completed appointments today (done status, today's date only)
   const completedTodayQuery = `
     SELECT COUNT(*) as count 
     FROM appointments 
-    WHERE appointmentDate = ? 
-    AND status = 'completed'
+    WHERE DATE(appointmentDate) = DATE(?) 
+    AND LOWER(status) = 'done'
   `;
   
   db.get(completedTodayQuery, [today], (err, row) => {
@@ -4177,21 +4195,22 @@ app.get('/dashboard/stats', (req, res) => {
       console.error('❌ Error fetching completed appointments today:', err);
     } else {
       stats.completedToday = row.count || 0;
-      console.log(`✅ Completed appointments today: ${stats.completedToday}`);
+      console.log(`✅ Completed appointments today (${today}): ${stats.completedToday}`);
     }
     
     queriesCompleted++;
     if (queriesCompleted === totalQueries) {
+      console.log('📊 Final stats:', stats);
       res.json(stats);
     }
   });
   
-  // Query 2: Count all upcoming appointments (scheduled or confirmed, future dates)
+  // Query 2: Count all upcoming appointments (scheduled status, today and future dates)
   const upcomingTotalQuery = `
     SELECT COUNT(*) as count 
     FROM appointments 
-    WHERE (status = 'scheduled' OR status = 'Scheduled' OR status = 'confirmed')
-    AND appointmentDate >= ?
+    WHERE LOWER(status) = 'scheduled'
+    AND DATE(appointmentDate) >= DATE(?)
   `;
   
   db.get(upcomingTotalQuery, [today], (err, row) => {
@@ -4199,33 +4218,42 @@ app.get('/dashboard/stats', (req, res) => {
       console.error('❌ Error fetching total upcoming appointments:', err);
     } else {
       stats.upcomingTotal = row.count || 0;
-      console.log(`✅ Total upcoming appointments: ${stats.upcomingTotal}`);
+      console.log(`✅ Total upcoming appointments (>= ${today}): ${stats.upcomingTotal}`);
     }
     
     queriesCompleted++;
     if (queriesCompleted === totalQueries) {
+      console.log('📊 Final stats:', stats);
       res.json(stats);
     }
   });
   
-  // Query 3: Count upcoming appointments today (scheduled for today, not completed)
+  // Query 3: Count upcoming appointments today (scheduled for today's date only)
   const upcomingTodayQuery = `
     SELECT COUNT(*) as count 
     FROM appointments 
-    WHERE appointmentDate = ? 
-    AND (status = 'scheduled' OR status = 'Scheduled' OR status = 'confirmed')
+    WHERE (DATE(appointmentDate) = DATE(?) OR appointmentDate LIKE ? || '%')
+    AND LOWER(status) = 'scheduled'
   `;
   
-  db.get(upcomingTodayQuery, [today], (err, row) => {
+  db.get(upcomingTodayQuery, [today, today], (err, row) => {
     if (err) {
       console.error('❌ Error fetching upcoming appointments today:', err);
     } else {
       stats.upcomingToday = row.count || 0;
-      console.log(`✅ Upcoming appointments today: ${stats.upcomingToday}`);
+      console.log(`✅ Upcoming appointments today (${today}): ${stats.upcomingToday}`);
+      
+      // Debug: Let's see what scheduled appointments we have for today
+      db.all(`SELECT id, appointmentDate, status FROM appointments WHERE (DATE(appointmentDate) = DATE(?) OR appointmentDate LIKE ? || '%') AND LOWER(status) = 'scheduled'`, [today, today], (debugErr, debugRows) => {
+        if (!debugErr && debugRows) {
+          console.log(`🔍 Scheduled appointments for today (${today}):`, debugRows);
+        }
+      });
     }
     
     queriesCompleted++;
     if (queriesCompleted === totalQueries) {
+      console.log('📊 Final stats:', stats);
       res.json(stats);
     }
   });
