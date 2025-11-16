@@ -506,7 +506,7 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
                         primary={<Typography sx={{ fontWeight: 600 }}>{service.name}</Typography>}
                         secondary={
                           <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                            <Chip label={`₱${(service.price * service.quantity).toLocaleString()}`} size="small" sx={{ backgroundColor: '#e8f5e8', color: '#2e7d32' }} />
+                            <Chip label={`₱${(service.price * service.quantity).toLocaleString()}`} size="small" sx={{ backgroundColor: '#e8f5e9', color: '#4caf50' }} />
                             <Chip label={`${service.duration * service.quantity} mins`} size="small" sx={{ backgroundColor: '#e3f2fd', color: '#1976d2' }} />
                           </Box>
                         }
@@ -563,9 +563,6 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
 
       {/* Actions */}
       <DialogActions sx={{ p: 3, backgroundColor: 'white', gap: 2 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ borderRadius: '12px', px: 3, py: 1.5 }}>
-          Cancel
-        </Button>
         <Button
           variant="contained"
           onClick={submitPackage}
@@ -574,8 +571,20 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
             borderRadius: '12px',
             px: 4,
             py: 1.5,
-            background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-            '&:hover': { background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)' }
+            background: (loading || selectedServices.length === 0) 
+              ? '#9e9e9e' 
+              : 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+            color: '#ffffff',
+            '&:hover': { 
+              background: (loading || selectedServices.length === 0)
+                ? '#9e9e9e'
+                : 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)' 
+            },
+            '&.Mui-disabled': {
+              background: '#9e9e9e',
+              color: '#ffffff',
+              opacity: 0.7
+            }
           }}
         >
           {loading ? 'Creating Package...' : 'Create Package'}

@@ -47,8 +47,8 @@ export default function Profile() {
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
-    color: '#C8E6C9',        // success bg default
-    textColor: '#38883C'     // success text default
+    color: '#e8f5e9',        // success bg default
+    textColor: '#4caf50'     // success text default
   });
 
   const navigate = useNavigate();
@@ -90,8 +90,8 @@ export default function Profile() {
     setSnackbar({
       open: true,
       message,
-      color: error ? '#FFCDD2' : '#C8E6C9',
-      textColor: error ? '#B71C1C' : '#38883C'
+      color: error ? '#FFCDD2' : '#e8f5e9',
+      textColor: error ? '#B71C1C' : '#4caf50'
     });
     if (duration !== 0) {
       setTimeout(() => setSnackbar(prev => ({ ...prev, open: false })), duration);

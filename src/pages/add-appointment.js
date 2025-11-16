@@ -710,7 +710,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         <Typography sx={{ 
           fontSize: '12px', 
           fontFamily: 'Inter, sans-serif', 
-          color: '#137333',
+          color: '#4caf50',
           fontWeight: '600'
         }}>
           ₱{(parseFloat(service.price) * service.quantity).toLocaleString()}
@@ -770,7 +770,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
             }}
           >
             • {includedService.name} {includedService.quantity > 1 ? `(x${includedService.quantity})` : ''}
-            <Typography component="span" sx={{ color: '#137333', ml: 1, fontSize: '11px' }}>
+            <Typography component="span" sx={{ color: '#4caf50', ml: 1, fontSize: '11px' }}>
               ₱{includedService.price}
             </Typography>
           </Typography>
@@ -817,7 +817,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                       display: 'flex', 
                       alignItems: 'center', 
                       gap: 0.5,
-                      backgroundColor: '#137333',
+                      backgroundColor: '#4caf50',
                       px: 2,
                       py: 1,
                       borderRadius: '8px'

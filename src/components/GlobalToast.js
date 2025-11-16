@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Snackbar, Alert } from '@mui/material';
+import Toast from './Toast';
 
 const GlobalToast = () => {
   const [toast, setToast] = useState({
     open: false,
     message: '',
-    severity: 'success',
+    type: 'success',
   });
 
   useEffect(() => {
     const handleShowToast = (event) => {
-      const { message, severity } = event.detail;
-      setToast({ open: true, message, severity });
+      const { message, type } = event.detail;
+      setToast({ open: true, message, type: type || 'success' });
     };
 
     window.addEventListener('showGlobalToast', handleShowToast);
@@ -20,25 +20,13 @@ const GlobalToast = () => {
     };
   }, []);
 
-  const handleClose = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    setToast((prev) => ({ ...prev, open: false }));
-  };
-
   return (
-    <Snackbar
-      open={toast.open}
-      autoHideDuration={3000}
-      onClose={handleClose}
-      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      sx={{ zIndex: 20000 }} // Highest z-index to be safe
-    >
-      <Alert onClose={handleClose} severity={toast.severity} sx={{ width: '100%' }}>
-        {toast.message}
-      </Alert>
-    </Snackbar>
+    <Toast 
+      open={toast.open} 
+      message={toast.message} 
+      type={toast.type}
+      onClose={() => setToast({ ...toast, open: false })}
+    />
   );
 };
 

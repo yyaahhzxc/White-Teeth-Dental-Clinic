@@ -63,14 +63,16 @@ const computeServiceBreakdown = (aggregatedArray) => {
   });
 };
 
-// Minimal SVG pie renderer
+// Minimal SVG pie renderer with highlight effect
 function PieSVG({ data = [], size = 150, centerLabelMain = '', centerLabelSub = '' }) {
+  const [hoveredIndex, setHoveredIndex] = React.useState(null);
+  const [tooltipPos, setTooltipPos] = React.useState({ x: 0, y: 0 });
   const radius = size / 2 - 4;
   const center = size / 2;
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   let startAngle = -90; // start at top
 
-  const segments = data.map((d) => {
+  const segments = data.map((d, index) => {
     const angle = (d.value / total) * 360;
     const endAngle = startAngle + angle;
     const largeArc = angle > 180 ? 1 : 0;
@@ -80,26 +82,65 @@ function PieSVG({ data = [], size = 150, centerLabelMain = '', centerLabelSub = 
     // use sweep-flag = 1 to draw the arc clockwise from start to end
     const sweep = 1;
     const path = [`M ${center} ${center}`, `L ${start.x} ${start.y}`, `A ${radius} ${radius} 0 ${largeArc} ${sweep} ${end.x} ${end.y}`, 'Z'].join(' ');
+    
     startAngle = endAngle;
-    return { path, color: d.color, value: d.value, name: d.name };
+    return { path, color: d.color, value: d.value, name: d.name, index, percent: d.percent };
   });
 
+  const handleMouseMove = (e, index) => {
+    const rect = e.currentTarget.ownerSVGElement.getBoundingClientRect();
+    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setHoveredIndex(index);
+  };
+
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {segments.map((s, i) => (
-        <path key={i} d={s.path} fill={s.color} stroke="#ffffff" strokeWidth="0.5" />
-      ))}
-      <circle cx={center} cy={center} r={radius * 0.45} fill="#ffffff" />
-      {/* optional center labels (main and sub) */}
-      {centerLabelMain ? (
-        <g>
-          <text x={center} y={center - 6} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 13, fontWeight: 800, fill: '#333' }}>{centerLabelMain}</text>
-          {centerLabelSub ? (
-            <text x={center} y={center + 12} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 11, fill: '#666' }}>{centerLabelSub}</text>
-          ) : null}
-        </g>
-      ) : null}
-    </svg>
+    <Box sx={{ position: 'relative', display: 'inline-block' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ cursor: 'pointer', display: 'block' }}>
+        {segments.map((s, i) => (
+          <path 
+            key={i} 
+            d={s.path} 
+            fill={s.color} 
+            stroke="#ffffff" 
+            strokeWidth="1"
+            onMouseMove={(e) => handleMouseMove(e, i)}
+            onMouseLeave={() => setHoveredIndex(null)}
+            style={{ 
+              transition: 'all 0.2s ease',
+              filter: hoveredIndex === i ? 'brightness(1.1)' : 'none'
+            }}
+          />
+        ))}
+      </svg>
+      
+      {/* Tooltip */}
+      {hoveredIndex !== null && (
+        <Box
+          sx={{
+            position: 'absolute',
+            left: tooltipPos.x,
+            top: tooltipPos.y,
+            transform: 'translate(-50%, -120%)',
+            bgcolor: 'rgba(0, 0, 0, 0.85)',
+            color: 'white',
+            px: 1.5,
+            py: 1,
+            borderRadius: 1,
+            fontSize: '13px',
+            fontWeight: 500,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            zIndex: 1000,
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+          }}
+        >
+          <Box sx={{ fontWeight: 600, mb: 0.5 }}>{segments[hoveredIndex].name}</Box>
+          <Box sx={{ fontSize: '12px' }}>
+            {formatCurrency(segments[hoveredIndex].value)} ({(segments[hoveredIndex].percent * 100).toFixed(1)}%)
+          </Box>
+        </Box>
+      )}
+    </Box>
   );
 }
 
@@ -547,7 +588,9 @@ const handleExpenseSubmit = (savedOrPayload) => {
   // Dynamic labels for the right-side metrics based on selected period
   const periodGrossLabel = period === 'Daily' ? 'Daily Gross Income' : period === 'Monthly' ? 'Monthly Gross Income' : 'Yearly Gross Income';
   const periodNetLabel = period === 'Daily' ? 'Daily Net Profit' : period === 'Monthly' ? 'Monthly Net Profit' : 'Yearly Net Profit';
-  const topServicesTitle = period === 'Daily' ? 'Top Services Availed Today' : period === 'Monthly' ? 'Top Services Availed This Month' : 'Top Services Availed This Year';
+  const topServicesTitle = activeTab === 'revenue' 
+    ? (period === 'Daily' ? 'Top Services Availed Today' : period === 'Monthly' ? 'Top Services Availed This Month' : 'Top Services Availed This Year')
+    : (period === 'Daily' ? 'Top Expenses Today' : period === 'Monthly' ? 'Top Expenses This Month' : 'Top Expenses This Year');
   const rightPanelRangeText = (dataArr) => {
     if (!Array.isArray(dataArr) || dataArr.length === 0) {
       return period === 'Daily' ? 'Today' : period === 'Monthly' ? 'This Month' : 'This Year';
@@ -698,12 +741,16 @@ useEffect(() => {
             onClick={() => { setActiveTab('revenue'); setPage(0); }}
             sx={{
               mr: 1,
-              bgcolor: activeTab === 'revenue' ? '#4A69BD' : 'transparent',
-              color: activeTab === 'revenue' ? '#fff' : '#4A69BD',
-              border: activeTab === 'revenue' ? '1px solid #4A69BD' : '1px solid #e0e0e0',
+              bgcolor: activeTab === 'revenue' ? '#274fc7' : 'transparent',
+              color: activeTab === 'revenue' ? '#fff' : '#274fc7',
+              border: activeTab === 'revenue' ? '1px solid #274fc7' : '1px solid #e0e0e0',
               borderRadius: '10px',
               px: 2,
               textTransform: 'none',
+              '&:hover': {
+                bgcolor: activeTab === 'revenue' ? '#1e3a9f' : '#e8f1ff',
+                borderColor: '#274fc7'
+              }
             }}
           >
             Revenue
@@ -717,6 +764,10 @@ useEffect(() => {
               borderRadius: '10px',
               px: 2,
               textTransform: 'none',
+              '&:hover': {
+                bgcolor: activeTab === 'expenses' ? '#a02f2f' : '#ffe8e8',
+                borderColor: '#c23b3b'
+              }
             }}
           >
             Expenses
@@ -741,8 +792,16 @@ useEffect(() => {
                             displayEmpty
                             inputProps={{ 'aria-label': 'period-select' }}
                             sx={{
-                              backgroundColor: '#4A69BD',
+                              backgroundColor: '#274fc7',
                               color: 'white',
+                              border: '1px solid #274fc7',
+                              borderRadius: '10px',
+                              height: '38px',
+                              px: 2,
+                              textTransform: 'none',
+                              fontWeight: 500,
+                              fontSize: '16px',
+                              fontFamily: 'DM Sans, sans-serif',
                               border: '1px solid #4A69BD',
                               borderRadius: '10px',
                               height: '38px',
@@ -821,41 +880,44 @@ useEffect(() => {
             </Grid>
 
             <Grid item xs={12} md={5} sx={{ width: '38.5%' }}>
-              {/* Right Panel: Metrics and Chart (kept from previous content) */}
-              <Paper elevation={3} sx={{ backgroundColor: '#38761D', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight="bold">{formatCurrency(revenueTotal)}</Typography>
-                <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{periodGrossLabel}</Typography>
-              </Paper>
-              <Paper elevation={3} sx={{ backgroundColor: '#0056b3', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight="bold">{formatCurrency(netTotal)}</Typography>
-                <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{periodNetLabel}</Typography>
-              </Paper>
-              <Paper elevation={3} sx={{ p: 2, pt: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="h6" fontWeight="bold">{topServicesTitle}</Typography>
-                </Box>
-                <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 2 }}>{rightPanelRangeText(aggregated)}</Typography>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={5} sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <PieSVG data={breakdownRevenue} size={140} />
-                  </Grid>
-                  <Grid item xs={7}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+              {/* Right Panel: Metrics and Chart */}
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
+                <Paper elevation={3} sx={{ backgroundColor: '#38761D', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
+                  <Typography variant="h5" fontWeight="bold">{formatCurrency(revenueTotal)}</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>{periodGrossLabel}</Typography>
+                </Paper>
+                <Paper elevation={3} sx={{ backgroundColor: '#0056b3', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
+                  <Typography variant="h5" fontWeight="bold">{formatCurrency(netTotal)}</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>{periodNetLabel}</Typography>
+                </Paper>
+              </Box>
+              
+              <Paper elevation={3} sx={{ p: 3, height: '405px', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" fontWeight="bold" textAlign="center" sx={{ mb: 1 }}>{topServicesTitle}</Typography>
+                <Typography variant="caption" display="block" color="text.secondary" textAlign="center" sx={{ mb: 2 }}>{rightPanelRangeText(aggregated)}</Typography>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ flex: '0 0 240px', display: 'flex', justifyContent: 'center' }}>
+                      <PieSVG data={breakdownRevenue} size={240} />
+                    </Box>
+                    
+                    <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       {breakdownRevenue.map((d) => (
-                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, backgroundColor: '#f3f4f6', borderRadius: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box sx={{ width: 12, height: 12, backgroundColor: d.color, borderRadius: 1 }} />
-                            <Typography variant="body2">{d.name}</Typography>
-                          </Box>
-                          <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="body2">{formatCurrency(d.value)}</Typography>
-                            <Typography variant="caption" color="text.secondary">{(d.percent * 100).toFixed(1)}%</Typography>
+                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Box sx={{ width: 14, height: 14, backgroundColor: d.color, borderRadius: 1, flexShrink: 0 }} />
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight={600} noWrap>{d.name}</Typography>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                              <Typography variant="body2" fontWeight={500} color="text.primary">{formatCurrency(d.value)}</Typography>
+                              <Typography variant="caption" color="text.secondary">({(d.percent * 100).toFixed(1)}%)</Typography>
+                            </Box>
                           </Box>
                         </Box>
                       ))}
                     </Box>
-                  </Grid>
-                </Grid>
+                  </Box>
+                </Box>
               </Paper>
             </Grid>
           </Grid>
@@ -997,41 +1059,41 @@ useEffect(() => {
             </Grid>
 
             <Grid item xs={12} md={5} sx={{ width: '38.5%' }}>
-              {/* Right Panel: Metrics and Chart (copied from Revenue view) */}
-              <Paper elevation={3} sx={{ backgroundColor: '#c23b3b', color: 'white', p: 3, mb: 2, textAlign: 'center', borderRadius: 2 }}>
-                <Typography variant="h4" fontWeight="bold">{formatCurrency(expenseTotal)}</Typography>
-                <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>{period === 'Daily' ? 'Daily Expenses' : period === 'Monthly' ? 'Monthly Expenses' : 'Yearly Expenses'}</Typography>
-              </Paper>
-              <Box sx={{ mb: 2 }}>
-                <Button fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '20', height: '115px', backgroundColor: '#0056b3', fontSize: '24px', color: 'white', py: 1.5 }}>Add Expense</Button>
+              {/* Right Panel: Metrics and Chart */}
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
+                <Paper elevation={3} sx={{ backgroundColor: '#c23b3b', color: 'white', p: 2, textAlign: 'center', borderRadius: 2, flex: 1 }}>
+                  <Typography variant="h5" fontWeight="bold">{formatCurrency(expenseTotal)}</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>{period === 'Daily' ? 'Daily Expenses' : period === 'Monthly' ? 'Monthly Expenses' : 'Yearly Expenses'}</Typography>
+                </Paper>
+                <Button fullWidth variant="contained" onClick={openExpenseDialog} sx={{ borderRadius: '8px', backgroundColor: '#0056b3', fontSize: '18px', color: 'white', fontWeight: 600, flex: 1 }}>Add Expense</Button>
               </Box>
-              <Paper elevation={3} sx={{ p: 2, pt: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="h6" fontWeight="bold">{topServicesTitle}</Typography>
-                </Box>
-                <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 2 }}>{rightPanelRangeText(aggregatedExpenses)}</Typography>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={5} sx={{ display: 'flex', justifyContent: 'center' }}>
-                    {/* Pass center labels: top category and period descriptor */}
-                    <PieSVG data={expensePieData} size={140} centerLabelMain={topCategoryName} centerLabelSub={periodDescriptor} />
-                  </Grid>
-                  <Grid item xs={7}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+              
+              <Paper elevation={3} sx={{ p: 3, height: '405px', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" fontWeight="bold" textAlign="center" sx={{ mb: 1 }}>{topServicesTitle}</Typography>
+                <Typography variant="caption" display="block" color="text.secondary" textAlign="center" sx={{ mb: 2 }}>{rightPanelRangeText(aggregatedExpenses)}</Typography>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ flex: '0 0 240px', display: 'flex', justifyContent: 'center' }}>
+                      <PieSVG data={expensePieData} size={240} />
+                    </Box>
+                    
+                    <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       {(expensePieData || []).map((d) => (
-                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, backgroundColor: '#f3f4f6', borderRadius: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box sx={{ width: 12, height: 12, backgroundColor: d.color, borderRadius: 1 }} />
-                            <Typography variant="body2">{d.name}</Typography>
-                          </Box>
-                          <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="body2">{formatCurrency(d.value)}</Typography>
-                            <Typography variant="caption" color="text.secondary">{(d.percent * 100).toFixed(1)}%</Typography>
+                        <Box key={d.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Box sx={{ width: 14, height: 14, backgroundColor: d.color, borderRadius: 1, flexShrink: 0 }} />
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight={600} noWrap>{d.name}</Typography>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                              <Typography variant="body2" fontWeight={500} color="text.primary">{formatCurrency(d.value)}</Typography>
+                              <Typography variant="caption" color="text.secondary">({(d.percent * 100).toFixed(1)}%)</Typography>
+                            </Box>
                           </Box>
                         </Box>
                       ))}
                     </Box>
-                  </Grid>
-                </Grid>
+                  </Box>
+                </Box>
               </Paper>
             </Grid>
           </Grid>

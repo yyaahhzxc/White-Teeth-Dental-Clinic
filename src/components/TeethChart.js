@@ -627,7 +627,7 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                 </Box>
 
                 {/* RIGHT: Selected Teeth List with Comments */}
-                <Box>
+                <Box sx={{ maxWidth: '100%', overflow: 'hidden', width: '100%' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, px: 1 }}>
                         <Typography sx={{ fontFamily: 'Raleway, sans-serif', fontSize: '10px', fontWeight: 500 }}>
                             Tooth No.
@@ -792,11 +792,13 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                                     backgroundColor: 'white',
                                     borderRadius: '8px',
                                     p: 1,
-                                    mt: 1
+                                    mt: 1,
+                                    boxSizing: 'border-box',
+                                    width: '100%',
+                                    maxWidth: '284px'
                                 }}
                             >
                                 <TextField
-                                    fullWidth
                                     size="small"
                                     type="number"
                                     value={newToothNumber}
@@ -804,14 +806,17 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                                     placeholder="Tooth Number (e.g., 85)"
                                     sx={{
                                         mb: 1,
+                                        width: '100%',
+                                        maxWidth: '100%',
+                                        boxSizing: 'border-box',
                                         '& .MuiOutlinedInput-root': {
                                             fontFamily: 'Raleway, sans-serif',
-                                            fontSize: '12px'
+                                            fontSize: '12px',
+                                            width: '100%'
                                         }
                                     }}
                                 />
                                 <TextField
-                                    fullWidth
                                     multiline
                                     rows={2}
                                     size="small"
@@ -819,9 +824,13 @@ function TeethChart({ selectedTeeth: propSelectedTeeth, toothSummaries: propToot
                                     onChange={(e) => setNewToothSummary(e.target.value)}
                                     placeholder="Tooth summary/comments..."
                                     sx={{
+                                        width: '100%',
+                                        maxWidth: '100%',
+                                        boxSizing: 'border-box',
                                         '& .MuiOutlinedInput-root': {
                                             fontFamily: 'Raleway, sans-serif',
-                                            fontSize: '12px'
+                                            fontSize: '12px',
+                                            width: '100%'
                                         }
                                     }}
                                 />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Box, Fade } from '@mui/material';
 
 /**
@@ -6,13 +6,23 @@ import { Box, Fade } from '@mui/material';
  * @param {boolean} open - Whether the toast is visible
  * @param {string} message - The message to display
  * @param {string} type - Type of toast: 'success', 'error', 'warning', 'info'
- * @param {number} duration - How long to show the toast (controlled by parent)
+ * @param {function} onClose - Callback to close the toast
  */
-const Toast = ({ open, message, type = 'info' }) => {
+const Toast = ({ open, message, type = 'info', onClose }) => {
+  useEffect(() => {
+    if (open && onClose) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [open, onClose]);
+
   const getToastStyles = () => {
     switch (type) {
       case 'success':
-        return { bgcolor: '#C8E6C9', color: '#2e7d32' };
+        return { bgcolor: '#e8f5e9', color: '#4caf50' };
       case 'error':
         return { bgcolor: '#ffcdd2', color: '#c62828' };
       case 'warning':

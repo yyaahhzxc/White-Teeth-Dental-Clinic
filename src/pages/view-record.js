@@ -16,13 +16,17 @@ import {
   Paper,
   Box,
   IconButton,
-  MenuItem
+  MenuItem,
+  Popover,
+  InputAdornment
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import TeethChart from '../components/TeethChart';
 import Toast from '../components/Toast';
+import DateCalendar from '../components/DateCalendar';
 import { API_BASE } from '../apiConfig';
 // This should resolve to 'http://localhost:3001'
 
@@ -36,6 +40,7 @@ const ViewRecord = ({ open, onClose, patient, medInfo, onRecordUpdated }) => {
   const [editMode, setEditMode] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
+  const [dobCalendarAnchor, setDobCalendarAnchor] = useState(null);
 
   const showToast = (message, type = 'info') => {
     setToast({ open: true, message, type });
@@ -584,13 +589,62 @@ if (!hasAnyChanges) {
                   <TextField
                     fullWidth
                     label="Date of Birth *"
-                    type="date"
                     sx={{ width: 250, backgroundColor: '#ffffff9e' }}
-                    InputLabelProps={{ shrink: true }}
                     value={dateOfBirth}
-                    onChange={e => setDateOfBirth(e.target.value)}
+                    onClick={(e) => editMode && setDobCalendarAnchor(e.currentTarget)}
+                    InputProps={{
+                      readOnly: true,
+                      endAdornment: editMode ? (
+                        <InputAdornment position="end">
+                          <IconButton onClick={(e) => setDobCalendarAnchor(e.currentTarget)} edge="end">
+                            <CalendarTodayIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      ) : null
+                    }}
                     disabled={!editMode}
                   />
+                  <Popover
+                    open={Boolean(dobCalendarAnchor)}
+                    anchorEl={dobCalendarAnchor}
+                    onClose={() => setDobCalendarAnchor(null)}
+                    anchorOrigin={{
+                      vertical: (() => {
+                        if (!dobCalendarAnchor) return 'bottom';
+                        const rect = dobCalendarAnchor.getBoundingClientRect();
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        const spaceAbove = rect.top;
+                        return spaceBelow > spaceAbove ? 'bottom' : 'top';
+                      })(),
+                      horizontal: 'left',
+                    }}
+                    transformOrigin={{
+                      vertical: (() => {
+                        if (!dobCalendarAnchor) return 'top';
+                        const rect = dobCalendarAnchor.getBoundingClientRect();
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        const spaceAbove = rect.top;
+                        return spaceBelow > spaceAbove ? 'top' : 'bottom';
+                      })(),
+                      horizontal: 'left',
+                    }}
+                  >
+                    <Box sx={{ p: 2 }}>
+                      <DateCalendar
+                        value={dateOfBirth ? new Date(dateOfBirth) : null}
+                        onChange={(newDate) => {
+                          if (newDate) {
+                            const year = newDate.getFullYear();
+                            const month = String(newDate.getMonth() + 1).padStart(2, '0');
+                            const day = String(newDate.getDate()).padStart(2, '0');
+                            setDateOfBirth(`${year}-${month}-${day}`);
+                          }
+                          setDobCalendarAnchor(null);
+                        }}
+                        maxDate={new Date()}
+                      />
+                    </Box>
+                  </Popover>
                 </Grid>
                 <Grid item xs={4} sx={{ ml: 3 }}>
                   <Typography variant="body2">Sex</Typography>
@@ -819,24 +873,70 @@ if (!hasAnyChanges) {
 )}
         
       </DialogContent>
-      <DialogActions>
-        <IconButton
-          color="primary"
-          onClick={editMode ? handleSaveClick : handleEditClick}
-          sx={{
-            borderRadius: 8,
-            backgroundColor: '#2148C0',
-            color: '#fff',
-            px: 2,
-            fontWeight: 'bold',
-            fontSize: 18,
-            mt: 1,
-            mb: 1,
-            mr: 2
-          }}
-        >
-          {editMode ? <SaveIcon /> : <EditIcon />}
-        </IconButton>
+      <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-end', gap: 1.5 }}>
+        {editMode ? (
+          <>
+            <Button
+              variant="outlined"
+              onClick={() => setEditMode(false)}
+              sx={{
+                borderColor: '#2148c0',
+                color: '#2148c0',
+                fontWeight: 600,
+                px: 3,
+                py: 1.5,
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontSize: '16px',
+                bgcolor: 'white',
+                '&:hover': {
+                  borderColor: '#1e3a9f',
+                  color: '#1e3a9f',
+                  bgcolor: '#f8f8f8'
+                }
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSaveClick}
+              sx={{
+                bgcolor: '#274fc7',
+                color: 'white',
+                fontWeight: 600,
+                px: 3,
+                py: 1.5,
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontSize: '16px',
+                '&:hover': {
+                  bgcolor: '#1e3a9f'
+                }
+              }}
+            >
+              Confirm
+            </Button>
+          </>
+        ) : (
+          <IconButton
+            onClick={handleEditClick}
+            sx={{
+              borderRadius: '8px',
+              backgroundColor: '#274fc7',
+              color: '#fff',
+              border: '2px solid #274fc7',
+              px: 2,
+              py: 1,
+              '&:hover': {
+                backgroundColor: '#1e3a9f',
+                borderColor: '#1e3a9f'
+              }
+            }}
+          >
+            <EditIcon />
+          </IconButton>
+        )}
       </DialogActions>
       <Dialog
         open={confirmOpen}

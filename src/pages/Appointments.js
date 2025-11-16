@@ -938,16 +938,16 @@ const handleSaveClick = async () => {
 
   const statusColors = {
     cancelled: '#ea4335',
-    done: '#0d652d',
+    done: '#4caf50',
     ongoing: '#1a73e8',
     scheduled: '#e8710a'
   };
 
   const statusOptions = [
+    { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
     { value: 'scheduled', label: 'Scheduled', color: '#e8710a' },
-  { value: 'done', label: 'Done', color: '#0d652d' },
-  { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
-  { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' } 
+    { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' },
+    { value: 'done', label: 'Done', color: '#4caf50' }
   ];
 
   // Filter categories for appointments (used by FilterComponent)
@@ -1189,11 +1189,9 @@ const handleSaveClick = async () => {
                       <MenuItem value="Month">Month</MenuItem>
                     </Select>
                   </FormControl>
-                  {Object.entries(statusColors).filter(([status]) => 
-                    !['canceled', 'completed'].includes(status)
-                  ).map(([status, color]) => (
+                  {['cancelled', 'scheduled', 'ongoing', 'done'].map((status) => (
                     <Box key={status} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Circle sx={{ color, fontSize: 16 }} />
+                      <Circle sx={{ color: statusColors[status], fontSize: 16 }} />
                       <Typography variant="caption" sx={{ textTransform: 'capitalize', color: '#3c4043', fontWeight: 500, fontFamily: 'Inter, sans-serif', fontSize: '13px' }}>
                         {status}
                       </Typography>
@@ -1907,29 +1905,9 @@ const handleSaveClick = async () => {
           fontWeight: '600'
         }}>
           Appointment Details
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <IconButton
-              color="primary"
-              onClick={editMode ? handleSaveClick : handleEditClick}
-              disabled={updating || loadingServiceDetails}
-              sx={{
-                borderRadius: 8,
-                backgroundColor: '#2148C0',
-                color: '#fff',
-                px: 2,
-                fontWeight: 'bold',
-                fontSize: 18,
-                '&:hover': {
-                  backgroundColor: '#3d5aa3'
-                }
-              }}
-            >
-              {editMode ? <SaveIcon /> : <EditIcon />}
-            </IconButton>
-            <IconButton onClick={handleCloseModal} size="small">
-              <Close />
-            </IconButton>
-          </Box>
+          <IconButton onClick={handleCloseModal} size="small">
+            <Close />
+          </IconButton>
         </DialogTitle>
         
         {selectedAppointment && (
@@ -2124,7 +2102,7 @@ const handleSaveClick = async () => {
               </Box>
 
               {/* Service and Status Row */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
 
 
            {/* Service */}
@@ -2350,7 +2328,7 @@ const handleSaveClick = async () => {
                 <Typography sx={{ 
                   fontSize: '12px', 
                   fontFamily: 'Inter, sans-serif', 
-                  color: '#137333',
+                  color: '#4caf50',
                   fontWeight: '600'
                 }}>
                   ₱{(parseFloat(item.service.price) * item.quantity).toLocaleString()}
@@ -2413,7 +2391,7 @@ const handleSaveClick = async () => {
               display: 'flex', 
               alignItems: 'center', 
               gap: 0.5,
-              backgroundColor: '#137333',
+              backgroundColor: '#4caf50',
               px: 2,
               py: 1,
               borderRadius: '8px'
@@ -2625,8 +2603,9 @@ const handleSaveClick = async () => {
     </Box>
   )}
 </Box>
+              </Box>
 
-                {/* Status */}
+                {/* Status - Full Width Below */}
                 <Box>
                   <Typography variant="body2" sx={{ 
                     color: '#5f6368', 
@@ -2671,7 +2650,6 @@ const handleSaveClick = async () => {
                     />
                   )}
                 </Box>
-              </Box>
 
               {/* Comments Full Width */}
               <Box>
@@ -2719,20 +2697,78 @@ const handleSaveClick = async () => {
           </DialogContent>
         )}
         
-        <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'flex-end', gap: 2 }}>
-          <Button 
-            onClick={handleCloseModal}
-            disabled={updating}
-            sx={{ 
-              color: '#5f6368',
-              fontFamily: 'Inter, sans-serif',
-              textTransform: 'none',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            Close
-          </Button>
+        <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'flex-end', gap: 1.5 }}>
+          {editMode ? (
+            <>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setEditMode(false);
+                  setEditedAppointment(null);
+                  setEditedServices([]);
+                }}
+                sx={{
+                  borderColor: '#2148c0',
+                  color: '#2148c0',
+                  fontWeight: 600,
+                  px: 3,
+                  py: 1.5,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontSize: '16px',
+                  bgcolor: 'white',
+                  '&:hover': {
+                    borderColor: '#1e3a9f',
+                    color: '#1e3a9f',
+                    bgcolor: '#f8f8f8'
+                  }
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSaveClick}
+                disabled={updating}
+                sx={{
+                  bgcolor: '#274fc7',
+                  color: 'white',
+                  fontWeight: 600,
+                  px: 3,
+                  py: 1.5,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontSize: '16px',
+                  '&:hover': {
+                    bgcolor: '#1e3a9f'
+                  }
+                }}
+              >
+                Confirm
+              </Button>
+            </>
+          ) : (
+            <>
+          {/* Show Edit button if not in edit mode */}
+          {!editMode && (
+            <IconButton
+              onClick={handleEditClick}
+              sx={{
+                borderRadius: '8px',
+                backgroundColor: '#274fc7',
+                color: '#fff',
+                border: '2px solid #274fc7',
+                px: 2,
+                py: 1,
+                '&:hover': {
+                  backgroundColor: '#1e3a9f',
+                  borderColor: '#1e3a9f'
+                }
+              }}
+            >
+              <EditIcon />
+            </IconButton>
+          )}
           
           {/* Show Mark as Done button if appointment is currently ongoing and not in edit mode */}
           {(() => {
@@ -2763,11 +2799,11 @@ const handleSaveClick = async () => {
                   borderRadius: '12px',
                   px: 4,
                   py: 1.5,
-                  background: 'linear-gradient(135deg, #0d652d 0%, #0a4d22 100%)',
-                  boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
+                  background: 'linear-gradient(135deg, #4caf50 0%, #388e3c 100%)',
+                  boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #0a4d22 0%, #083b1a 100%)',
-                    boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
+                    background: 'linear-gradient(135deg, #388e3c 0%, #2e7d32 100%)',
+                    boxShadow: '0 6px 16px rgba(76, 175, 80, 0.4)',
                     transform: 'translateY(-1px)'
                   }
                 }}
@@ -2827,6 +2863,8 @@ const handleSaveClick = async () => {
             >
               Proceed to Billing
             </Button>
+          )}
+            </>
           )}
         </DialogActions>
   </Dialog>

@@ -280,7 +280,7 @@ const [toothChartData, setToothChartData] = useState({
 
   return (
     <>
-      <Toast open={toast.open} message={toast.message} type={toast.type} />
+      <Toast open={toast.open} message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, open: false })} />
       <Dialog
         open={open}
         onClose={handleRequestClose}

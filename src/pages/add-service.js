@@ -283,7 +283,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
               onChange={handleChange}
               placeholder="e.g., Teeth Cleaning, Root Canal Treatment"
               disabled={loading}
-              error={getFieldError('name') || nameExists}
+              error={!!(getFieldError('name') || nameExists)}
               helperText={getHelperText('name')}
               InputProps={{
                 startAdornment: (
@@ -324,7 +324,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
               multiline
               rows={3}
               disabled={loading}
-              error={getFieldError('description')}
+              error={!!getFieldError('description')}
               helperText={getHelperText('description', 'Provide a clear description of what this service includes')}
               InputProps={{
                 startAdornment: (
@@ -366,7 +366,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
                 placeholder="0.00"
                 type="number"
                 disabled={loading}
-                error={getFieldError('price') || (service.price && parseFloat(service.price) <= 0)}
+                error={!!(getFieldError('price') || (service.price && parseFloat(service.price) <= 0))}
                 helperText={getHelperText('price')}
                 InputProps={{
                   startAdornment: (
@@ -407,7 +407,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
                 placeholder="30"
                 type="number"
                 disabled={loading}
-                error={getFieldError('duration') || (service.duration && parseFloat(service.duration) <= 0)}
+                error={!!(getFieldError('duration') || (service.duration && parseFloat(service.duration) <= 0))}
                 helperText={getHelperText('duration')}
                 InputProps={{
                   startAdornment: (
@@ -450,7 +450,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
                 value={service.type}
                 onChange={handleChange}
                 disabled={loading}
-                error={getFieldError('type')}
+                error={!!getFieldError('type')}
                 helperText={getHelperText('type')}
                 InputProps={{
                   startAdornment: (
@@ -502,7 +502,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
                 value={service.status}
                 onChange={handleChange}
                 disabled={loading}
-                error={getFieldError('status')}
+                error={!!getFieldError('status')}
                 helperText={getHelperText('status')}
                 InputProps={{
                   startAdornment: (

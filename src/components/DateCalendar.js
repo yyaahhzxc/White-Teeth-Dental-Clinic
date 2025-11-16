@@ -14,6 +14,9 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
   const [currentMonth, setCurrentMonth] = useState(value || new Date());
   const [selectedDate, setSelectedDate] = useState(value);
   const [pressedDates, setPressedDates] = useState(new Set());
+  const [view, setView] = useState('day'); // 'day', 'month', 'year'
+  const [animationOrigin, setAnimationOrigin] = useState('center');
+  const [animationKey, setAnimationKey] = useState(0);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -57,11 +60,22 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
     return false;
   };
 
-  const handleDateClick = (day) => {
+  const handleDateClick = (day, event) => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     
     if (isDisabled(year, month, day)) return;
+
+    // Calculate click position for animation
+    if (event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const parentRect = event.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
+      if (parentRect) {
+        const x = ((rect.left + rect.width / 2 - parentRect.left) / parentRect.width) * 100;
+        const y = ((rect.top + rect.height / 2 - parentRect.top) / parentRect.height) * 100;
+        setAnimationOrigin(`${x}% ${y}%`);
+      }
+    }
 
     const newDate = new Date(year, month, day);
     setSelectedDate(newDate);
@@ -74,12 +88,164 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
     }
   };
 
-  const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  const handlePrevMonth = (event) => {
+    // Set animation origin to the left for prev navigation
+    if (event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const parentRect = event.currentTarget.parentElement.getBoundingClientRect();
+      const x = ((rect.left + rect.width / 2 - parentRect.left) / parentRect.width) * 100;
+      const y = ((rect.top + rect.height / 2 - parentRect.top) / parentRect.height) * 100;
+      setAnimationOrigin(`${x}% ${y}%`);
+    }
+    
+    setAnimationKey(prev => prev + 1);
+    
+    if (view === 'day') {
+      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    } else if (view === 'month') {
+      setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth()));
+    } else if (view === 'year') {
+      const currentYear = currentMonth.getFullYear();
+      const startYear = Math.floor(currentYear / 12) * 12;
+      setCurrentMonth(new Date(startYear - 12, currentMonth.getMonth()));
+    }
   };
 
-  const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  const handleNextMonth = (event) => {
+    // Set animation origin to the right for next navigation
+    if (event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const parentRect = event.currentTarget.parentElement.getBoundingClientRect();
+      const x = ((rect.left + rect.width / 2 - parentRect.left) / parentRect.width) * 100;
+      const y = ((rect.top + rect.height / 2 - parentRect.top) / parentRect.height) * 100;
+      setAnimationOrigin(`${x}% ${y}%`);
+    }
+    
+    setAnimationKey(prev => prev + 1);
+    
+    if (view === 'day') {
+      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    } else if (view === 'month') {
+      setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth()));
+    } else if (view === 'year') {
+      const currentYear = currentMonth.getFullYear();
+      const startYear = Math.floor(currentYear / 12) * 12;
+      setCurrentMonth(new Date(startYear + 12, currentMonth.getMonth()));
+    }
+  };
+
+  const handleHeaderClick = (event) => {
+    // Calculate click position relative to the calendar container
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    setAnimationOrigin(`${x}% ${y}%`);
+    
+    setAnimationKey(prev => prev + 1);
+    
+    if (view === 'day') {
+      setView('month');
+    } else if (view === 'month') {
+      setView('year');
+    }
+  };
+
+  const handleMonthClick = (monthIndex, event) => {
+    // Calculate click position for zoom animation
+    const rect = event.currentTarget.getBoundingClientRect();
+    const parentRect = event.currentTarget.parentElement.getBoundingClientRect();
+    const x = ((rect.left + rect.width / 2 - parentRect.left) / parentRect.width) * 100;
+    const y = ((rect.top + rect.height / 2 - parentRect.top) / parentRect.height) * 100;
+    setAnimationOrigin(`${x}% ${y}%`);
+    
+    setAnimationKey(prev => prev + 1);
+    
+    setCurrentMonth(new Date(currentMonth.getFullYear(), monthIndex));
+    setView('day');
+  };
+
+  const handleYearClick = (year, event) => {
+    // Calculate click position for zoom animation
+    const rect = event.currentTarget.getBoundingClientRect();
+    const parentRect = event.currentTarget.parentElement.getBoundingClientRect();
+    const x = ((rect.left + rect.width / 2 - parentRect.left) / parentRect.width) * 100;
+    const y = ((rect.top + rect.height / 2 - parentRect.top) / parentRect.height) * 100;
+    setAnimationOrigin(`${x}% ${y}%`);
+    
+    setAnimationKey(prev => prev + 1);
+    
+    setCurrentMonth(new Date(year, currentMonth.getMonth()));
+    setView('month');
+  };
+
+  const renderMonthView = () => {
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+      const isCurrentMonth = currentMonth.getMonth() === i;
+      months.push(
+        <Box
+          key={i}
+          onClick={(e) => handleMonthClick(i, e)}
+          sx={{
+            width: 70,
+            height: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 2,
+            cursor: 'pointer',
+            bgcolor: isCurrentMonth ? '#2148c0' : 'transparent',
+            color: isCurrentMonth ? '#fff' : '#000',
+            fontWeight: isCurrentMonth ? 600 : 400,
+            fontSize: '0.9rem',
+            '&:hover': {
+              bgcolor: isCurrentMonth ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
+            },
+            transition: 'all 0.2s'
+          }}
+        >
+          {monthNames[i].substring(0, 3)}
+        </Box>
+      );
+    }
+    return months;
+  };
+
+  const renderYearView = () => {
+    const currentYear = currentMonth.getFullYear();
+    const startYear = Math.floor(currentYear / 12) * 12;
+    const years = [];
+    
+    for (let i = 0; i < 12; i++) {
+      const year = startYear + i;
+      const isCurrentYear = currentYear === year;
+      years.push(
+        <Box
+          key={year}
+          onClick={(e) => handleYearClick(year, e)}
+          sx={{
+            width: 70,
+            height: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 2,
+            cursor: 'pointer',
+            bgcolor: isCurrentYear ? '#2148c0' : 'transparent',
+            color: isCurrentYear ? '#fff' : '#000',
+            fontWeight: isCurrentYear ? 600 : 400,
+            fontSize: '0.9rem',
+            '&:hover': {
+              bgcolor: isCurrentYear ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
+            },
+            transition: 'all 0.2s'
+          }}
+        >
+          {year}
+        </Box>
+      );
+    }
+    return years;
   };
 
   const renderCalendar = () => {
@@ -94,7 +260,7 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
     const daysInPrevMonth = getDaysInMonth(prevMonth);
 
     const days = [];
-    const weekDays = ['S', 'S', 'M', 'T', 'W', 'T', 'F']; // Start with Saturday
+    const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // Start with Sunday
 
     // Week day headers
     for (let i = 0; i < 7; i++) {
@@ -109,7 +275,7 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
             justifyContent: 'center',
             fontWeight: 600,
             fontSize: '0.9rem',
-            color: i === 1 ? '#d13858' : '#000'
+            color: i === 0 ? '#d13858' : '#000'
           }}
         >
           {weekDays[i]}
@@ -117,8 +283,8 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
       );
     }
 
-    // Empty cells / Previous month dates (Saturday = 0)
-    const adjustedFirstDay = (firstDay + 1) % 7; // Adjust for Saturday start
+    // Empty cells / Previous month dates (Sunday = 0)
+    const adjustedFirstDay = firstDay; // No adjustment needed for Sunday start
     for (let i = 0; i < adjustedFirstDay; i++) {
       const prevDay = daysInPrevMonth - adjustedFirstDay + i + 1;
       days.push(
@@ -153,7 +319,7 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
       days.push(
         <Box
           key={day}
-          onClick={() => handleDateClick(day)}
+          onClick={(e) => handleDateClick(day, e)}
           sx={{
             width: 32,
             height: 32,
@@ -216,7 +382,11 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
       sx={{
         p: 2,
         borderRadius: 2,
-        width: 'fit-content'
+        width: 'fit-content',
+        minWidth: '260px',
+        minHeight: '320px',
+        display: 'flex',
+        flexDirection: 'column'
       }}
     >
       {/* Month/Year Header with Navigation */}
@@ -224,24 +394,64 @@ const DateCalendar = ({ value, onChange, minDate, maxDate }) => {
         <IconButton size="small" onClick={handlePrevMonth}>
           <ChevronLeftIcon />
         </IconButton>
-        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
-          {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            fontWeight: 600, 
+            fontSize: '1.1rem',
+            cursor: 'pointer',
+            transition: 'color 0.2s',
+            '&:hover': {
+              color: '#2148c0'
+            }
+          }}
+          onClick={handleHeaderClick}
+        >
+          {view === 'day' && `${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`}
+          {view === 'month' && currentMonth.getFullYear()}
+          {view === 'year' && `${Math.floor(currentMonth.getFullYear() / 12) * 12} - ${Math.floor(currentMonth.getFullYear() / 12) * 12 + 11}`}
         </Typography>
         <IconButton size="small" onClick={handleNextMonth}>
           <ChevronRightIcon />
         </IconButton>
       </Box>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid with animation */}
       <Box
+        key={animationKey}
         sx={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 32px)',
-          gap: '4px',
-          justifyContent: 'center'
+          gridTemplateColumns: view === 'day' ? 'repeat(7, 32px)' : 'repeat(3, 70px)',
+          gap: view === 'day' ? '4px' : '8px',
+          justifyContent: 'center',
+          minHeight: '240px',
+          animation: view !== 'day' ? 'zoomOut 0.3s ease-out' : 'zoomIn 0.3s ease-out',
+          transformOrigin: animationOrigin,
+          '@keyframes zoomOut': {
+            '0%': {
+              transform: 'scale(1)',
+              opacity: 0.8
+            },
+            '100%': {
+              transform: 'scale(1)',
+              opacity: 1
+            }
+          },
+          '@keyframes zoomIn': {
+            '0%': {
+              transform: 'scale(0.8)',
+              opacity: 0.8
+            },
+            '100%': {
+              transform: 'scale(1)',
+              opacity: 1
+            }
+          }
         }}
       >
-        {renderCalendar()}
+        {view === 'day' && renderCalendar()}
+        {view === 'month' && renderMonthView()}
+        {view === 'year' && renderYearView()}
       </Box>
     </Paper>
   );

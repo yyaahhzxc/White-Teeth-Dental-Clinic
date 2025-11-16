@@ -32,6 +32,8 @@ import {
   ToggleOn as StatusIcon,
   Visibility as ViewIcon
 } from '@mui/icons-material';
+import TeethChart from '../components/TeethChart';
+import Toast from '../components/Toast';
 import { API_BASE } from '../apiConfig';
 
 const serviceTypes = [
@@ -50,6 +52,7 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMsg, setSnackbarMsg] = useState('');
+  const [toast, setToast] = useState({ open: false, message: '', type: 'success' });
   const [loading, setLoading] = useState(false);
   const [requiredError, setRequiredError] = useState(false);
   const [requiredFields, setRequiredFields] = useState({});
@@ -85,10 +88,8 @@ const fetchAvailableServices = async () => {
   }
 };
 
-  const showSnackbar = (msg) => {
-    setSnackbarMsg(msg);
-    setSnackbarOpen(true);
-    setTimeout(() => setSnackbarOpen(false), 3000);
+  const showToast = (message, type = 'success') => {
+    setToast({ open: true, message, type });
   };
 
   useEffect(() => {
@@ -203,13 +204,13 @@ const fetchAvailableServices = async () => {
         setPackageServices(prev => 
           prev.map(s => s.serviceId === serviceId ? { ...s, quantity: newQuantity } : s)
         );
-        showSnackbar('Quantity updated successfully');
+        showToast('Quantity updated successfully');
       } else {
         throw new Error('Failed to update quantity');
       }
     } catch (err) {
       console.error('Error updating quantity:', err);
-      showSnackbar('Failed to update quantity');
+      showToast('Failed to update quantity', 'error');
     }
   };
 
@@ -226,19 +227,19 @@ const fetchAvailableServices = async () => {
       if (response.ok) {
         // Update local state
         setPackageServices(prev => prev.filter(s => s.serviceId !== serviceId));
-        showSnackbar('Service removed from package');
+        showToast('Service removed from package');
       } else {
         throw new Error('Failed to remove service');
       }
     } catch (err) {
       console.error('Error removing service:', err);
-      showSnackbar('Failed to remove service');
+      showToast('Failed to remove service', 'error');
     }
   };
   
   const handleAddService = async () => {
     if (!newServiceId || newServiceQty < 1) {
-      showSnackbar('Please select a service and quantity');
+      showToast('Please select a service and quantity', 'warning');
       return;
     }
   
@@ -261,14 +262,14 @@ const fetchAvailableServices = async () => {
         setNewServiceId('');
         setNewServiceQty(1);
         setAddingNewService(false);
-        showSnackbar('Service added to package');
+        showToast('Service added to package');
       } else {
         const error = await response.json();
         throw new Error(error.error || 'Failed to add service');
       }
     } catch (err) {
       console.error('Error adding service:', err);
-      showSnackbar(err.message || 'Failed to add service');
+      showToast(err.message || 'Failed to add service', 'error');
     }
   };
   
@@ -352,7 +353,7 @@ const handleSaveClick = async () => {
     if (response.ok) {
       setIsEditing(false);
       if (onServiceUpdated) onServiceUpdated();
-      showSnackbar(`${isPackage ? 'Package' : 'Service'} updated successfully!`);
+      showToast(`${isPackage ? 'Package' : 'Service'} updated successfully!`);
       
       // If this is a package, refresh the package services
       if (isPackage) {
@@ -365,7 +366,7 @@ const handleSaveClick = async () => {
     }
   } catch (err) {
     console.error('❌ Save Error:', err);
-    showSnackbar(`Failed to save changes: ${err.message}`);
+    showToast(`Failed to save changes: ${err.message}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -1335,16 +1336,11 @@ const handleSaveClick = async () => {
         </DialogActions>
       </MuiDialog>
 
-      <Snackbar 
-        open={snackbarOpen} 
-        message={snackbarMsg} 
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{
-          '& .MuiSnackbarContent-root': {
-            fontFamily: 'Inter, sans-serif',
-            borderRadius: '12px'
-          }
-        }}
+      <Toast 
+        open={toast.open} 
+        message={toast.message} 
+        type={toast.type}
+        onClose={() => setToast({ ...toast, open: false })}
       />
     </>
   );

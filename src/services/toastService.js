@@ -1,9 +1,9 @@
 // src/services/toastService.js
 
 const toastService = {
-  show: (message, severity = 'success') => {
+  show: (message, type = 'success') => {
     const event = new CustomEvent('showGlobalToast', {
-      detail: { message, severity },
+      detail: { message, type },
     });
     window.dispatchEvent(event);
   },

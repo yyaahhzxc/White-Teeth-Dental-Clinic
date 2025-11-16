@@ -93,7 +93,7 @@ function Dashboard() {
 
       {/* Alerts */}
       <Fade in={showPatientAdded} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: '#C8E6C9', color: '#38883C', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
+        <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: '#e8f5e9', color: '#4caf50', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Patient added successfully!
         </Box>
       </Fade>

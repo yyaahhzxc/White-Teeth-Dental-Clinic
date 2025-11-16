@@ -68,8 +68,8 @@ export default function Accounts() {
   // Snackbar helper for success/error messages
   const showSnackbar = (message, options = {}) => {
     setSnackbarMessage(message);
-    setSnackbarColor(options.color || (options.error ? '#FFCDD2' : '#C8E6C9'));
-    setSnackbarTextColor(options.textColor || (options.error ? '#B71C1C' : '#38883C'));
+    setSnackbarColor(options.color || (options.error ? '#FFCDD2' : '#e8f5e9'));
+    setSnackbarTextColor(options.textColor || (options.error ? '#B71C1C' : '#4caf50'));
     setSnackbarOpen(true);
     if (options.duration !== 0) setTimeout(() => setSnackbarOpen(false), options.duration || 2000);
   };
@@ -144,8 +144,8 @@ export default function Accounts() {
   // Snackbar state
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarColor, setSnackbarColor] = useState('#C8E6C9');
-  const [snackbarTextColor, setSnackbarTextColor] = useState('#38883C');
+  const [snackbarColor, setSnackbarColor] = useState('#e8f5e9');
+  const [snackbarTextColor, setSnackbarTextColor] = useState('#4caf50');
 
   // Filter state - now handled by FilterComponent
   const filterCategories = [
