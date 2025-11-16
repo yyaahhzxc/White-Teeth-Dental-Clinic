@@ -445,32 +445,52 @@ useEffect(() => {
   // REPLACE the fetchAppointmentsForWeek function (around line 375)
   const fetchAppointmentsForWeek = async () => {
     setLoading(true);
-    const start = startOfWeek(currentDate);
-    const end = endOfWeek(currentDate);
-    const startDate = format(start, 'yyyy-MM-dd');
-    const endDate = format(end, 'yyyy-MM-dd');
+    
+    // Use same logic as month view - get full week from Sunday to Saturday
+    const currentDay = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
+    
+    // Calculate Sunday of current week
+    const weekStart = new Date(currentDate);
+    weekStart.setDate(currentDate.getDate() - currentDay);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    // Calculate Saturday of current week
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    // Format as YYYY-MM-DD
+    const startDate = format(weekStart, 'yyyy-MM-dd');
+    const endDate = format(weekEnd, 'yyyy-MM-dd');
   
-    console.log('Fetching appointments for week:', { startDate, endDate });
+    console.log('📅 Week View Date Range:', { 
+      currentDate: format(currentDate, 'yyyy-MM-dd'),
+      currentDayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][currentDay],
+      weekStart: startDate,
+      weekEnd: endDate
+    });
   
     try {
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       if (!response.ok) throw new Error('Failed to fetch appointments');
+      
       const data = await response.json();
-      console.log('Raw appointment data:', data);
+      console.log(`✅ Fetched ${data.length} appointments for week (${startDate} to ${endDate})`);
       
       // IMPORTANT: Log to verify logged field is present
       data.forEach(apt => {
-        console.log(`Appointment ${apt.id}: logged=${apt.logged}`);
+        console.log(`Appointment ${apt.id}: logged=${apt.logged}, status=${apt.status}`);
       });
   
       const transformed = data.map(apt => {
         if (!apt.appointmentDate) {
-          console.warn('Skipping appointment with null date:', apt.id);
-          return null; 
+          console.warn('Appointment missing date:', apt);
+          return null;
         }
+        
         const aptDate = normalizeDateFromStorage(apt.appointmentDate);
         
-        const transformedApt = {
+        return {
           id: apt.id,
           patientName: apt.patientName,
           procedure: apt.serviceNames || 'No services listed',
@@ -478,20 +498,19 @@ useEffect(() => {
           day: getDay(aptDate),
           date: aptDate,
           status: apt.status,
-          logged: apt.logged, // CRITICAL: Include logged field
+          logged: apt.logged,
           comments: apt.comments,
           timeEnd: apt.timeEnd,
           patientId: apt.patientId,
           serviceNames: apt.serviceNames,
           ...apt 
         };
-        return transformedApt;
       }).filter(Boolean);
   
-      console.log('All transformed appointments:', transformed);
+      console.log('📋 Week transformed appointments:', transformed.length);
       setAppointments(transformed);
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      console.error('❌ Error fetching week appointments:', error);
       setAppointments([]);
     } finally {
       setLoading(false);
@@ -557,37 +576,74 @@ const fetchHistoryAppointments = async () => {
   try {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    // Format dates consistently as YYYY-MM-DD in local timezone
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    
+    // Get first and last day of the month
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    
+    // Get day of week (0 = Sunday, 6 = Saturday)
+    const firstDayOfWeek = firstDayOfMonth.getDay();
+    const lastDayOfWeek = lastDayOfMonth.getDay();
+    
+    // Calculate grid start: Go back to the Sunday before the 1st
+    const gridStartDate = new Date(firstDayOfMonth);
+    gridStartDate.setDate(firstDayOfMonth.getDate() - firstDayOfWeek);
+    
+    // Calculate grid end: Go forward to the Saturday after the last day
+    const gridEndDate = new Date(lastDayOfMonth);
+    gridEndDate.setDate(lastDayOfMonth.getDate() + (6 - lastDayOfWeek));
+    
+    // Format as YYYY-MM-DD
+    const startDate = format(gridStartDate, 'yyyy-MM-dd');
+    const endDate = format(gridEndDate, 'yyyy-MM-dd');
 
-    console.log('Fetching appointments for month:', { startDate, endDate });
+    console.log('📅 Month View Date Range:', { 
+      currentMonth: `${year}-${month + 1}`,
+      firstDayOfMonth: format(firstDayOfMonth, 'yyyy-MM-dd'),
+      lastDayOfMonth: format(lastDayOfMonth, 'yyyy-MM-dd'),
+      firstDayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][firstDayOfWeek],
+      lastDayOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][lastDayOfWeek],
+      gridStartDate: startDate,
+      gridEndDate: endDate
+    });
+
     const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
     
-    if (response.ok) {
-      const data = await response.json();
-      const transformedAppointments = data.map(apt => ({
+    if (!response.ok) {
+      throw new Error('Failed to fetch appointments');
+    }
+    
+    const data = await response.json();
+    console.log(`✅ Fetched ${data.length} appointments for month grid (${startDate} to ${endDate})`);
+    
+    // Transform appointments
+    const transformedAppointments = data.map(apt => {
+      const aptDate = normalizeDateFromStorage(apt.appointmentDate);
+      
+      return {
         id: apt.id,
         patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
         procedure: apt.serviceNames || apt.serviceName || 'No Service',
         time: apt.timeStart,
+        day: getDay(aptDate),
+        date: aptDate,
         status: apt.status ? apt.status.toLowerCase() : 'scheduled',
+        logged: apt.logged,
         appointmentDate: apt.appointmentDate,
         timeStart: apt.timeStart,
         timeEnd: apt.timeEnd,
         comments: apt.comments,
         patientId: apt.patientId,
-        serviceId: apt.serviceId
-      }));
-      
-      setAppointments(transformedAppointments);
-    } else {
-      console.error('Failed to fetch appointments:', response.status, response.statusText);
-      setAppointments([]);
-    }
+        serviceId: apt.serviceId,
+        serviceNames: apt.serviceNames,
+        ...apt
+      };
+    });
+    
+    console.log('📋 Transformed appointments:', transformedAppointments.length);
+    setAppointments(transformedAppointments);
   } catch (error) {
-    console.error('Error fetching appointments:', error);
+    console.error('❌ Error fetching appointments for month:', error);
     setAppointments([]);
   } finally {
     setLoading(false);
@@ -1756,7 +1812,7 @@ const handleCloseModal = () => {
               <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {calendarView === 'Month' ? (
                   <MonthGrid 
-                    appointments={appointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled')}
+                    appointments={appointments}
                     currentDate={currentDate}
                     statusColors={statusColors}
                     onAppointmentClick={handleAppointmentClick}
