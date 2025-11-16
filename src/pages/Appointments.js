@@ -760,7 +760,56 @@ const handleSaveClick = async () => {
 
 
 
+const handleCancelAppointment = async () => {
+  if (!selectedAppointment) return;
+  
+  setUpdating(true);
+  setUpdateError(null);
+  
+  try {
+    const response = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...selectedAppointment,
+        status: 'cancelled'
+      }),
+    });
 
+    if (response.ok) {
+      // Update local state
+      const updatedAppointment = { ...selectedAppointment, status: 'cancelled' };
+      setSelectedAppointment(updatedAppointment);
+      
+      // Update appointments list
+      setAppointments(prev => prev.map(apt => 
+        apt.id === selectedAppointment.id ? updatedAppointment : apt
+      ));
+      
+      showToast('Appointment cancelled successfully!', 'success');
+      
+      // Refresh appointments to ensure calendar updates
+      await refreshAppointments();
+      
+      // Close confirmation dialog and modal
+      setShowCancelConfirm(false);
+      
+      // Close modal after a short delay
+      setTimeout(() => {
+        handleCloseModal();
+      }, 1500);
+    } else {
+      showToast('Failed to cancel appointment', 'error');
+    }
+  } catch (error) {
+    console.error('Error cancelling appointment:', error);
+    showToast(`Network error: ${error.message}`, 'error');
+  } finally {
+    setUpdating(false);
+  }
+};
 
 
 
@@ -2828,14 +2877,14 @@ const handleCloseModal = () => {
           </DialogContent>
         )}
         
-        <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'flex-end', gap: 2 }}>
+       <DialogActions sx={{ p: 3, pt: 1, justifyContent: 'flex-end', gap: 2 }}>
   <Button 
     onClick={handleCloseModal}
     disabled={updating}
     sx={{ 
       color: '#5f6368',
       fontFamily: 'Inter, sans-serif',
-      textTransform: 'none',
+      textTransform: 'none',  
       fontSize: '14px',
       fontWeight: '500'
     }}
@@ -2866,8 +2915,8 @@ const handleCloseModal = () => {
       </Button>
       <Button 
         variant="contained"
-         onClick={handleSaveClick}
-        disabled={updating || !selectedPatient || selectedServices.length === 0}
+        onClick={handleSaveClick}
+        disabled={updating}
         sx={{ 
           fontFamily: 'Inter, sans-serif',
           textTransform: 'none',
@@ -2886,51 +2935,31 @@ const handleCloseModal = () => {
     </>
   )}
   
-  {/* Show Mark as Done button ONLY if status is scheduled/ongoing and NOT in edit mode */}
-  {(() => {
-    const now = new Date();
-    const aptDate = selectedAppointment?.appointmentDate 
-      ? normalizeDateFromStorage(selectedAppointment.appointmentDate)
-      : null;
-    const [aptStartHour, aptStartMin] = (selectedAppointment?.timeStart || '00:00').split(':').map(Number);
-    const aptStartTime = new Date(aptDate);
-    if (aptDate && !isNaN(aptStartTime.getTime())) {
-      aptStartTime.setHours(aptStartHour, aptStartMin, 0, 0);
-    }
-    
-    const isPastStartTime = aptDate && now >= aptStartTime;
-    const canMarkDone = 
-      (selectedAppointment?.status === 'scheduled' || selectedAppointment?.status === 'ongoing') && 
-      isPastStartTime && 
-      !editMode;
-
-    if (canMarkDone) {
-      return (
-        <Button 
-          variant="contained"
-          onClick={handleMarkAsDone}
-          disabled={updating}
-          sx={{ 
-            fontFamily: 'Inter, sans-serif',
-            textTransform: 'none',
-            fontSize: '14px',
-            fontWeight: '600',
-            borderRadius: '8px',
-            px: 3,
-            background: 'linear-gradient(135deg, #0d652d 0%, #0a4d23 100%)',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #0a4d23 0%, #083a1b 100%)',
-            }
-          }}
-        >
-          {updating ? <CircularProgress size={20} color="inherit" /> : 'Mark as Done'}
-        </Button>
-      );
-    }
-    return null;
-  })()}
+  {/* Show Mark as Done button for Scheduled AND Ongoing (NOT in edit mode) */}
+  {!editMode &&
+   (selectedAppointment?.status === 'scheduled' || selectedAppointment?.status === 'ongoing') && (
+    <Button 
+      variant="contained"
+      onClick={handleMarkAsDone}
+      disabled={updating}
+      sx={{ 
+        fontFamily: 'Inter, sans-serif',
+        textTransform: 'none',
+        fontSize: '14px',
+        fontWeight: '600',
+        borderRadius: '8px',
+        px: 3,
+        background: 'linear-gradient(135deg, #0d652d 0%, #0a4d23 100%)',
+        '&:hover': {
+          background: 'linear-gradient(135deg, #0a4d23 0%, #083a1b 100%)',
+        }
+      }}
+    >
+      {updating ? <CircularProgress size={20} color="inherit" /> : 'Mark as Done'}
+    </Button>
+  )}
   
-  {/* Show Log Appointment button ONLY if status is 'done' AND not yet logged AND not in edit mode */}
+  {/* Show Log Appointment button ONLY if status is 'done' AND not yet logged */}
   {selectedAppointment?.status === 'done' && 
    !selectedAppointment?.logged && 
    !editMode && (
@@ -2958,7 +2987,7 @@ const handleCloseModal = () => {
     </Button>
   )}
   
-  {/* Show Proceed to Billing button ONLY if appointment is logged AND not in edit mode */}
+  {/* Show Proceed to Billing button ONLY if appointment is logged */}
   {selectedAppointment?.status === 'done' && 
    selectedAppointment?.logged && 
    !editMode && (
@@ -2986,10 +3015,9 @@ const handleCloseModal = () => {
     </Button>
   )}
   
-  {/* Show Cancel Appointment button for non-cancelled, non-done appointments, not in edit mode */}
+  {/* Show Cancel Appointment button ONLY for scheduled (NOT ongoing, NOT done, NOT cancelled) */}
   {!editMode && 
-   selectedAppointment?.status !== 'cancelled' && 
-   selectedAppointment?.status !== 'done' && (
+   selectedAppointment?.status === 'scheduled' && (
     <Button 
       variant="contained"
       color="error"
@@ -3008,8 +3036,67 @@ const handleCloseModal = () => {
     </Button>
   )}
 </DialogActions>
+
+
+
   </Dialog>
   )}
+{/* Cancel Confirmation Dialog */}
+<Dialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            p: 1
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '18px',
+          fontWeight: '600'
+        }}>
+          Cancel Appointment?
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            color: '#5f6368',
+            fontSize: '14px'
+          }}>
+            Are you sure you want to cancel this appointment with {selectedAppointment?.patientName}?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 1 }}>
+          <Button 
+            onClick={() => setShowCancelConfirm(false)}
+            sx={{ 
+              color: '#5f6368',
+              fontFamily: 'Inter, sans-serif',
+              textTransform: 'none',
+              fontSize: '14px'
+            }}
+          >
+            Keep Appointment
+          </Button>
+          <Button 
+            onClick={handleCancelAppointment}
+            variant="contained"
+            color="error"
+            disabled={updating}
+            sx={{ 
+              fontFamily: 'Inter, sans-serif',
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}
+          >
+            {updating ? <CircularProgress size={20} color="inherit" /> : 'Yes, Cancel'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       
       {/* Success/Error Snackbars */}
       {/* Toast */}
