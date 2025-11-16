@@ -21,15 +21,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 
 function Billing() {
-  // Mock billing data (not connected to backend)
-  const [billings, setBillings] = useState([
-    { id: 1, dateCreated: 'October 30, 2025', firstName: 'Vince', lastName: 'Valmores', totalBill: 2500.00, amountPaid: 2500.00, balance: 0.00, status: 'Paid' },
-    { id: 2, dateCreated: 'October 30, 2025', firstName: 'Jane', lastName: 'Foster', totalBill: 500.00, amountPaid: 500.00, balance: 0.00, status: 'Paid' },
-    { id: 3, dateCreated: 'October 25, 2025', firstName: 'Thor', lastName: 'Odinson', totalBill: 600.00, amountPaid: 450.00, balance: 150.00, status: 'Partial' },
-    { id: 4, dateCreated: 'October 17, 2025', firstName: 'Jan', lastName: 'Gerona', totalBill: 1000.00, amountPaid: 700.00, balance: 300.00, status: 'Partial' },
-    { id: 5, dateCreated: 'October 16, 2025', firstName: 'Warlter', lastName: 'Andao', totalBill: 1400.00, amountPaid: 950.00, balance: 450.00, status: 'Partial' },
-    { id: 6, dateCreated: 'October 10, 2025', firstName: 'Ben', lastName: 'Dover', totalBill: 1000.00, amountPaid: 1000.00, balance: 0.00, status: 'Paid' },
-  ]);
+  const [billings, setBillings] = useState([]);
 
   const [categoryFilteredBillings, setCategoryFilteredBillings] = useState([]);
   const [filteredBillings, setFilteredBillings] = useState([]);
@@ -89,6 +81,34 @@ function Billing() {
     setCategoryFilteredBillings(billings);
   }, [billings]);
 
+  // Fetch billings from backend
+  useEffect(() => {
+    const fetchBillings = async () => {
+      try {
+        const resp = await fetch('http://localhost:3001/billings');
+        if (!resp.ok) throw new Error('Failed to fetch billings');
+        const data = await resp.json();
+        // Map to UI shape
+        const mapped = data.map(b => ({
+          id: b.id,
+          dateCreated: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
+          firstName: (b.patientName || '').split(' ')[0] || '',
+          lastName: (b.patientName || '').split(' ').slice(1).join(' ') || '',
+          totalBill: parseFloat(b.totalAmount || 0),
+          amountPaid: parseFloat(b.amountPaid || 0),
+          balance: parseFloat((b.totalAmount || 0) - (b.amountPaid || 0)),
+          status: b.status || ((b.totalAmount || 0) - (b.amountPaid || 0) <= 0 ? 'Paid' : 'Partial'),
+          appointmentId: b.appointmentId || null,
+          raw: b
+        }));
+        setBillings(mapped);
+      } catch (err) {
+        console.error('Error fetching billings:', err);
+      }
+    };
+    fetchBillings();
+  }, []);
+
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
@@ -135,13 +155,44 @@ function Billing() {
 
   // Handlers for view actions (placeholders)
   const handleViewInvoice = (billing) => {
-    console.log('View invoice for:', billing);
-    // TODO: Implement view invoice functionality
+    (async () => {
+      try {
+        const resp = await fetch(`http://localhost:3001/billings/${billing.id}/invoices`);
+        if (!resp.ok) throw new Error('Failed to fetch invoices');
+        const invoices = await resp.json();
+        const paymentsResp = await fetch(`http://localhost:3001/billings/${billing.id}/payments`);
+        const payments = paymentsResp.ok ? await paymentsResp.json() : [];
+        alert(`Invoices:\n${JSON.stringify(invoices, null, 2)}\n\nPayments:\n${JSON.stringify(payments, null, 2)}`);
+      } catch (err) {
+        console.error('Error fetching invoices/payments:', err);
+        alert('Error fetching invoices/payments');
+      }
+    })();
   };
 
   const handleViewAppointment = (billing) => {
-    console.log('View appointment for:', billing);
-    // TODO: Implement view appointment functionality
+    (async () => {
+      try {
+        if (!billing.appointmentId) {
+          alert('No appointment linked to this billing');
+          return;
+        }
+        const resp = await fetch(`http://localhost:3001/appointments/${billing.appointmentId}/visit-log`);
+        if (!resp.ok) {
+          alert('Failed to fetch visit log');
+          return;
+        }
+        const data = await resp.json();
+        if (!data) {
+          alert('No visit log found for this appointment');
+          return;
+        }
+        alert(`Visit Log:\nDate: ${data.visitDate}\nStart: ${data.timeStart}\nEnd: ${data.timeEnd}\nDentist: ${data.attendingDentist}\nNotes: ${data.notes || data.progressNotes || ''}`);
+      } catch (err) {
+        console.error('Error fetching visit log:', err);
+        alert('Error fetching visit log');
+      }
+    })();
   };
 
   const handleCloseModal = () => {

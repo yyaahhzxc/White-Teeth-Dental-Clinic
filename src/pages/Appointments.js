@@ -272,6 +272,8 @@ const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Add state to track if appointment was logged
   const [appointmentLogged, setAppointmentLogged] = useState(false);
+  // Add state to track if appointment has billing
+  const [appointmentBilled, setAppointmentBilled] = useState(false);
 
   // When selected appointment changes, check if it already has a visit log
   useEffect(() => {
@@ -295,6 +297,29 @@ const [loadingHistory, setLoadingHistory] = useState(false);
     };
 
     checkVisitLogForAppointment();
+  }, [selectedAppointment]);
+
+  // Check billing existence for selected appointment
+  useEffect(() => {
+    const checkBilling = async () => {
+      if (!selectedAppointment?.id) {
+        setAppointmentBilled(false);
+        return;
+      }
+      try {
+        const resp = await fetch(`${API_BASE}/billings/appointment/${selectedAppointment.id}`);
+        if (!resp.ok) {
+          setAppointmentBilled(false);
+          return;
+        }
+        const data = await resp.json();
+        setAppointmentBilled(!!data);
+      } catch (err) {
+        console.error('Error checking billing for appointment:', err);
+        setAppointmentBilled(false);
+      }
+    };
+    checkBilling();
   }, [selectedAppointment]);
 
   // Billing modal state
@@ -775,7 +800,7 @@ const handleSaveClick = async () => {
   };
 
  // REPLACE handleAppointmentClick completely (around line 870):
- const handleAppointmentClick = async (appointment) => {
+const handleAppointmentClick = async (appointment) => {
   console.log('=== APPOINTMENT CLICK DEBUG ===');
   console.log('Clicked appointment:', appointment);
   
@@ -808,18 +833,84 @@ const handleSaveClick = async () => {
   
   setLoadingServiceDetails(true);
   try {
-    // **USE NEW DETAILED ENDPOINT**
-    const response = await fetch(`${API_BASE}/appointment-services/${appointmentCopy.id}/detailed`);
+    const details = await fetchAppointmentDetails(appointmentCopy.id);
+    console.log('📦 Fetched appointment details:', details);
     
-    if (response.ok) {
-      const detailedServices = await response.json();
-      console.log('📦 Fetched detailed services (with package contents):', detailedServices);
-      setAppointmentServiceDetails(detailedServices);
+    if (details && details.serviceIds) {
+      // **CRITICAL FIX: Parse serviceIds correctly with prefixes**
+      const serviceEntries = details.serviceIds.split(',');
+      console.log('Service entries from backend:', serviceEntries);
+      
+      const parsedServices = serviceEntries.map((entry, index) => {
+        const [idWithPrefix, qty] = entry.split(':');
+        const quantity = parseInt(qty) || 1;
+        
+        console.log(`Parsing entry ${index}:`, { idWithPrefix, quantity });
+        
+        // **Extract the prefix to determine type**
+        const isPackage = idWithPrefix.startsWith('pkg-');
+        const isSingleService = idWithPrefix.startsWith('svc-');
+        
+        // Remove prefix to get numeric ID
+        const numericId = parseInt(idWithPrefix.replace(/^(pkg-|svc-)/, ''));
+        
+        console.log(`Entry details:`, { isPackage, isSingleService, numericId });
+        
+        // Find in services list (services list has prefixes like 'pkg-1' or 'svc-1')
+        const service = services.find(s => {
+          // Compare with the original ID format from services list
+          if (isPackage && s.id === `pkg-${numericId}`) return true;
+          if (isSingleService && s.id === `svc-${numericId}`) return true;
+          return false;
+        });
+        
+        if (!service) {
+          console.warn(`⚠️ Service not found for: ${idWithPrefix}`);
+          return null;
+        }
+        
+        console.log(`✅ Found service:`, service.name, service.type);
+        
+        return {
+          serviceId: service.id, // Use prefixed ID from services list
+          originalId: numericId,
+          name: service.name,
+          description: service.description || '',
+          price: service.price || 0,
+          duration: service.duration || 0,
+          type: service.type || 'Single Treatment',
+          status: service.status || 'Active',
+          quantity: quantity,
+          isPackage: isPackage
+        };
+      }).filter(Boolean);
+      
+      console.log('✅ Parsed service details:', parsedServices);
+      setAppointmentServiceDetails(parsedServices);
     } else {
-      console.error('Failed to fetch detailed services');
-      setAppointmentServiceDetails([]);
+      if (appointmentCopy.serviceId) {
+        const numericServiceId = parseInt(appointmentCopy.serviceId);
+        const service = services.find(s => {
+          if (s.id === `svc-${numericServiceId}`) return true;
+          if (s.id === `pkg-${numericServiceId}`) return true;
+          return false;
+        });
+        
+        if (service) {
+          setAppointmentServiceDetails([{
+            serviceId: service.id,
+            name: service.name,
+            description: service.description || '',
+            price: service.price || 0,
+            duration: service.duration || 0,
+            type: service.type || 'Single Treatment',
+            status: service.status || 'Active',
+            quantity: 1,
+            isPackage: service.type === 'Package Treatment'
+          }]);
+        }
+      }
     }
-    
   } catch (error) {
     console.error('❌ Error loading service details:', error);
     setAppointmentServiceDetails([]);
@@ -830,7 +921,6 @@ const handleSaveClick = async () => {
   setSelectedAppointment(appointmentCopy);
   setModalOpen(true);
 };
-
 
 
 
@@ -2763,28 +2853,83 @@ const handleSaveClick = async () => {
           
           {/* Show Proceed to Billing button if appointment was logged */}
           {appointmentLogged && !editMode && (
-            <Button 
-              variant="contained"
-              onClick={handleProceedToBilling}
-              sx={{ 
-                fontFamily: 'Inter, sans-serif',
-                textTransform: 'none',
-                fontSize: '16px',
-                fontWeight: 700,
-                borderRadius: '12px',
-                px: 4,
-                py: 1.5,
-                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-                boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
-                  boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
-                  transform: 'translateY(-1px)'
-                }
-              }}
-            >
-              Proceed to Billing
-            </Button>
+            appointmentBilled ? (
+              <Button 
+                variant="contained"
+                onClick={handleProceedToBilling}
+                sx={{ 
+                  fontFamily: 'Inter, sans-serif',
+                  textTransform: 'none',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  borderRadius: '12px',
+                  px: 4,
+                  py: 1.5,
+                  background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+                  boxShadow: '0 4px 12px rgba(33, 72, 192, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #1a3ba8 0%, #164091 100%)',
+                    boxShadow: '0 6px 16px rgba(33, 72, 192, 0.4)',
+                    transform: 'translateY(-1px)'
+                  }
+                }}
+              >
+                Proceed to Billing
+              </Button>
+            ) : (
+              <Button 
+                variant="contained"
+                onClick={async () => {
+                  try {
+                    const url = `${API_BASE}/appointments/${selectedAppointment.id}/billing`;
+                    console.log('Creating billing, POST to', url);
+                    const resp = await fetch(url, { method: 'POST' });
+                    if (!resp.ok) {
+                      // Try to read response as text then JSON
+                      const text = await resp.text();
+                      let errObj = { error: text };
+                      try { errObj = JSON.parse(text); } catch (e) { /* not JSON */ }
+                      if (resp.status === 409) {
+                        alert(errObj.error || `Billing already exists (status ${resp.status})`);
+                        setAppointmentBilled(true);
+                        return;
+                      }
+                      console.error('Create billing failed:', resp.status, text);
+                      alert(`Failed to create billing: ${errObj.error || text}`);
+                      return;
+                    }
+
+                    // Success — parse JSON if possible
+                    let data = null;
+                    try { data = await resp.json(); } catch (e) { data = null; }
+                    setAppointmentBilled(true);
+                    // Navigate to billing page to view created billing
+                    handleProceedToBilling();
+                  } catch (err) {
+                    console.error('Error creating billing:', err);
+                    alert(`Error creating billing: ${String(err.message || err)}`);
+                  }
+                }}
+                sx={{ 
+                  fontFamily: 'Inter, sans-serif',
+                  textTransform: 'none',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  borderRadius: '12px',
+                  px: 4,
+                  py: 1.5,
+                  background: 'linear-gradient(135deg, #0d652d 0%, #0a4d22 100%)',
+                  boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #0a4d22 0%, #083b1a 100%)',
+                    boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
+                    transform: 'translateY(-1px)'
+                  }
+                }}
+              >
+                Create Billing
+              </Button>
+            )
           )}
         </DialogActions>
   </Dialog>
