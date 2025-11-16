@@ -938,46 +938,150 @@ app.post('/appointments', (req, res) => {
 
 
 
+// FIND AND REPLACE the app.get('/appointment-services') endpoint
 
 app.get('/appointment-services', (req, res) => {
   console.log('🔄 GET /appointment-services - Fetching combined list for dropdown');
   
-  // This query intelligently combines services and packages, prioritizing package data
-  // for any ID that exists in both tables. This prevents the 'stub service' from
-  // overwriting the real package data.
-  const query = `
-    SELECT
-      COALESCE(p.id, s.id) as id,
-      COALESCE(p.name, s.name) as name,
-      COALESCE(p.description, s.description) as description,
-      COALESCE(p.price, s.price) as price,
-      COALESCE(p.duration, s.duration) as duration,
-      COALESCE(p.status, s.status) as status,
-      CASE
-        WHEN p.id IS NOT NULL THEN 'package'
-        ELSE 'service'
-      END as source_type,
-      CASE
-        WHEN p.id IS NOT NULL THEN 'Package Treatment'
-        WHEN s.type IS NULL OR s.type = '' THEN 'Single Treatment'
-        ELSE s.type
-      END as type
-    FROM services s
-    LEFT JOIN packages p ON s.id = p.id
-    WHERE s.status = 'Active'
-    ORDER BY name ASC;
+  // Get all active services first
+  const servicesQuery = `
+    SELECT 
+      id,
+      name,
+      description,
+      price,
+      duration,
+      'service' as source_type,
+      CASE 
+        WHEN type IS NULL OR type = '' THEN 'Single Treatment'
+        ELSE type
+      END as type,
+      status
+    FROM services 
+    WHERE type != 'Package Treatment' 
+      AND (status = 'Active' OR status IS NULL)
+    ORDER BY name ASC
   `;
-
-  db.all(query, [], (err, rows) => {
+  
+  db.all(servicesQuery, [], (err, services) => {
     if (err) {
-      console.error('❌ SQL Error fetching combined services/packages:', err);
-      return res.status(500).json({ error: 'Failed to fetch services and packages' });
+      console.error('❌ Error fetching services:', err);
+      return res.status(500).json({ error: 'Failed to fetch services' });
     }
-    console.log(`✅ Returning ${rows.length} total items for dropdown.`);
-    res.json(rows);
+    
+    console.log(`✅ Found ${services.length} services`);
+    
+    // Get all active packages WITH their services
+    const packagesQuery = `
+      SELECT 
+        p.id,
+        p.name,
+        p.description,
+        p.price,
+        p.duration,
+        'package' as source_type,
+        'Package Treatment' as type,
+        p.status
+      FROM packages p
+      WHERE p.status = 'Active'
+      ORDER BY p.name ASC
+    `;
+    
+    db.all(packagesQuery, [], (pkgErr, packages) => {
+      if (pkgErr) {
+        console.error('❌ Error fetching packages:', pkgErr);
+        return res.status(500).json({ error: 'Failed to fetch packages' });
+      }
+      
+      console.log(`✅ Found ${packages.length} packages`);
+      
+      // Fetch services for each package
+      if (packages.length === 0) {
+        return res.json([...services]);
+      }
+      
+      let processedCount = 0;
+      const packagesWithServices = [];
+      
+      packages.forEach((pkg) => {
+        const packageServicesQuery = `
+          SELECT 
+            ps.quantity,
+            s.id,
+            s.name,
+            s.price,
+            s.duration,
+            s.description
+          FROM package_services ps
+          LEFT JOIN services s ON ps.serviceId = s.id
+          WHERE ps.packageId = ?
+          ORDER BY s.name ASC
+        `;
+        
+        db.all(packageServicesQuery, [pkg.id], (sErr, packageServices) => {
+          if (!sErr) {
+            packagesWithServices.push({
+              ...pkg,
+              includedServices: packageServices || []
+            });
+          } else {
+            console.error(`❌ Error fetching services for package ${pkg.id}:`, sErr);
+            packagesWithServices.push({
+              ...pkg,
+              includedServices: []
+            });
+          }
+          
+          processedCount++;
+          
+          if (processedCount === packages.length) {
+            const combinedList = [...services, ...packagesWithServices];
+            console.log(`✅ Returning ${combinedList.length} total items (${services.length} services + ${packagesWithServices.length} packages)`);
+            res.json(combinedList);
+          }
+        });
+      });
+    });
   });
 });
 
+
+
+
+
+// Debug endpoint to check packages
+app.get('/debug/check-packages', (req, res) => {
+  const queries = {
+    packagesCount: 'SELECT COUNT(*) as count FROM packages',
+    activePackages: 'SELECT COUNT(*) as count FROM packages WHERE status = "Active"',
+    allPackages: 'SELECT id, name, status FROM packages',
+    servicesCount: 'SELECT COUNT(*) as count FROM services WHERE type != "Package Treatment"',
+    packageTypeServices: 'SELECT id, name, type FROM services WHERE type = "Package Treatment"'
+  };
+  
+  const results = {};
+  let completed = 0;
+  
+  Object.entries(queries).forEach(([key, query]) => {
+    if (key.includes('all') || key.includes('Type')) {
+      db.all(query, [], (err, rows) => {
+        results[key] = err ? { error: err.message } : rows;
+        completed++;
+        if (completed === Object.keys(queries).length) {
+          res.json(results);
+        }
+      });
+    } else {
+      db.get(query, [], (err, row) => {
+        results[key] = err ? { error: err.message } : row;
+        completed++;
+        if (completed === Object.keys(queries).length) {
+          res.json(results);
+        }
+      });
+    }
+  });
+});
 
 
 
@@ -1381,21 +1485,67 @@ app.get('/packages/:id', (req, res) => {
     return res.status(400).json({ error: 'Invalid package ID' });
   }
 
-  getPackageWithServices(packageId, (err, packageData) => {
+  // First get the package
+  db.get('SELECT * FROM packages WHERE id = ?', [packageId], (err, packageRow) => {
     if (err) {
       console.error('❌ Error fetching package:', err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: 'Failed to fetch package' });
     }
     
-    if (!packageData) {
+    if (!packageRow) {
       console.log(`❌ Package ${packageId} not found`);
       return res.status(404).json({ error: 'Package not found' });
     }
+
+    // Then get its services
+    const servicesQuery = `
+      SELECT 
+        ps.id as packageServiceId,
+        ps.serviceId,
+        ps.quantity,
+        s.name,
+        s.description,
+        s.price,
+        s.duration,
+        s.type,
+        s.status
+      FROM package_services ps
+      LEFT JOIN services s ON ps.serviceId = s.id
+      WHERE ps.packageId = ?
+      ORDER BY s.name ASC
+    `;
     
-    console.log(`✅ Package ${packageId} found with ${packageData.packageServices?.length || 0} services`);
-    res.json(packageData);
+    db.all(servicesQuery, [packageId], (sErr, serviceRows) => {
+      if (sErr) {
+        console.error('❌ Error fetching package services:', sErr);
+        return res.status(500).json({ error: 'Failed to fetch package services' });
+      }
+
+      const packageServices = serviceRows.map(row => ({
+        packageServiceId: row.packageServiceId,
+        serviceId: row.serviceId,
+        name: row.name || 'Unknown Service',
+        description: row.description || '',
+        price: row.price || 0,
+        duration: row.duration || 0,
+        type: row.type || 'Single Treatment',
+        status: row.status || 'Active',
+        quantity: row.quantity || 1
+      }));
+
+      const result = {
+        ...packageRow,
+        packageServices: packageServices,
+        services: packageServices // Add both for compatibility
+      };
+
+      console.log(`✅ Package ${packageId} found with ${packageServices.length} services`);
+      res.json(result);
+    });
   });
 });
+
+
 
 app.get('/service-table', (req, res) => {
   console.log('📋 GET /service-table - Fetching all services');
@@ -1426,6 +1576,288 @@ app.get('/service-table', (req, res) => {
     res.json(rows || []);
   });
 });
+
+// GET - Fetch all services in a package
+app.get('/packages/:packageId/services', (req, res) => {
+  const packageId = parseInt(req.params.packageId);
+  
+  console.log(`📦 GET /packages/${packageId}/services - Fetching package services`);
+  
+  if (!packageId || packageId < 1 || isNaN(packageId)) {
+    console.log('❌ Invalid package ID:', req.params.packageId);
+    return res.status(400).json({ error: 'Invalid package ID' });
+  }
+
+  // First check if this package exists
+  db.get('SELECT id FROM packages WHERE id = ?', [packageId], (err, pkg) => {
+    if (err) {
+      console.error('❌ Error checking package existence:', err);
+      return res.status(500).json({ error: 'Database error checking package' });
+    }
+
+    if (!pkg) {
+      console.log(`⚠️ Package ${packageId} not found in packages table`);
+      return res.json([]);
+    }
+
+    // Fetch package services
+    const query = `
+      SELECT 
+        ps.id as packageServiceId,
+        ps.serviceId,
+        ps.quantity,
+        s.name,
+        s.description, 
+        s.price,
+        s.duration,
+        s.type,
+        s.status
+      FROM package_services ps
+      LEFT JOIN services s ON ps.serviceId = s.id
+      WHERE ps.packageId = ?
+      ORDER BY s.name ASC
+    `;
+
+    db.all(query, [packageId], (err, rows) => {
+      if (err) {
+        console.error('❌ Error fetching package services:', err);
+        return res.status(500).json({ error: 'Failed to fetch package services' });
+      }
+
+      const services = rows.map(row => ({
+        packageServiceId: row.packageServiceId,
+        serviceId: row.serviceId,
+        name: row.name || 'Unknown Service',
+        description: row.description || '',
+        price: row.price || 0,
+        duration: row.duration || 0,
+        type: row.type || 'Single Treatment',
+        status: row.status || 'Active',
+        quantity: row.quantity || 1
+      }));
+
+      console.log(`✅ Found ${services.length} services for package ${packageId}`);
+      res.json(services);
+    });
+  });
+});
+
+
+// POST - Add a service to a package
+app.post('/packages/:packageId/services', (req, res) => {
+  const packageId = parseInt(req.params.packageId);
+  const { serviceId, quantity } = req.body;
+  
+  console.log(`➕ POST /packages/${packageId}/services - Adding service`);
+  console.log('Request body:', { serviceId, quantity });
+  
+  if (!packageId || !serviceId || !quantity) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // Check if service already exists in package
+  db.get(
+    'SELECT * FROM package_services WHERE packageId = ? AND serviceId = ?',
+    [packageId, serviceId],
+    (err, existing) => {
+      if (err) {
+        console.error('Error checking existing service:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (existing) {
+        return res.status(400).json({ error: 'Service already exists in this package' });
+      }
+
+      // Insert new package service
+      db.run(
+        'INSERT INTO package_services (packageId, serviceId, quantity) VALUES (?, ?, ?)',
+        [packageId, serviceId, quantity],
+        function(insertErr) {
+          if (insertErr) {
+            console.error('Error adding service:', insertErr);
+            return res.status(500).json({ error: 'Failed to add service' });
+          }
+
+          console.log(`✅ Service added with ID ${this.lastID}`);
+          
+          // Return the created record
+          db.get(
+            `SELECT 
+              ps.id as packageServiceId,
+              ps.serviceId,
+              ps.quantity,
+              s.name,
+              s.description,
+              s.price,
+              s.duration,
+              s.type,
+              s.status
+             FROM package_services ps
+             LEFT JOIN services s ON ps.serviceId = s.id
+             WHERE ps.id = ?`,
+            [this.lastID],
+            (selectErr, row) => {
+              if (selectErr) {
+                return res.status(500).json({ error: 'Failed to fetch created service' });
+              }
+              
+              res.status(201).json({
+                packageServiceId: row.packageServiceId,
+                serviceId: row.serviceId,
+                name: row.name,
+                description: row.description,
+                price: row.price,
+                duration: row.duration,
+                type: row.type,
+                status: row.status,
+                quantity: row.quantity
+              });
+            }
+          );
+        }
+      );
+    }
+  );
+});
+
+// PUT - Update service quantity in a package
+app.put('/packages/:packageId/services/:serviceId', (req, res) => {
+  const packageId = parseInt(req.params.packageId);
+  const serviceId = parseInt(req.params.serviceId);
+  const { quantity } = req.body;
+  
+  console.log(`✏️ PUT /packages/${packageId}/services/${serviceId} - Updating quantity to ${quantity}`);
+  
+  if (!quantity || quantity < 1) {
+    return res.status(400).json({ error: 'Quantity must be at least 1' });
+  }
+
+  db.run(
+    'UPDATE package_services SET quantity = ? WHERE packageId = ? AND serviceId = ?',
+    [quantity, packageId, serviceId],
+    function(err) {
+      if (err) {
+        console.error('Error updating quantity:', err);
+        return res.status(500).json({ error: 'Failed to update quantity' });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found in package' });
+      }
+
+      console.log(`✅ Updated quantity`);
+      res.json({ success: true, quantity });
+    }
+  );
+});
+
+// DELETE - Remove a service from a package
+app.delete('/packages/:packageId/services/:serviceId', (req, res) => {
+  const packageId = parseInt(req.params.packageId);
+  const serviceId = parseInt(req.params.serviceId);
+  
+  console.log(`🗑️ DELETE /packages/${packageId}/services/${serviceId}`);
+  
+  db.run(
+    'DELETE FROM package_services WHERE packageId = ? AND serviceId = ?',
+    [packageId, serviceId],
+    function(err) {
+      if (err) {
+        console.error('Error removing service:', err);
+        return res.status(500).json({ error: 'Failed to remove service' });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+
+      console.log(`✅ Removed service`);
+      res.json({ success: true });
+    }
+  );
+});
+
+// ========== END PACKAGE SERVICES ENDPOINTS =========
+
+
+
+
+
+
+
+app.get('/debug/package-sync-status', (req, res) => {
+  const queries = {
+    packagesTable: 'SELECT COUNT(*) as count FROM packages',
+    packageServices: 'SELECT COUNT(*) as count FROM package_services',
+    packageTypeServices: 'SELECT COUNT(*) as count FROM services WHERE type = "Package Treatment"',
+    packagesList: 'SELECT id, name FROM packages',
+    packageTypeList: 'SELECT id, name, type FROM services WHERE type = "Package Treatment"'
+  };
+  
+  const results = {};
+  let completed = 0;
+  
+  Object.entries(queries).forEach(([key, query]) => {
+    if (key.includes('List')) {
+      db.all(query, [], (err, rows) => {
+        results[key] = err ? { error: err.message } : rows;
+        completed++;
+        if (completed === Object.keys(queries).length) {
+          res.json(results);
+        }
+      });
+    } else {
+      db.get(query, [], (err, row) => {
+        results[key] = err ? { error: err.message } : row;
+        completed++;
+        if (completed === Object.keys(queries).length) {
+          res.json(results);
+        }
+      });
+    }
+  });
+});
+
+
+
+app.post('/packages/sync', (req, res) => {
+  console.log('🔄 Manual package sync triggered');
+  
+  syncPackagesToPackagesTable();
+  
+  // Wait a bit for sync to complete, then return results
+  setTimeout(() => {
+    db.get('SELECT COUNT(*) as total FROM packages', [], (err, pkgCount) => {
+      if (err) return res.status(500).json({ error: 'Failed to count packages' });
+      
+      db.get('SELECT COUNT(*) as total FROM services WHERE type = "Package Treatment"', [], (err2, svcCount) => {
+        if (err2) return res.status(500).json({ error: 'Failed to count services' });
+        
+        res.json({
+          message: 'Sync completed',
+          packagesInPackagesTable: pkgCount.total,
+          packageTypeServicesInServicesTable: svcCount.total,
+          synced: pkgCount.total >= svcCount.total
+        });
+      });
+    });
+  }, 1000);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Add this endpoint after your GET /service-table endpoint (around line 960)
 app.put('/service-table/:id', (req, res) => {
@@ -1862,51 +2294,6 @@ app.delete('/packages/:id', (req, res) => {
 });
 
 // Utility endpoints for package management
-// GET /packages/:id/services - Get only the services of a package
-app.get('/packages/:id/services', (req, res) => {
-  const packageId = parseInt(req.params.id);
-  
-  if (!packageId) {
-    return res.status(400).json({ error: 'Invalid package ID' });
-  }
-
-  const query = `
-    SELECT 
-      ps.id as packageServiceId,
-      ps.serviceId,
-      ps.quantity,
-      s.name,
-      s.description, 
-      s.price,
-      s.duration,
-      s.type,
-      s.status
-    FROM package_services ps
-    LEFT JOIN services s ON ps.serviceId = s.id
-    WHERE ps.packageId = ?
-    ORDER BY s.name ASC
-  `;
-
-  db.all(query, [packageId], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-
-    const services = rows.map(row => ({
-      packageServiceId: row.packageServiceId,
-      serviceId: row.serviceId,
-      name: row.name || 'Unknown Service',
-      description: row.description || '',
-      price: row.price || 0,
-      duration: row.duration || 0,
-      type: row.type || 'Single Treatment',
-      status: row.status || 'Active',
-      quantity: row.quantity || 1
-    }));
-
-    res.json(services);
-  });
-});
 
 
 
@@ -4312,4 +4699,197 @@ app.get('/visit-logs/history', (req, res) => {
     console.log(`✅ Fetched ${rows.length} visit logs`);
     res.json(rows);
   });
+});
+
+
+app.get('/appointment-services/:appointmentId/detailed', async (req, res) => {
+  const { appointmentId } = req.params;
+  
+  console.log(`📋 GET /appointment-services/${appointmentId}/detailed - Fetching detailed service list with package contents`);
+  
+  try {
+    // First get the appointment's linked services from junction table
+    const servicesQuery = `
+      SELECT 
+        aps.serviceId,
+        aps.quantity,
+        s.id as serviceTableId,
+        s.name as serviceName,
+        pkg.id as packageTableId,
+        pkg.name as packageName
+      FROM appointment_services aps
+      LEFT JOIN services s ON aps.serviceId = s.id
+      LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+      WHERE aps.appointmentId = ?
+    `;
+    
+    const appointmentServices = await new Promise((resolve, reject) => {
+      db.all(servicesQuery, [appointmentId], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+    
+    if (appointmentServices.length === 0) {
+      console.log('ℹ️ No services found for this appointment');
+      return res.json([]);
+    }
+    
+    const detailedServices = [];
+    
+    for (const item of appointmentServices) {
+      const quantity = item.quantity || 1;
+      
+      // Check if it's a package
+      if (item.packageTableId) {
+        // It's a package - add package header
+        const packageData = await new Promise((resolve, reject) => {
+          db.get('SELECT * FROM packages WHERE id = ?', [item.packageTableId], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+        
+        if (packageData) {
+          detailedServices.push({
+            type: 'package-header',
+            serviceId: `pkg-${packageData.id}`,
+            originalId: packageData.id,
+            name: packageData.name,
+            description: packageData.description,
+            price: packageData.price,
+            duration: packageData.duration,
+            quantity: quantity,
+            isPackage: true
+          });
+          
+          // Fetch services inside this package
+          const packageServices = await new Promise((resolve, reject) => {
+            db.all(`
+              SELECT s.*, ps.quantity as packageQuantity
+              FROM package_services ps
+              JOIN services s ON ps.serviceId = s.id
+              WHERE ps.packageId = ?
+              ORDER BY s.name ASC
+            `, [packageData.id], (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows);
+            });
+          });
+          
+          // Add each service in the package
+          packageServices.forEach(service => {
+            detailedServices.push({
+              type: 'package-service',
+              id: service.id,
+              name: service.name,
+              description: service.description,
+              price: service.price,
+              duration: service.duration,
+              quantity: service.packageQuantity * quantity, // Multiply by package quantity
+              parentPackageId: packageData.id
+            });
+          });
+        }
+      } else if (item.serviceTableId) {
+        // It's a regular service
+        const serviceData = await new Promise((resolve, reject) => {
+          db.get('SELECT * FROM services WHERE id = ?', [item.serviceTableId], (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          });
+        });
+        
+        if (serviceData) {
+          detailedServices.push({
+            type: 'service',
+            serviceId: `svc-${serviceData.id}`,
+            originalId: serviceData.id,
+            name: serviceData.name,
+            description: serviceData.description,
+            price: serviceData.price,
+            duration: serviceData.duration,
+            quantity: quantity,
+            isPackage: false
+          });
+        }
+      }
+    }
+    
+    console.log(`✅ Fetched ${detailedServices.length} detailed service entries`);
+    res.json(detailedServices);
+    
+  } catch (error) {
+    console.error('❌ Error fetching detailed services:', error);
+    res.status(500).json({ error: 'Failed to fetch detailed services' });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Update service quantity in a package
+app.put('/packages/:packageId/services/:serviceId', (req, res) => {
+  const packageId = parseInt(req.params.packageId);
+  const serviceId = parseInt(req.params.serviceId);
+  const { quantity } = req.body;
+  
+  console.log(`✏️ PUT /packages/${packageId}/services/${serviceId} - Updating quantity to ${quantity}`);
+  
+  if (!quantity || quantity < 1) {
+    return res.status(400).json({ error: 'Quantity must be at least 1' });
+  }
+
+  db.run(
+    'UPDATE package_services SET quantity = ? WHERE packageId = ? AND serviceId = ?',
+    [quantity, packageId, serviceId],
+    function(err) {
+      if (err) {
+        console.error('Error updating service quantity:', err);
+        return res.status(500).json({ error: 'Failed to update quantity' });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found in package' });
+      }
+
+      console.log(`✅ Updated quantity for service ${serviceId} in package ${packageId}`);
+      res.json({ success: true, quantity });
+    }
+  );
+});
+
+// Remove a service from a package
+app.delete('/packages/:packageId/services/:serviceId', (req, res) => {
+  const packageId = parseInt(req.params.packageId);
+  const serviceId = parseInt(req.params.serviceId);
+  
+  console.log(`🗑️ DELETE /packages/${packageId}/services/${serviceId} - Removing service from package`);
+  
+  db.run(
+    'DELETE FROM package_services WHERE packageId = ? AND serviceId = ?',
+    [packageId, serviceId],
+    function(err) {
+      if (err) {
+        console.error('Error removing service from package:', err);
+        return res.status(500).json({ error: 'Failed to remove service' });
+      }
+
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Service not found in package' });
+      }
+
+      console.log(`✅ Removed service ${serviceId} from package ${packageId}`);
+      res.json({ success: true });
+    }
+  );
 });
