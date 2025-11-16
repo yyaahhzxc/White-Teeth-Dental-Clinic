@@ -15,6 +15,37 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PrintIcon from '@mui/icons-material/Print';
 
+
+const printStyles = `
+  @media print {
+    /* Hide everything */
+    body * {
+      visibility: hidden;
+    }
+    
+    /* Show only printable content */
+    #printable-invoice,
+    #printable-invoice * {
+      visibility: visible;
+    }
+    
+    /* Position printable content at top of page */
+    #printable-invoice {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+    }
+    
+    /* Hide MUI dialog chrome */
+    .MuiDialog-root .MuiBackdrop-root,
+    .MuiDialog-paper {
+      box-shadow: none !important;
+      background: white !important;
+    }
+  }
+`;
+
 const API_BASE = 'http://localhost:3001';
 
 function InvoiceGallery({ open, onClose, billingId, billingData }) {
@@ -70,9 +101,14 @@ function InvoiceGallery({ open, onClose, billingId, billingData }) {
         sx: {
           borderRadius: '16px',
           maxHeight: '90vh',
+          width: '650px', // Fixed width instead of maxWidth="md"
+      maxWidth: '90vw', // Responsive on smaller screens
         }
       }}
     >
+        {/* ADD THIS STYLE TAG */}
+  <style>{printStyles}</style>
+
       {/* Header */}
       <Box
         sx={{
@@ -142,301 +178,654 @@ function InvoiceGallery({ open, onClose, billingId, billingData }) {
           </Box>
         ) : (
           <>
-            {/* Invoice Display */}
-            <Box sx={{ p: 4, minHeight: '500px' }}>
-              <Paper
-                elevation={3}
-                sx={{
-                  p: 4,
-                  borderRadius: '12px',
-                  backgroundColor: '#fff',
-                }}
-              >
-                {/* Invoice Header */}
-                <Box sx={{ mb: 4, textAlign: 'center' }}>
-                  <Typography
-                    variant="h4"
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: 800,
-                      color: '#2148c0',
-                      mb: 1,
-                    }}
-                  >
-                    INVOICE
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '16px',
-                      color: '#666',
-                    }}
-                  >
-                    {currentInvoice?.invoiceNumber || 'N/A'}
-                  </Typography>
-                </Box>
+          {/* Invoice Display */}
+<Box sx={{ p: 4, minHeight: '500px' }}>
+  <Paper
+    id="printable-invoice"
+    elevation={0}
+    sx={{
+      p: 0,
+      backgroundColor: '#fff',
+      border: '0.5px solid #d7dae0',
+      borderRadius: 0,
+    }}
+  >
+    {/* Clinic Header */}
+    <Box sx={{ 
+      p: '20px 32px',
+      backgroundColor: '#fff',
+      borderBottom: '1px solid #d9d9d9'
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+        <Box
+          component="img"
+          src="/White-Teeth-Logo.png"
+          alt="Clinic Logo"
+          sx={{ 
+            width: 56, 
+            height: 56, 
+            objectFit: 'contain',
+            flexShrink: 0
+          }}
+        />
+        <Box sx={{ flex: 1 }}>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#2148c0',
+            lineHeight: 'normal'
+          }}>
+            White Teeth Dental Clinic
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 400,
+            color: '#5e6470',
+            lineHeight: '14px'
+          }}>
+            whiteteethdavao@gmail.com
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 400,
+            color: '#5e6470',
+            lineHeight: '14px'
+          }}>
+            0970 550 3902
+          </Typography>
+        </Box>
+      </Box>
+      <Typography sx={{ 
+        fontFamily: 'Raleway, sans-serif',
+        fontSize: '8px',
+        fontWeight: 500,
+        color: '#5e6470',
+        textAlign: 'right',
+        lineHeight: 'normal'
+      }}>
+        Door #21, 2nd Floor Woolrich Bldg., Km. 5 Buhangin, Davao City
+      </Typography>
+    </Box>
 
-                {/* Patient & Date Info */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    mb: 4,
-                    pb: 3,
-                    borderBottom: '2px solid #e0e0e0',
-                  }}
-                >
-                  <Box>
-                    <Typography
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '14px',
-                        color: '#999',
-                        mb: 1,
-                      }}
-                    >
-                      PATIENT
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '18px',
-                        fontWeight: 600,
-                        color: '#1a1a1a',
-                      }}
-                    >
-                      {billingData?.firstName} {billingData?.lastName}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right' }}>
-                    <Typography
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '14px',
-                        color: '#999',
-                        mb: 1,
-                      }}
-                    >
-                      INVOICE DATE
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '18px',
-                        fontWeight: 600,
-                        color: '#1a1a1a',
-                      }}
-                    >
-                      {currentInvoice?.invoiceDate
-                        ? new Date(currentInvoice.invoiceDate).toLocaleDateString('en-US', {
-                            month: 'long',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        : 'N/A'}
-                    </Typography>
-                  </Box>
-                </Box>
+    {/* Main Invoice Content */}
+    <Box sx={{ p: '20px 16px' }}>
+      {/* Top Row: Billed to, Invoice number, Invoice of */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: '56px' }}>
+        <Box>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#5e6470',
+            lineHeight: '14px',
+            mb: '4px'
+          }}>
+            Billed to
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: '#1a1c21',
+            lineHeight: '14px'
+          }}>
+            {billingData?.firstName} {billingData?.lastName}
+          </Typography>
+        </Box>
+        
+        <Box>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#5e6470',
+            lineHeight: '14px',
+            mb: '4px'
+          }}>
+            Invoice number
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Roboto, sans-serif',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: '#6d6b80',
+            lineHeight: '24px',
+            letterSpacing: '0.5px'
+          }}>
+            {currentInvoice?.invoiceNumber || 'N/A'}
+          </Typography>
+        </Box>
 
-                {/* Payment Details */}
-                <Box sx={{ mb: 4 }}>
-                  <Typography
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#1a1a1a',
-                      mb: 2,
-                    }}
-                  >
-                    Payment Details
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: 2,
-                      p: 3,
-                      backgroundColor: '#f9fafc',
-                      borderRadius: '8px',
-                    }}
-                  >
-                    <Box>
-                      <Typography
-                        sx={{
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '13px',
-                          color: '#666',
-                          mb: 0.5,
-                        }}
-                      >
-                        Amount Paid
-                      </Typography>
-                      <Typography
-                        sx={{
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '20px',
-                          fontWeight: 700,
-                          color: '#4CAF50',
-                        }}
-                      >
-                        ₱{Number(currentInvoice?.amountPaid || 0).toLocaleString('en-PH', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography
-                        sx={{
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '13px',
-                          color: '#666',
-                          mb: 0.5,
-                        }}
-                      >
-                        Payment Method
-                      </Typography>
-                      <Typography
-                        sx={{
-                          fontFamily: 'Inter, sans-serif',
-                          fontSize: '16px',
-                          fontWeight: 600,
-                          color: '#1a1a1a',
-                        }}
-                      >
-                        {currentInvoice?.paymentMethod || 'N/A'}
-                      </Typography>
-                    </Box>
-                    {currentInvoice?.dueDate && (
-                      <Box>
-                        <Typography
-                          sx={{
-                            fontFamily: 'Inter, sans-serif',
-                            fontSize: '13px',
-                            color: '#666',
-                            mb: 0.5,
-                          }}
-                        >
-                          Due Date
-                        </Typography>
-                        <Typography
-                          sx={{
-                            fontFamily: 'Inter, sans-serif',
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#1a1a1a',
-                          }}
-                        >
-                          {new Date(currentInvoice.dueDate).toLocaleDateString('en-US', {
-                            month: 'long',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </Box>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#5e6470',
+            lineHeight: '14px',
+            mb: '2px'
+          }}>
+            Invoice of (PHP)
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Roboto, sans-serif',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: '#6d6b80',
+            lineHeight: '24px',
+            letterSpacing: '0.5px'
+          }}>
+            {Number(currentInvoice?.amountPaid || 0).toLocaleString('en-PH', { 
+              minimumFractionDigits: 2, 
+              maximumFractionDigits: 2 
+            })}PHP
+          </Typography>
+        </Box>
+      </Box>
 
-                {/* Notes */}
-                {currentInvoice?.notes && (
-                  <Box sx={{ mb: 3 }}>
-                    <Typography
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '16px',
-                        fontWeight: 600,
-                        color: '#1a1a1a',
-                        mb: 1,
-                      }}
-                    >
-                      Notes
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '14px',
-                        color: '#666',
-                        p: 2,
-                        backgroundColor: '#f9fafc',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      {currentInvoice.notes}
-                    </Typography>
-                  </Box>
-                )}
+      {/* Second Row: Dentist Name and Invoice date */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: '16px' }}>
+        <Box>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#5e6470',
+            lineHeight: '14px',
+            mb: '4px'
+          }}>
+            Dentist Name
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: '#1a1c21',
+            lineHeight: '14px'
+          }}>
+            {currentInvoice?.dentist || 'N/A'}
+          </Typography>
+        </Box>
 
-                {/* Total Bill Summary */}
-                <Box
-                  sx={{
-                    mt: 4,
-                    pt: 3,
-                    borderTop: '2px solid #e0e0e0',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#666',
-                    }}
-                  >
-                    Total Bill
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '24px',
-                      fontWeight: 700,
-                      color: '#1a1a1a',
-                    }}
-                  >
-                    ₱{Number(billingData?.totalBill || 0).toLocaleString('en-PH', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </Typography>
-                </Box>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    mt: 1,
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#666',
-                    }}
-                  >
-                    Remaining Balance
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '24px',
-                      fontWeight: 700,
-                      color: billingData?.balance > 0 ? '#F44336' : '#4CAF50',
-                    }}
-                  >
-                    ₱{Number(billingData?.balance || 0).toLocaleString('en-PH', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </Typography>
-                </Box>
-              </Paper>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#5e6470',
+            lineHeight: '14px',
+            mb: '4px'
+          }}>
+            Invoice date
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: '#1a1c21',
+            lineHeight: '14px'
+          }}>
+            {currentInvoice?.invoiceDate
+              ? new Date(currentInvoice.invoiceDate).toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : 'N/A'}
+          </Typography>
+        </Box>
+      </Box>
+
+      {/* Third Row: Payment Method and Reference Number */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: '24px' }}>
+        <Box>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#5e6470',
+            lineHeight: '14px',
+            mb: '4px'
+          }}>
+            Payment Method
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: '#1a1c21',
+            lineHeight: '14px'
+          }}>
+            {currentInvoice?.paymentMethod || 'N/A'}
+          </Typography>
+        </Box>
+
+        {currentInvoice?.referenceNumber && (
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography sx={{ 
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '10px',
+              fontWeight: 500,
+              color: '#5e6470',
+              lineHeight: '14px',
+              mb: '4px'
+            }}>
+              Reference Number
+            </Typography>
+            <Typography sx={{ 
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: '#1a1c21',
+              lineHeight: '14px'
+            }}>
+              {currentInvoice.referenceNumber}
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Divider before table */}
+      <Box sx={{ borderTop: '1px solid #e0e0e0', mb: '8px' }} />
+
+      {/* Table Header */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        mb: '12px'
+      }}>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '8px',
+          fontWeight: 600,
+          color: '#5e6470',
+          letterSpacing: '0.32px',
+          textTransform: 'uppercase',
+          width: '180px'
+        }}>
+          Services Availed
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '8px',
+          fontWeight: 600,
+          color: '#5e6470',
+          letterSpacing: '0.32px',
+          textTransform: 'uppercase',
+          width: '40px',
+          textAlign: 'center'
+        }}>
+          Qty
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '8px',
+          fontWeight: 600,
+          color: '#5e6470',
+          letterSpacing: '0.32px',
+          textTransform: 'uppercase',
+          width: '100px',
+          textAlign: 'right'
+        }}>
+          Rate (in PHP)
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '8px',
+          fontWeight: 600,
+          color: '#5e6470',
+          letterSpacing: '0.32px',
+          textTransform: 'uppercase',
+          width: '100px',
+          textAlign: 'right'
+        }}>
+          Amount (in PHP)
+        </Typography>
+      </Box>
+
+      <Box sx={{ borderTop: '1px solid #e0e0e0', mb: '14px' }} />
+
+      {/* Services */}
+      {currentInvoice?.services && currentInvoice.services.map((service, index) => (
+        <Box key={index} sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          mb: '14px'
+        }}>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: '#1a1c21',
+            lineHeight: '14px',
+            width: '180px'
+          }}>
+            {service.name}
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#1a1c21',
+            lineHeight: '14px',
+            width: '40px',
+            textAlign: 'center'
+          }}>
+            {service.quantity || 1}
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#1a1c21',
+            lineHeight: '14px',
+            width: '100px',
+            textAlign: 'right'
+          }}>
+            {parseFloat(service.price).toLocaleString('en-PH', { 
+              minimumFractionDigits: 2, 
+              maximumFractionDigits: 2 
+            })}
+          </Typography>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#1a1c21',
+            lineHeight: '14px',
+            width: '100px',
+            textAlign: 'right'
+          }}>
+            {(parseFloat(service.price) * (service.quantity || 1)).toLocaleString('en-PH', { 
+              minimumFractionDigits: 2, 
+              maximumFractionDigits: 2 
+            })}
+          </Typography>
+        </Box>
+      ))}
+
+      {/* Subtotal */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        mb: '24px',
+        mt: '20px'
+      }}>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 500,
+          color: '#1a1c21',
+          lineHeight: '14px'
+        }}>
+          Subtotal
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 500,
+          color: '#1a1c21',
+          lineHeight: '14px',
+          width: '100px',
+          textAlign: 'right'
+        }}>
+          {(currentInvoice?.servicesTotal || 0).toLocaleString('en-PH', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+          })}
+        </Typography>
+      </Box>
+
+      {/* Additional Charges */}
+      {currentInvoice?.additionalCharges && currentInvoice.additionalCharges.length > 0 && (
+        <>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 800,
+            color: '#1a1c21',
+            lineHeight: '14px',
+            mb: '12px'
+          }}>
+            Additional Charges
+          </Typography>
+
+          {currentInvoice.additionalCharges.map((charge, index) => (
+            <Box key={index} sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              mb: '12px'
+            }}>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '180px'
+              }}>
+                {charge.name}
+              </Typography>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '40px',
+                textAlign: 'center'
+              }}>
+                {charge.quantity || 1}
+              </Typography>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '100px',
+                textAlign: 'right'
+              }}>
+                {parseFloat(charge.price).toLocaleString('en-PH', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                })}
+              </Typography>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '100px',
+                textAlign: 'right'
+              }}>
+                {(parseFloat(charge.price) * (charge.quantity || 1)).toLocaleString('en-PH', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                })}
+              </Typography>
             </Box>
+          ))}
+        </>
+      )}
+
+      {/* Discounts */}
+      {currentInvoice?.discounts && currentInvoice.discounts.length > 0 && (
+        <>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '10px',
+            fontWeight: 700,
+            color: '#1a1c21',
+            lineHeight: '14px',
+            mb: '12px',
+            mt: '24px'
+          }}>
+            Discount
+          </Typography>
+
+          {currentInvoice.discounts.map((discount, index) => (
+            <Box key={index} sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              mb: '12px'
+            }}>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '180px'
+              }}>
+                {discount.name}
+              </Typography>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '40px',
+                textAlign: 'center'
+              }}>
+                {discount.quantity || 1}
+              </Typography>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '100px',
+                textAlign: 'right'
+              }}>
+                -{parseFloat(discount.price).toLocaleString('en-PH', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                })}
+              </Typography>
+              <Typography sx={{ 
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '10px',
+                fontWeight: 500,
+                color: '#1a1c21',
+                lineHeight: '14px',
+                width: '100px',
+                textAlign: 'right'
+              }}>
+                -{(parseFloat(discount.price) * (discount.quantity || 1)).toLocaleString('en-PH', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                })}
+              </Typography>
+            </Box>
+          ))}
+        </>
+      )}
+
+      {/* Divider before totals */}
+      <Box sx={{ borderTop: '1px solid #e0e0e0', my: '20px' }} />
+
+      {/* Total */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        mb: '18px'
+      }}>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#1a1c21',
+          lineHeight: '14px'
+        }}>
+          Total
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#1a1c21',
+          lineHeight: '14px',
+          width: '100px',
+          textAlign: 'right'
+        }}>
+          {(billingData?.totalBill || 0).toLocaleString('en-PH', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+          })}
+        </Typography>
+      </Box>
+
+      {/* Paid */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        mb: '18px'
+      }}>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#1a1c21',
+          lineHeight: '14px'
+        }}>
+          Paid
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#1a1c21',
+          lineHeight: '14px',
+          width: '100px',
+          textAlign: 'right'
+        }}>
+          {Number(currentInvoice?.amountPaid || 0).toLocaleString('en-PH', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+          })}
+        </Typography>
+      </Box>
+
+      {/* Balance */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        mb: '24px'
+      }}>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#1a1c21',
+          lineHeight: '14px'
+        }}>
+          BALANCE
+        </Typography>
+        <Typography sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#1a1c21',
+          lineHeight: '14px',
+          width: '100px',
+          textAlign: 'right'
+        }}>
+          {(billingData?.balance || 0).toLocaleString('en-PH', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+          })}
+        </Typography>
+      </Box>
+    </Box>
+  </Paper>
+</Box>
 
             {/* Navigation Controls */}
             <Box

@@ -27,6 +27,7 @@ import DataTable from '../components/DataTable';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import FilterComponent, { FilterButton, FilterContent } from '../components/FilterComponent';
+import { CheckCircle } from '@mui/icons-material';
 import { 
   ChevronLeft, 
   ChevronRight,
@@ -828,18 +829,30 @@ const handleCancelAppointment = async () => {
   console.log('Clicked appointment:', appointment);
   
   try {
-    // Fetch fresh appointment details from backend
     const response = await fetch(`${API_BASE}/appointments/${appointment.id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch appointment details');
     }
     
     const freshAppointmentData = await response.json();
-    console.log('📋 Fresh appointment data from backend:', freshAppointmentData);
-    
-    // Determine status with real-time ongoing detection
+    console.log('Fresh appointment data from backend:', freshAppointmentData);
+
+    // Check if billing already exists for this appointment
+    let hasBilling = false;
+    try {
+      const billingCheckResponse = await fetch(`${API_BASE}/billings/appointment/${appointment.id}`);
+      if (billingCheckResponse.ok) {
+        const existingBilling = await billingCheckResponse.json();
+        hasBilling = !!existingBilling;
+        console.log('Billing exists for this appointment:', hasBilling);
+      }
+    } catch (billingError) {
+      console.log('No billing found for this appointment');
+    }
+
+    const currentTime = new Date();
     const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
-    let appointmentToShow = { ...freshAppointmentData };
+    let appointmentToShow = { ...freshAppointmentData, hasBilling }; // Add hasBilling flag
     
     if (freshAppointmentData.appointmentDate && 
         freshAppointmentData.status !== 'done' && 
@@ -860,45 +873,17 @@ const handleCancelAppointment = async () => {
       }
     }
     
-    // Load services
-    if (services.length === 0) {
-      console.log('⚠️ Services not loaded, fetching...');
-      await fetchServices();
-    }
-    
-    console.log('Services available:', services.length);
-    
-    // Fetch detailed service information
-    setLoadingServiceDetails(true);
-    try {
-      const servicesResponse = await fetch(`${API_BASE}/appointment-services/${appointmentToShow.id}/detailed`);
-      
-      if (servicesResponse.ok) {
-        const detailedServices = await servicesResponse.json();
-        console.log('📦 Fetched detailed services (with package contents):', detailedServices);
-        setAppointmentServiceDetails(detailedServices);
-      } else {
-        console.error('Failed to fetch detailed services');
-        setAppointmentServiceDetails([]);
-      }
-      
-    } catch (error) {
-      console.error('❌ Error loading service details:', error);
-      setAppointmentServiceDetails([]);
-    } finally {
-      setLoadingServiceDetails(false);
-    }
-    
-    // CRITICAL FIX: Use fresh data from backend (includes logged status)
-    console.log('✅ Setting selected appointment with logged status:', appointmentToShow.logged);
     setSelectedAppointment(appointmentToShow);
-    setModalOpen(true);
     
+    await fetchAppointmentDetails(appointment.id);
+    
+    setModalOpen(true);
   } catch (error) {
-    console.error('❌ Error fetching appointment:', error);
+    console.error('Error fetching appointment:', error);
     showToast('Failed to load appointment details', 'error');
   }
 };
+
 
 
 
@@ -1105,7 +1090,6 @@ const handleCloseModal = () => {
     { value: 'scheduled', label: 'Scheduled', color: '#e8710a' },
   { value: 'done', label: 'Done', color: '#0d652d' },
   { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
-  { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' } 
   ];
 
   // Filter categories for appointments (used by FilterComponent)
@@ -2987,33 +2971,61 @@ const handleCloseModal = () => {
     </Button>
   )}
   
-  {/* Show Proceed to Billing button ONLY if appointment is logged */}
-  {selectedAppointment?.status === 'done' && 
-   selectedAppointment?.logged && 
-   !editMode && (
-    <Button 
-      variant="contained"
-      onClick={handleProceedToBilling}
-      sx={{ 
-        fontFamily: 'Inter, sans-serif',
-        textTransform: 'none',
-        fontSize: '16px',
-        fontWeight: 700,
-        borderRadius: '12px',
-        px: 4,
-        py: 1.5,
-        background: 'linear-gradient(135deg, #0d652d 0%, #0a4d23 100%)',
-        boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
-        '&:hover': {
-          background: 'linear-gradient(135deg, #0a4d23 0%, #083a1b 100%)',
-          boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
-          transform: 'translateY(-1px)'
-        }
-      }}
-    >
-      💳 Proceed to Billing
-    </Button>
-  )}
+  {/* Show Proceed to Billing button ONLY if appointment is logged AND no billing exists yet */}
+{selectedAppointment?.status === 'done' && 
+ selectedAppointment?.logged && 
+ !selectedAppointment?.hasBilling && // ADD THIS CHECK
+ !editMode && (
+  <Button 
+    variant="contained"
+    onClick={handleProceedToBilling}
+    sx={{ 
+      fontFamily: 'Inter, sans-serif',
+      textTransform: 'none',
+      fontSize: '16px',
+      fontWeight: 700,
+      borderRadius: '12px',
+      px: 4,
+      py: 1.5,
+      background: 'linear-gradient(135deg, #0d652d 0%, #0a4d23 100%)',
+      boxShadow: '0 4px 12px rgba(13, 101, 45, 0.3)',
+      '&:hover': {
+        background: 'linear-gradient(135deg, #0a4d23 0%, #083a1b 100%)',
+        boxShadow: '0 6px 16px rgba(13, 101, 45, 0.4)',
+        transform: 'translateY(-1px)'
+      }
+    }}
+  >
+    💳 Proceed to Billing
+  </Button>
+)}
+
+{/* ADD THIS - Show message if billing already exists */}
+{selectedAppointment?.status === 'done' && 
+ selectedAppointment?.logged && 
+ selectedAppointment?.hasBilling && 
+ !editMode && (
+  <Box sx={{ 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: 1,
+    px: 3,
+    py: 1.5,
+    backgroundColor: '#e8f5e9',
+    borderRadius: '8px',
+    border: '1px solid #4caf50'
+  }}>
+    <CheckCircle sx={{ color: '#4caf50', fontSize: 20 }} />
+    <Typography sx={{ 
+      fontFamily: 'Inter, sans-serif',
+      fontSize: '14px',
+      color: '#2e7d32',
+      fontWeight: '500'
+    }}>
+      Billing already created for this appointment
+    </Typography>
+  </Box>
+)}
   
   {/* Show Cancel Appointment button ONLY for scheduled (NOT ongoing, NOT done, NOT cancelled) */}
   {!editMode && 
