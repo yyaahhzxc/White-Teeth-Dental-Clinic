@@ -230,7 +230,7 @@ function ServiceList() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: 'transparent',
+        backgroundColor: '#2148c0',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -294,8 +294,8 @@ function ServiceList() {
                   aria-label="split button"
                   sx={{
                     '& .MuiButton-root': {
-                      backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'),
-                      color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white'),
+                      backgroundColor: '#2148c0',
+                      color: 'white',
                       borderRadius: '8px',
                       height: '38px',
                       textTransform: 'none',
@@ -304,7 +304,7 @@ function ServiceList() {
                       fontFamily: 'Inter, sans-serif',
                       boxShadow: 'none',
                       '&:hover': {
-                        backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.dark || theme.palette.primary.main : '#1e3fa8'),
+                        backgroundColor: '#1e3fa8',
                         boxShadow: 'none',
                       },
                     }
@@ -330,25 +330,60 @@ function ServiceList() {
                 </ButtonGroup>
                 <Popper
                   sx={{
-                    borderColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'),
-                    color: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white'),
-                    backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'),
-                    borderRadius: '8px',
-                    height: '38px',
-                    px: 3,
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: '16px',
-                    fontFamily: 'Inter, sans-serif',
-                    boxShadow: 'none',
-                    ml: 1,
-                    '&:hover': {
-                      backgroundColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.dark || theme.palette.primary.main : '#1e3fa8'),
-                      borderColor: (theme) => (theme.palette.mode === 'dark' ? theme.palette.primary.dark || theme.palette.primary.main : '#1e3fa8')
-                    },
+                    zIndex: 1300,
                   }}
+                  open={openSplitButton}
+                  anchorEl={anchorRef.current}
+                  role={undefined}
+                  transition
+                  disablePortal
                 >
-                  Add Package
+                  {({ TransitionProps, placement }) => (
+                    <Grow
+                      {...TransitionProps}
+                      style={{
+                        transformOrigin:
+                          placement === 'bottom' ? 'center top' : 'center bottom',
+                      }}
+                    >
+                      <Paper sx={{ width: anchorRef.current?.offsetWidth || 'auto' }}>
+                        <ClickAwayListener onClickAway={handleSplitButtonClose}>
+                          <MenuList id="split-button-menu" autoFocusItem>
+                            <MenuItem
+                              onClick={() => handleMenuItemClick('service')}
+                              sx={{ 
+                                fontFamily: 'Inter, sans-serif',
+                                color: '#2148c0',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                '&:hover': {
+                                  backgroundColor: '#e3f2fd',
+                                  color: '#1a3a9a'
+                                }
+                              }}
+                            >
+                              Add Service
+                            </MenuItem>
+                            <MenuItem
+                              onClick={() => handleMenuItemClick('package')}
+                              sx={{ 
+                                fontFamily: 'Inter, sans-serif',
+                                color: '#2148c0',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                '&:hover': {
+                                  backgroundColor: '#e3f2fd',
+                                  color: '#1a3a9a'
+                                }
+                              }}
+                            >
+                              Add Package
+                            </MenuItem>
+                          </MenuList>
+                        </ClickAwayListener>
+                      </Paper>
+                    </Grow>
+                  )}
                 </Popper>
               </Box>
             </Box>
@@ -465,13 +500,11 @@ function ServiceList() {
                       px: 2,
                       py: 0.875,
                       alignItems: 'center',
-                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc',
+                      backgroundColor: '#f9fafc',
                       borderRadius: '10px',
                       height: 60,
-                      boxSizing: 'border-box',
-                      border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb',
                       '&:hover': { 
-                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action?.hover || theme.palette.background.paper : '#f0f4f8',
+                        backgroundColor: '#f0f4f8',
                         cursor: 'pointer'
                       }
                     }}
@@ -580,10 +613,8 @@ function ServiceList() {
                     justifyContent: 'center',
                     alignItems: 'center',
                     py: 4,
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc',
+                    backgroundColor: '#f9fafc',
                     borderRadius: '10px',
-                    boxSizing: 'border-box',
-                    border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #e5e7eb',
                   }}
                 >
                   <Typography
