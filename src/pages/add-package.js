@@ -47,7 +47,6 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
     name: '',
     description: '',
     price: '',
-    duration: '',
     status: 'Active'
   });
 
@@ -135,8 +134,7 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
     setPackageData({
       name: '',
       description: '',
-      price: '',
-      duration: '',
+      price: '', // Only price field
       status: 'Active'
     });
     setSelectedServices([]);
@@ -245,7 +243,7 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
           name: packageData.name.trim(),
           description: packageData.description.trim(),
           price: parseFloat(packageData.price) || totalPrice,
-          duration: parseInt(packageData.duration) || totalDuration,
+          duration: totalDuration, // Always use calculated duration
           status: packageData.status,
           services: selectedServices.map(s => ({
             serviceId: s.serviceId,
@@ -364,49 +362,71 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
         )}
 
         <Box sx={{ display: 'grid', gap: 3 }}>
-          {/* Package Basic Info */}
-          <Paper sx={{ p: 3, borderRadius: '12px', backgroundColor: 'white' }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#2148C0' }}>
-              Package Information
-            </Typography>
+         {/* Package Basic Info */}
+<Paper sx={{ p: 3, borderRadius: '12px', backgroundColor: 'white' }}>
+  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#2148C0' }}>
+    Package Information
+  </Typography>
 
-            <Box sx={{ display: 'grid', gap: 3 }}>
-              {/* Package Name */}
-              <TextField
-                fullWidth
-                name="name"
-                label="Package Name"
-                value={packageData.name}
-                onChange={handlePackageChange}
-                placeholder="e.g., Complete Dental Checkup Package"
-                disabled={loading}
-                error={getFieldError('name') || nameExists}
-                helperText={getHelperText('name')}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PackageIcon sx={{ color: '#6b7280', fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-              />
+  <Box sx={{ display: 'grid', gap: 3 }}>
+    {/* Package Name */}
+    <TextField
+      fullWidth
+      name="name"
+      label="Package Name"
+      value={packageData.name}
+      onChange={handlePackageChange}
+      placeholder="e.g., Complete Dental Checkup Package"
+      disabled={loading}
+      error={getFieldError('name') || nameExists}
+      helperText={getHelperText('name')}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <PackageIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+          </InputAdornment>
+        ),
+      }}
+      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+    />
 
-              {/* Description */}
-              <TextField
-                fullWidth
-                name="description"
-                label="Description"
-                value={packageData.description}
-                onChange={handlePackageChange}
-                placeholder="Describe what this package includes..."
-                multiline
-                rows={3}
-                disabled={loading}
-                error={getFieldError('description')}
-                helperText={getHelperText('description')}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
-              />
+    {/* Description */}
+    <TextField
+      fullWidth
+      name="description"
+      label="Description"
+      value={packageData.description}
+      onChange={handlePackageChange}
+      placeholder="Describe what this package includes..."
+      multiline
+      rows={3}
+      disabled={loading}
+      error={getFieldError('description')}
+      helperText={getHelperText('description')}
+      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+    />
+    
+ {/* Custom Price */}
+ <TextField
+      fullWidth
+      name="price"
+      label="Package Price (Optional)"
+      type="number"
+      value={packageData.price}
+      onChange={handlePackageChange}
+      placeholder={`Auto: ₱${totalPrice.toLocaleString()}`}
+      disabled={loading}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <PriceIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+          </InputAdornment>
+        ),
+      }}
+      helperText={packageData.price ? `Custom price: ₱${parseFloat(packageData.price).toLocaleString()}` : `Auto-calculated from services: ₱${totalPrice.toLocaleString()}`}
+      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+    />
+
 
               {/* Status */}
               <TextField
@@ -530,31 +550,52 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
               )}
             </Box>
 
-            {/* Package Totals */}
-            {selectedServices.length > 0 && (
-              <Paper sx={{ 
-                mt: 3, 
-                p: 3, 
-                background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-                color: 'white',
-                borderRadius: '12px'
+           {/* Package Totals */}
+{selectedServices.length > 0 && (
+  <Paper sx={{ 
+    mt: 3, 
+    p: 3, 
+    background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
+    color: 'white',
+    borderRadius: '12px'
+  }}>
+    <Typography variant="h6" sx={{ mb: 2 }}>Package Summary</Typography>
+    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+      <Box>
+        <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
+          {packageData.price ? 'Custom Price' : 'Auto-Calculated Price'}
+        </Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          ₱{(packageData.price ? parseFloat(packageData.price) : totalPrice).toLocaleString()}
+        </Typography>
+        {packageData.price && parseFloat(packageData.price) !== totalPrice && (
+          <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 0.5 }}>
+            Services total: ₱{totalPrice.toLocaleString()}
+            {parseFloat(packageData.price) < totalPrice && (
+              <span style={{ 
+                marginLeft: '8px',
+                padding: '2px 8px',
+                backgroundColor: 'rgba(76, 175, 80, 0.3)',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 600
               }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>Package Summary</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Total Price</Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>₱{totalPrice.toLocaleString()}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Total Duration</Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>{totalDuration} minutes</Typography>
-                  </Box>
-                </Box>
-                <Typography variant="body2" sx={{ mt: 2, opacity: 0.9 }}>
-                  {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} included
-                </Typography>
-              </Paper>
+                Save ₱{(totalPrice - parseFloat(packageData.price)).toLocaleString()}
+              </span>
             )}
+          </Typography>
+        )}
+      </Box>
+      <Box>
+        <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Total Duration</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>{totalDuration} minutes</Typography>
+      </Box>
+    </Box>
+    <Typography variant="body2" sx={{ mt: 2, opacity: 0.9 }}>
+      {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} included
+    </Typography>
+  </Paper>
+)}
           </Paper>
         </Box>
       </DialogContent>

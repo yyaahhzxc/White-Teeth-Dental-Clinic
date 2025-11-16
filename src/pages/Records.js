@@ -552,21 +552,22 @@ function PatientList() {
 
       {/* Patient Modal */}
       <ViewRecord
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        patient={selectedPatient}
-        medInfo={medInfo}
-        onRecordUpdated={() => {
-          // Refresh the list after edit
-          fetch(`${API_BASE}/patients`)
-            .then(res => res.json())
-            .then(data => {
-              setPatients(data);
-              setFilteredPatients(data);
-            });
-        }}
-      />
-      <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
+  open={viewDialogOpen}
+  onClose={() => setViewDialogOpen(false)}
+  patient={selectedPatient}
+  medInfo={medInfo}
+  onRecordUpdated={() => {
+    // Refresh patient list after editing
+    fetchPatients(activeFilters);
+  }}
+/>
+<AddPatientRecord 
+  open={showPatientModal} 
+  onClose={() => setShowPatientModal(false)}
+  onPatientAdded={() => {  // ✅ CORRECT - Now on AddPatientRecord!
+    fetchPatients(activeFilters);
+  }}
+/>
     </Box>
   );
 }

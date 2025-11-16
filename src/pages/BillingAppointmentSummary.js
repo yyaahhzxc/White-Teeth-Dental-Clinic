@@ -14,6 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CreateInvoice from './CreateInvoice';
+const API_BASE = 'http://localhost:3001';
 
 function BillingAppointmentSummary({ 
   open = true, 
@@ -22,12 +23,28 @@ function BillingAppointmentSummary({
   onSaveBilling = () => {} // Callback to save billing data to parent component
 }) {
   // Initialize with billing data from appointment
-  const initialBillingData = {
-    firstName: billingData.firstName || 'John',
-    lastName: billingData.lastName || 'Doe',
-    dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    service: billingData.service || '',
-  };
+ const initialBillingData = {
+  appointmentId: billingData.appointmentId || null,
+  firstName: billingData.firstName || 'John',
+  lastName: billingData.lastName || 'Doe',
+  dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { 
+    month: 'long', 
+    day: 'numeric', 
+    year: 'numeric' 
+  }),
+  appointmentDate: billingData.appointmentDate || '',
+  timeStart: billingData.timeStart || '',
+  timeEnd: billingData.timeEnd || '',
+  patientId: billingData.patientId || null,
+  // ADD THESE LINES - Include billing financial data
+  totalBill: billingData.totalBill || 0,
+  amountPaid: billingData.amountPaid || 0,
+  balance: billingData.balance || 0,
+  billingId: billingData.id || billingData.billingId || null,
+};
+
+  console.log('📋 BillingAppointmentSummary initialized with:', initialBillingData);
+  console.log('🛒 Incoming services:', billingData.services);
 
   // State for CreateInvoice modal
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
@@ -39,14 +56,26 @@ function BillingAppointmentSummary({
   const [isLocked, setIsLocked] = useState(false);
 
   // Initialize services from appointment data
-  const initialServices = billingData.service 
-    ? [{ id: 1, name: billingData.service, quantity: 1, price: 1000.00 }]
-    : [{ id: 1, name: 'Wisdom Tooth Extraction', quantity: 1, price: 1000.00 }];
+  const initialServices = billingData.services && billingData.services.length > 0
+    ? billingData.services.map((service, index) => ({
+        id: index + 1, // Use index for UI purposes
+        serviceId: service.id, // Keep original service ID
+        name: service.name,
+        quantity: service.quantity || 1,
+        price: parseFloat(service.price) || 0,
+        source_type: service.source_type || 'service'
+      }))
+    : [{ id: 1, name: '', quantity: 1, price: 0 }];
+
+  console.log('🔧 Initialized services:', initialServices);
 
   // Left side form state (modifiable)
   const [services, setServices] = useState(initialServices);
   const [additionalCharges, setAdditionalCharges] = useState([]);
   const [discounts, setDiscounts] = useState([]);
+
+  const [selectedBilling, setSelectedBilling] = useState(null);
+
 
   // Calculate totals dynamically
   const calculations = useMemo(() => {
@@ -129,6 +158,12 @@ function BillingAppointmentSummary({
     setAdditionalCharges([...additionalCharges, { id: newId, name: '', quantity: 1, price: '' }]);
   };
 
+
+  
+const handlePayBill = () => {
+  setConfirmDialogOpen(true);
+};
+
   // Update charge handler
   const handleUpdateCharge = (id, field, value) => {
     if (field === 'price') {
@@ -191,56 +226,98 @@ function BillingAppointmentSummary({
     setDiscounts(discounts.filter(d => d.id !== id));
   };
 
-  const handlePayBill = () => {
-    // Show confirmation dialog instead of proceeding directly
-    setConfirmDialogOpen(true);
-  };
-  
-  const handleConfirmPayBill = () => {
+  // REPLACE the entire handleConfirmPayBill function (around line 270)
+
+  const handleConfirmPayBill = async () => {
     // Close confirmation dialog
     setConfirmDialogOpen(false);
     
-    // Don't lock the form yet - allow editing during invoice creation
-    // Lock will happen after invoice is created
-    
-    // Prepare billing entry data
-    const billingEntry = {
-      id: Date.now(), // Generate a unique ID
-      dateCreated: initialBillingData.dateCreated,
-      firstName: initialBillingData.firstName,
-      lastName: initialBillingData.lastName,
-      totalBill: calculations.total,
-      amountPaid: 0, // Will be updated when invoice is created
-      balance: calculations.total,
-      status: 'Unpaid', // Will be 'Paid' or 'Partial' after payment
-      services: calculations.validServices,
-      additionalCharges: calculations.validCharges,
-      discounts: calculations.validDiscounts,
-    };
-
-    // Save billing entry to local storage (frontend only)
+    console.log('💰 Pay Bill clicked for appointment:', initialBillingData.appointmentId);
+  
     try {
-      const existingBillings = JSON.parse(localStorage.getItem('billings') || '[]');
-      existingBillings.push(billingEntry);
-      localStorage.setItem('billings', JSON.stringify(existingBillings));
-      console.log('Billing entry saved:', billingEntry);
+      // First, check if billing already exists for this appointment
+      const checkResponse = await fetch(`${API_BASE}/billings/appointment/${initialBillingData.appointmentId}`);
       
-      // Trigger custom event for billing table to refresh
-      window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingEntry }));
+      let existingBilling = null;
+      if (checkResponse.ok) {
+        existingBilling = await checkResponse.json();
+        console.log('📋 Found existing billing:', existingBilling);
+      }
+  
+      let billingToUse;
+  
+      if (existingBilling) {
+        // Billing already exists - use it
+        console.log('✅ Using existing billing ID:', existingBilling.id);
+        billingToUse = existingBilling;
+      } else {
+        // Create new billing
+        const billingEntry = {
+          appointmentId: initialBillingData.appointmentId,
+          patientId: initialBillingData.patientId,
+          dateCreated: initialBillingData.dateCreated,
+          appointmentDate: initialBillingData.appointmentDate,
+          timeStart: initialBillingData.timeStart,
+          timeEnd: initialBillingData.timeEnd,
+          firstName: initialBillingData.firstName,
+          lastName: initialBillingData.lastName,
+          totalBill: calculations.total,
+          amountPaid: 0,
+          balance: calculations.total,
+          status: 'Unpaid',
+          services: calculations.validServices,
+          additionalCharges: calculations.validCharges,
+          discounts: calculations.validDiscounts,
+        };
+  
+        console.log('💰 Creating new billing entry:', billingEntry);
+  
+        const response = await fetch(`${API_BASE}/billings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(billingEntry),
+        });
+  
+        if (!response.ok) {
+          throw new Error('Failed to create billing');
+        }
+  
+        const result = await response.json();
+        console.log('✅ Billing created successfully:', result);
+  
+        billingToUse = result.billing;
+  
+        // Trigger custom event for billing table to refresh
+        window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingToUse }));
+      }
+  
+      // Store billing data in component state so CreateInvoice can access it
+      const invoiceBillingData = {
+        ...initialBillingData,
+        services: calculations.validServices,
+        additionalCharges: calculations.validCharges,
+        discounts: calculations.validDiscounts,
+        billingId: billingToUse.id,
+        appointmentId: initialBillingData.appointmentId,
+        patientId: initialBillingData.patientId,
+        totalBill: calculations.total
+      };
+      
+      console.log('📄 Opening invoice with data:', invoiceBillingData);
+      
+      // Update selectedBilling with the complete data including billingId
+      setSelectedBilling(invoiceBillingData);
+      setCreateInvoiceOpen(true);
+      
     } catch (error) {
-      console.error('Error saving billing entry:', error);
+      console.error('❌ Error creating/fetching billing:', error);
+      alert('Failed to prepare billing. Please try again.');
     }
-
-    // Prepare billing data for the invoice
-    const invoiceBillingData = {
-      ...initialBillingData,
-      services,
-      additionalCharges,
-      discounts,
-      billingId: billingEntry.id, // Pass the billing ID to invoice
-    };
-    setCreateInvoiceOpen(true);
   };
+
+
 
   return (
     <Dialog 
@@ -838,23 +915,75 @@ function BillingAppointmentSummary({
               </>
             )}
 
-            {/* Total */}
+            {/* Total Bill and Remaining Balance */}
             <Box sx={{ 
               display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              flexDirection: 'column',
+              gap: 1.5,
               mt: 1,
               pt: 1.5,
             }}>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 800 }}>
-                TOTAL
-              </Typography>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'black', width: 90, textAlign: 'right' }}>
-                {calculations.total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </Typography>
-            </Box>
-          </Box>
+              {/* Original Total Bill */}
+              {initialBillingData.totalBill > 0 && initialBillingData.totalBill !== calculations.total && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#666', fontWeight: 600 }}>
+                    Original Total
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#666', fontWeight: 600, width: 90, textAlign: 'right' }}>
+                    {initialBillingData.totalBill.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              )}
 
+              {/* Amount Already Paid */}
+              {initialBillingData.amountPaid > 0 && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#4CAF50', fontWeight: 600 }}>
+                    Amount Paid
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#4CAF50', fontWeight: 600, width: 90, textAlign: 'right' }}>
+                    -{initialBillingData.amountPaid.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Current Total / Remaining Balance */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                pt: 1,
+                borderTop: '2px solid #e0e0e0',
+              }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 800 }}>
+                  {initialBillingData.amountPaid > 0 ? 'REMAINING BALANCE' : 'TOTAL'}
+                </Typography>
+                <Typography sx={{ 
+                  fontFamily: 'Inter, sans-serif', 
+                  fontSize: '15.117px', 
+                  color: initialBillingData.amountPaid > 0 ? '#F44336' : '#1a1c21', 
+                  fontWeight: 900, 
+                  width: 90, 
+                  textAlign: 'right' 
+                }}>
+                  {initialBillingData.balance > 0 
+                    ? initialBillingData.balance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : calculations.total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
+                </Typography>
+              </Box>
+            </Box>
+
+          </Box>
+          
           {/* Pay Bill Button */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, pt: 2, pb: 2 }}>
             <Button
@@ -883,16 +1012,23 @@ function BillingAppointmentSummary({
         </Box>
       </Box>
 
-      {/* Create Invoice Modal */}
-      <CreateInvoice
-        open={createInvoiceOpen}
-        onClose={() => setCreateInvoiceOpen(false)}
-        billingData={{
-          services,
-          additionalCharges,
-          discounts,
-        }}
-      />
+     {/* Create Invoice Modal */}
+<CreateInvoice
+  open={createInvoiceOpen}
+  onClose={() => {
+    setCreateInvoiceOpen(false);
+    onClose(); // Close the billing summary modal too
+    // Refresh billing table
+    window.dispatchEvent(new CustomEvent('invoiceCreated'));
+  }}
+  billingData={selectedBilling || {
+    ...initialBillingData,
+    services: calculations.validServices,
+    additionalCharges: calculations.validCharges,
+    discounts: calculations.validDiscounts,
+    totalBill: calculations.total
+  }}
+/>
       
       {/* Confirmation Dialog */}
       <Dialog

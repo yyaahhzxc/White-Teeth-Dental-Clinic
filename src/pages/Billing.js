@@ -17,8 +17,10 @@ import SortableHeader, { sortData } from '../components/SortableHeader';
 import DualSortableHeader, { sortDualData } from '../components/DualSortableHeader';
 import Pagination from '../components/Pagination';
 import BillingAppointmentSummary from './BillingAppointmentSummary';
+import InvoiceGallery from './InvoiceGallery';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
+const API_BASE = 'http://localhost:3001';
 
 function Billing() {
   // Helper function to format dates
@@ -40,27 +42,8 @@ function Billing() {
     { id: 6, dateCreated: formatDate('2025-10-10'), firstName: 'Ben', lastName: 'Dover', totalBill: 1000.00, amountPaid: 1000.00, balance: 0.00, status: 'Paid' },
   ];
 
-  // Load billings from localStorage or use initial data
-  const [billings, setBillings] = useState(() => {
-    try {
-      const storedBillings = localStorage.getItem('billings');
-      if (storedBillings) {
-        const parsed = JSON.parse(storedBillings);
-        // Merge with initial billings (avoid duplicates)
-        const merged = [...initialBillings];
-        parsed.forEach(newBilling => {
-          if (!merged.find(b => b.id === newBilling.id)) {
-            merged.push(newBilling);
-          }
-        });
-        return merged;
-      }
-      return initialBillings;
-    } catch (error) {
-      console.error('Error loading billings from localStorage:', error);
-      return initialBillings;
-    }
-  });
+  const [billings, setBillings] = useState(initialBillings);
+  
 
   const [categoryFilteredBillings, setCategoryFilteredBillings] = useState([]);
   const [filteredBillings, setFilteredBillings] = useState([]);
@@ -84,14 +67,76 @@ function Billing() {
   const navigate = useNavigate();
   const location = useLocation();
 
+
+  // ADD these missing state declarations after your existing states (around line 68)
+
+const [invoiceGalleryOpen, setInvoiceGalleryOpen] = useState(false);
+const [selectedBillingForInvoices, setSelectedBillingForInvoices] = useState(null);
+  
+  
+
+  // Load billings from backend
+useEffect(() => {
+  fetchBillings();
+}, []);
+
+
+
+
+const fetchBillings = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/billings`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch billings');
+    }
+    const data = await response.json();
+    console.log('📊 Fetched billings from backend:', data);
+    
+    // Format dates for display
+    const formattedBillings = data.map(billing => ({
+      ...billing,
+      dateCreated: billing.dateCreated // Keep as-is if already formatted, or format it
+        ? new Date(billing.dateCreated).toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric', 
+            year: 'numeric' 
+          })
+        : billing.dateCreated
+    }));
+    
+    setBillings(formattedBillings);
+  } catch (error) {
+    console.error('❌ Error fetching billings:', error);
+    // Fallback to initial data if backend fails
+    setBillings(initialBillings);
+  }
+};
+
+
+
   // Check if we should open billing modal from navigation state
   useEffect(() => {
+    // Handle navigation state (from route navigation)
     if (location.state?.openBillingModal && location.state?.billingData) {
+      console.log('🔔 Opening billing modal from navigation:', location.state.billingData);
       setModalOpen(true);
       setSelectedBilling(location.state.billingData);
       // Clear the state to prevent reopening on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
+  
+    // Handle custom event (from same-page action)
+    const handleOpenBillingModal = (event) => {
+      console.log('🔔 Opening billing modal from event:', event.detail);
+      setModalOpen(true);
+      setSelectedBilling(event.detail);
+    };
+  
+    window.addEventListener('openBillingModal', handleOpenBillingModal);
+    
+    return () => {
+      window.removeEventListener('openBillingModal', handleOpenBillingModal);
+    };
   }, [location, navigate]);
 
   // Filter categories for billing
@@ -101,44 +146,27 @@ function Billing() {
   ];
 
   // Listen for new billing entries
-  useEffect(() => {
-    const handleBillingCreated = (event) => {
-      console.log('New billing created:', event.detail);
-      const newBilling = event.detail;
-      
-      // Format date to "Month Day, Year"
-      const dateObj = new Date(newBilling.dateCreated);
-      const formattedDate = dateObj.toLocaleDateString('en-US', { 
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-      
-      setBillings(prevBillings => {
-        const billingWithFormattedDate = { ...newBilling, dateCreated: formattedDate };
-        const newBillings = [...prevBillings, billingWithFormattedDate];
-        // Update localStorage
-        localStorage.setItem('billings', JSON.stringify(newBillings));
-        return newBillings;
-      });
-    };
-    
-    const handleInvoiceCreated = () => {
-      console.log('Invoice created - refreshing billing table');
-      // Force reload billings from localStorage to get updated statuses
-      const storedBillings = localStorage.getItem('billings');
-      if (storedBillings) {
-        setBillings(JSON.parse(storedBillings));
-      }
-    };
+  // Listen for new billing entries and refresh from backend
+useEffect(() => {
+  const handleBillingCreated = (event) => {
+    console.log('New billing created:', event.detail);
+    fetchBillings(); // Refresh from backend
+  };
+  
+  const handleInvoiceCreated = () => {
+    console.log('Invoice created - refreshing billing table');
+    fetchBillings(); // Refresh from backend
+  };
 
-    window.addEventListener('billingCreated', handleBillingCreated);
-    window.addEventListener('invoiceCreated', handleInvoiceCreated);
-    return () => {
-      window.removeEventListener('billingCreated', handleBillingCreated);
-      window.removeEventListener('invoiceCreated', handleInvoiceCreated);
-    };
-  }, []);
+  window.addEventListener('billingCreated', handleBillingCreated);
+  window.addEventListener('invoiceCreated', handleInvoiceCreated);
+  return () => {
+    window.removeEventListener('billingCreated', handleBillingCreated);
+    window.removeEventListener('invoiceCreated', handleInvoiceCreated);
+  };
+}, []);
+
+
 
   // Initialize data
   useEffect(() => {
@@ -189,11 +217,12 @@ function Billing() {
     setPage(newPage);
   };
 
-  // Handlers for view actions (placeholders)
-  const handleViewInvoice = (billing) => {
-    console.log('View invoice for:', billing);
-    // TODO: Implement view invoice functionality
-  };
+  // REPLACE the handleViewInvoice function (around line 227)
+const handleViewInvoice = (billing) => {
+  console.log('View invoices for:', billing);
+  setSelectedBillingForInvoices(billing);
+  setInvoiceGalleryOpen(true);
+};
 
   const handleViewAppointment = (billing) => {
     console.log('View appointment for:', billing);
@@ -203,6 +232,8 @@ function Billing() {
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedBilling(null);
+    // Refresh billing table to show updated balances
+    fetchBillings();
   };
 
   return (
@@ -403,10 +434,38 @@ function Billing() {
                 visibleBillings.map((billing, index) => (
                   <Box 
                     key={billing.id}
-                    onClick={() => {
-                      setSelectedBilling(billing);
-                      setModalOpen(true);
+                    onClick={async () => {
+                      console.log('🖱️ Billing row clicked:', billing);
+                      
+                      // If billing has balance, refresh data from backend before opening modal
+                      if (billing.balance > 0) {
+                        console.log('💰 Refreshing billing data before opening payment modal');
+                        
+                        try {
+                          // Fetch fresh billing data from backend
+                          const response = await fetch(`${API_BASE}/billings/${billing.id}`);
+                          if (!response.ok) {
+                            throw new Error('Failed to fetch billing details');
+                          }
+                          
+                          const freshBillingData = await response.json();
+                          console.log('✅ Fresh billing data:', freshBillingData);
+                          
+                          setSelectedBilling(freshBillingData);
+                          setModalOpen(true);
+                        } catch (error) {
+                          console.error('❌ Error fetching fresh billing data:', error);
+                          // Fallback to cached data if fetch fails
+                          setSelectedBilling(billing);
+                          setModalOpen(true);
+                        }
+                      } else {
+                        // If fully paid, show invoice gallery
+                        console.log('📄 Opening invoice gallery (fully paid)');
+                        handleViewInvoice(billing);
+                      }
                     }}
+
                     sx={{ 
                       display: 'flex', 
                       px: 2,
@@ -610,6 +669,19 @@ function Billing() {
           billingData={selectedBilling}
         />
       )}
+{/* Invoice Gallery Modal */}
+{selectedBillingForInvoices && (
+  <InvoiceGallery
+    open={invoiceGalleryOpen}
+    onClose={() => {
+      setInvoiceGalleryOpen(false);
+      setSelectedBillingForInvoices(null);
+    }}
+    billingId={selectedBillingForInvoices.id}
+    billingData={selectedBillingForInvoices}
+  />
+)}
+      
     </Box>
   );
 }

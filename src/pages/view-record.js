@@ -303,6 +303,11 @@ if (!hasAnyChanges) {
     if (onRecordUpdated) onRecordUpdated();
     showToast(`Successfully updated ${changedFieldsCount} field${changedFieldsCount > 1 ? 's' : ''}.`, 'success');
 
+    setTimeout(() => {
+      onClose();
+    }, 1000);
+
+
   } catch (err) {
     console.error("💥 Save Error:", err);
     showToast(`Failed to save changes: ${err.message}`, 'error');

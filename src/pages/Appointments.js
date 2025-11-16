@@ -27,6 +27,7 @@ import DataTable from '../components/DataTable';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import FilterComponent, { FilterButton, FilterContent } from '../components/FilterComponent';
+import { CheckCircle } from '@mui/icons-material';
 import { 
   ChevronLeft, 
   ChevronRight,
@@ -228,6 +229,16 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState(null);
 
+  
+
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(''); // ADD THIS LINE
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false); // ADD THIS LINE
+
+
+
+  
+
   // Toast state
   const [toast, setToast] = useState({
     open: false,
@@ -281,10 +292,9 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   const [logAppointmentOpen, setLogAppointmentOpen] = useState(false);
   
   // Success message state
-  const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
+  
 
   // Add state to track if appointment was logged
-  const [appointmentLogged, setAppointmentLogged] = useState(false);
 
   // Billing modal state
   const [billingModalOpen, setBillingModalOpen] = useState(false);
@@ -430,49 +440,50 @@ useEffect(() => {
     const end = endOfWeek(currentDate);
     const startDate = format(start, 'yyyy-MM-dd');
     const endDate = format(end, 'yyyy-MM-dd');
-
+  
     console.log('Fetching appointments for week:', { startDate, endDate });
-
+  
     try {
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       if (!response.ok) throw new Error('Failed to fetch appointments');
       const data = await response.json();
       console.log('Raw appointment data:', data);
-
-      // CRITICAL FIX: This is the full transformation logic with added safety checks.
+      
+      // IMPORTANT: Log to verify logged field is present
+      data.forEach(apt => {
+        console.log(`Appointment ${apt.id}: logged=${apt.logged}`);
+      });
+  
       const transformed = data.map(apt => {
-        // Safely handle missing dates to prevent crashes.
         if (!apt.appointmentDate) {
           console.warn('Skipping appointment with null date:', apt.id);
           return null; 
         }
         const aptDate = normalizeDateFromStorage(apt.appointmentDate);
         
-        // This creates the full object your calendar component expects.
         const transformedApt = {
           id: apt.id,
           patientName: apt.patientName,
-          procedure: apt.serviceNames || 'No services listed', // Fallback for procedure
-          time: apt.timeStart || '00:00', // Fallback for time
+          procedure: apt.serviceNames || 'No services listed',
+          time: apt.timeStart || '00:00',
           day: getDay(aptDate),
           date: aptDate,
           status: apt.status,
+          logged: apt.logged, // CRITICAL: Include logged field
           comments: apt.comments,
           timeEnd: apt.timeEnd,
           patientId: apt.patientId,
           serviceNames: apt.serviceNames,
-          // Ensure all original properties are preserved as well
           ...apt 
         };
-        console.log('Transformed appointment:', transformedApt);
         return transformedApt;
-      }).filter(Boolean); // Filter out any null appointments that were skipped
-
+      }).filter(Boolean);
+  
       console.log('All transformed appointments:', transformed);
       setAppointments(transformed);
     } catch (error) {
       console.error('Error fetching appointments:', error);
-      setAppointments([]); // Clear appointments on error to prevent stale data
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -750,7 +761,56 @@ const handleSaveClick = async () => {
 
 
 
+const handleCancelAppointment = async () => {
+  if (!selectedAppointment) return;
+  
+  setUpdating(true);
+  setUpdateError(null);
+  
+  try {
+    const response = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...selectedAppointment,
+        status: 'cancelled'
+      }),
+    });
 
+    if (response.ok) {
+      // Update local state
+      const updatedAppointment = { ...selectedAppointment, status: 'cancelled' };
+      setSelectedAppointment(updatedAppointment);
+      
+      // Update appointments list
+      setAppointments(prev => prev.map(apt => 
+        apt.id === selectedAppointment.id ? updatedAppointment : apt
+      ));
+      
+      showToast('Appointment cancelled successfully!', 'success');
+      
+      // Refresh appointments to ensure calendar updates
+      await refreshAppointments();
+      
+      // Close confirmation dialog and modal
+      setShowCancelConfirm(false);
+      
+      // Close modal after a short delay
+      setTimeout(() => {
+        handleCloseModal();
+      }, 1500);
+    } else {
+      showToast('Failed to cancel appointment', 'error');
+    }
+  } catch (error) {
+    console.error('Error cancelling appointment:', error);
+    showToast(`Network error: ${error.message}`, 'error');
+  } finally {
+    setUpdating(false);
+  }
+};
 
 
 
@@ -768,56 +828,60 @@ const handleSaveClick = async () => {
   console.log('=== APPOINTMENT CLICK DEBUG ===');
   console.log('Clicked appointment:', appointment);
   
-  const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
-  let appointmentCopy = { ...appointment };
-  
-  if (appointment.appointmentDate && appointment.status !== 'done' && appointment.status !== 'cancelled') {
-    const aptDateStr = appointment.appointmentDate.split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
-    const isToday = aptDateStr === todayStr;
+  try {
+    const response = await fetch(`${API_BASE}/appointments/${appointment.id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch appointment details');
+    }
     
-    if (isToday && appointment.timeStart && appointment.timeEnd) {
-      const [startHour, startMin] = appointment.timeStart.split(':').map(Number);
-      const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
-      const startTotal = startHour * 60 + startMin;
-      const endTotal = endHour * 60 + endMin;
+    const freshAppointmentData = await response.json();
+    console.log('Fresh appointment data from backend:', freshAppointmentData);
+
+    // Check if billing already exists for this appointment
+    let hasBilling = false;
+    try {
+      const billingCheckResponse = await fetch(`${API_BASE}/billings/appointment/${appointment.id}`);
+      if (billingCheckResponse.ok) {
+        const existingBilling = await billingCheckResponse.json();
+        hasBilling = !!existingBilling;
+        console.log('Billing exists for this appointment:', hasBilling);
+      }
+    } catch (billingError) {
+      console.log('No billing found for this appointment');
+    }
+
+    const currentTime = new Date();
+    const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
+    let appointmentToShow = { ...freshAppointmentData, hasBilling }; // Add hasBilling flag
+    
+    if (freshAppointmentData.appointmentDate && 
+        freshAppointmentData.status !== 'done' && 
+        freshAppointmentData.status !== 'cancelled') {
+      const aptDateStr = freshAppointmentData.appointmentDate.split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isToday = aptDateStr === todayStr;
       
-      if (nowTotal >= startTotal && nowTotal < endTotal) {
-        appointmentCopy.status = 'ongoing';
+      if (isToday && freshAppointmentData.timeStart && freshAppointmentData.timeEnd) {
+        const [startHour, startMin] = freshAppointmentData.timeStart.split(':').map(Number);
+        const [endHour, endMin] = freshAppointmentData.timeEnd.split(':').map(Number);
+        const startTotal = startHour * 60 + startMin;
+        const endTotal = endHour * 60 + endMin;
+        
+        if (nowTotal >= startTotal && nowTotal < endTotal) {
+          appointmentToShow.status = 'ongoing';
+        }
       }
     }
-  }
-  
-  if (services.length === 0) {
-    console.log('⚠️ Services not loaded, fetching...');
-    await fetchServices();
-  }
-  
-  console.log('Services available:', services.length);
-  
-  setLoadingServiceDetails(true);
-  try {
-    // **USE NEW DETAILED ENDPOINT**
-    const response = await fetch(`${API_BASE}/appointment-services/${appointmentCopy.id}/detailed`);
     
-    if (response.ok) {
-      const detailedServices = await response.json();
-      console.log('📦 Fetched detailed services (with package contents):', detailedServices);
-      setAppointmentServiceDetails(detailedServices);
-    } else {
-      console.error('Failed to fetch detailed services');
-      setAppointmentServiceDetails([]);
-    }
+    setSelectedAppointment(appointmentToShow);
     
+    await fetchAppointmentDetails(appointment.id);
+    
+    setModalOpen(true);
   } catch (error) {
-    console.error('❌ Error loading service details:', error);
-    setAppointmentServiceDetails([]);
-  } finally {
-    setLoadingServiceDetails(false);
+    console.error('Error fetching appointment:', error);
+    showToast('Failed to load appointment details', 'error');
   }
-  
-  setSelectedAppointment(appointmentCopy);
-  setModalOpen(true);
 };
 
 
@@ -825,16 +889,20 @@ const handleSaveClick = async () => {
 
 
 
-  // Close modal
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setSelectedAppointment(null);
-    setEditMode(false);
-    setEditedAppointment(null);
-    setEditedServices([]);
-    setServiceInputValue('');
-    setAppointmentLogged(false);
-  };
+
+
+
+const handleCloseModal = () => {
+  setModalOpen(false); // Changed from setIsModalOpen
+  setSelectedAppointment(null);
+  setEditMode(false);
+  setEditedAppointment(null);
+  setUpdateSuccess(false);
+  setSuccessMessage('');
+  setLogAppointmentOpen(false);
+  setShowCancelConfirm(false);
+
+};
 
   // Handler for marking appointment as done
   const handleMarkAsDone = async () => {
@@ -894,47 +962,122 @@ const handleSaveClick = async () => {
 
 
  // Update the handleAppointmentLogged function (around line 800)
- const handleAppointmentLogged = () => {
+ const handleAppointmentLogged = async () => {
   console.log('📝 Appointment logged, refreshing data...');
   
   // Close the log modal
   setLogAppointmentOpen(false);
   
-  // Show success state
-  setAppointmentLogged(true);
+  // Update the current appointment in state to mark it as logged
+  if (selectedAppointment) {
+    setSelectedAppointment(prev => ({
+      ...prev,
+      logged: 1
+    }));
+  }
   
   // Refresh the current calendar view
-  refreshAppointments();
+  await refreshAppointments();
   
-  // Switch to history tab and fetch history data
-  setStatusTab('history');
+  // Show success message
+  setSuccessMessage('Appointment logged successfully! You can now proceed to billing.');
+  setUpdateSuccess(true);
   
-  // Give a small delay to ensure state updates, then fetch history
-  setTimeout(() => {
-    fetchHistoryAppointments();
-  }, 300);
+  // Don't close the modal - let user click "Proceed to Billing" button
 };
 
 
-  // Handler for proceeding to billing
-  const handleProceedToBilling = () => {
-    // Close the appointment details modal
-    setModalOpen(false);
-    // Pass billing data via navigation state
-    navigate('/billing', {
-      state: {
-        openBillingModal: true,
-        billingData: {
-          patient: {
-            firstName: selectedAppointment.firstName,
-            lastName: selectedAppointment.lastName
-          },
-          appointmentId: selectedAppointment.id,
-          appointmentDate: selectedAppointment.appointmentDate
-        }
+  // FIND AND REPLACE the handleProceedToBilling function (around line 900)
+
+  const handleProceedToBilling = async () => {
+    console.log('💳 Proceeding to billing for appointment:', selectedAppointment?.id);
+    
+    if (!selectedAppointment) {
+      showToast('No appointment selected', 'error');
+      return;
+    }
+  
+    try {
+      // Fetch complete appointment details with services
+      const response = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch appointment details');
       }
-    });
+      
+      const appointmentData = await response.json();
+      console.log('📋 Appointment data for billing:', appointmentData);
+  
+      // Fetch patient details
+      const patientResponse = await fetch(`${API_BASE}/patients/${appointmentData.patientId}`);
+      if (!patientResponse.ok) {
+        throw new Error('Failed to fetch patient details');
+      }
+      
+      const patientData = await patientResponse.json();
+      console.log('👤 Patient data:', patientData);
+  
+      // Fetch services with details using the correct endpoint
+      const servicesResponse = await fetch(`${API_BASE}/appointment-services/${selectedAppointment.id}`);
+      if (!servicesResponse.ok) {
+        throw new Error('Failed to fetch appointment services');
+      }
+      
+      const servicesData = await servicesResponse.json();
+      console.log('🛒 Services data:', servicesData);
+  
+      // Prepare billing data with all necessary information
+      const billingData = {
+        appointmentId: appointmentData.id,
+        firstName: patientData.firstName,
+        lastName: patientData.lastName,
+        dateCreated: new Date().toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric' 
+        }),
+        appointmentDate: appointmentData.appointmentDate,
+        timeStart: appointmentData.timeStart,
+        timeEnd: appointmentData.timeEnd,
+        services: servicesData.map(service => ({
+          id: service.id,
+          serviceId: service.id,
+          name: service.name,
+          quantity: service.quantity || 1,
+          price: parseFloat(service.price) || 0,
+          duration: parseInt(service.duration) || 0,
+          source_type: service.source_type || 'service'
+        })),
+        patientId: appointmentData.patientId
+      };
+  
+      console.log('💰 Prepared billing data:', billingData);
+  
+      // Close appointment modal
+      handleCloseModal();
+  
+      // Set billing modal state
+      setBillingModalOpen(true);
+      
+      // Also dispatch event for Billing.js to listen to
+      window.dispatchEvent(new CustomEvent('openBillingModal', { 
+        detail: billingData 
+      }));
+  
+      // Navigate to billing page with state
+      navigate('/billing', { 
+        state: { 
+          openBillingModal: true, 
+          billingData: billingData 
+        } 
+      });
+  
+    } catch (error) {
+      console.error('❌ Error preparing billing:', error);
+      showToast('Failed to prepare billing: ' + error.message, 'error');
+    }
   };
+
+
 
   const statusColors = {
     cancelled: '#ea4335',
@@ -944,10 +1087,9 @@ const handleSaveClick = async () => {
   };
 
   const statusOptions = [
-    { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
     { value: 'scheduled', label: 'Scheduled', color: '#e8710a' },
-    { value: 'ongoing', label: 'Ongoing', color: '#1a73e8' },
-    { value: 'done', label: 'Done', color: '#4caf50' }
+  { value: 'done', label: 'Done', color: '#0d652d' },
+  { value: 'cancelled', label: 'Cancelled', color: '#ea4335' },
   ];
 
   // Filter categories for appointments (used by FilterComponent)
@@ -2869,6 +3011,62 @@ const handleSaveClick = async () => {
         </DialogActions>
   </Dialog>
   )}
+{/* Cancel Confirmation Dialog */}
+<Dialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            p: 1
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '18px',
+          fontWeight: '600'
+        }}>
+          Cancel Appointment?
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ 
+            fontFamily: 'Inter, sans-serif',
+            color: '#5f6368',
+            fontSize: '14px'
+          }}>
+            Are you sure you want to cancel this appointment with {selectedAppointment?.patientName}?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 1 }}>
+          <Button 
+            onClick={() => setShowCancelConfirm(false)}
+            sx={{ 
+              color: '#5f6368',
+              fontFamily: 'Inter, sans-serif',
+              textTransform: 'none',
+              fontSize: '14px'
+            }}
+          >
+            Keep Appointment
+          </Button>
+          <Button 
+            onClick={handleCancelAppointment}
+            variant="contained"
+            color="error"
+            disabled={updating}
+            sx={{ 
+              fontFamily: 'Inter, sans-serif',
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}
+          >
+            {updating ? <CircularProgress size={20} color="inherit" /> : 'Yes, Cancel'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       
       {/* Success/Error Snackbars */}
       {/* Toast */}
@@ -2889,17 +3087,22 @@ const handleSaveClick = async () => {
       
       {/* Billing Appointment Summary Modal */}
       <BillingAppointmentSummary
-        open={billingModalOpen}
-        onClose={() => setBillingModalOpen(false)}
-        billingData={{
-          firstName: selectedAppointment?.patientName?.split(' ')[0] || '',
-          lastName: selectedAppointment?.patientName?.split(' ').slice(1).join(' ') || '',
-          dateCreated: selectedAppointment?.appointmentDate 
-            ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-            : '',
-          service: selectedAppointment?.procedure || '',
-        }}
-      />
+  open={billingModalOpen}
+  onClose={() => setBillingModalOpen(false)}
+  billingData={{
+    appointmentId: selectedAppointment?.id,
+    firstName: selectedAppointment?.firstName || selectedAppointment?.patientName?.split(' ')[0] || '',
+    lastName: selectedAppointment?.lastName || selectedAppointment?.patientName?.split(' ').slice(1).join(' ') || '',
+    dateCreated: selectedAppointment?.appointmentDate 
+      ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : '',
+    appointmentDate: selectedAppointment?.appointmentDate || '',
+    timeStart: selectedAppointment?.timeStart || '',
+    timeEnd: selectedAppointment?.timeEnd || '',
+    services: appointmentServiceDetails || [],
+    patientId: selectedAppointment?.patientId
+  }}
+/>
       
       <QuickActionButton />
       {/* FilterComponent for data filtering logic */}

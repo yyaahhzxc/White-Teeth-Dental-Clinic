@@ -26,10 +26,6 @@ import {
   ToggleOn as StatusIcon
 } from '@mui/icons-material';
 
-const serviceTypes = [
-  { value: 'Single Treatment', label: 'Single Treatment', desc: 'Single service' },
-  { value: 'Package Treatment', label: 'Package Treatment', desc: 'Multi-service package' },
-];
 
 const statusOptions = [
   { value: 'Active', label: 'Active', color: '#4caf50' },
@@ -44,7 +40,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
     description: '',
     price: '',
     duration: '',
-    type: '',
+    type: 'Single Treatment',
     status: 'Active' // Default to Active
   });
 
@@ -58,20 +54,20 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
 
   // Fetch all services for duplicate name check
   useEffect(() => {
-    if (open) {
+    if (!open) {
+      setService({
+        name: '',
+        description: '',
+        price: '',
+        duration: '',
+        type: 'Single Treatment', // Auto-set to Single Treatment
+        status: 'Active'
+      });
       setRequiredError(false);
       setRequiredFields({});
       setNameExists(false);
       setSubmitAttempted(false);
-      setLoading(true);
-      
-      fetch(`${API_BASE}/service-table`)
-        .then(res => res.json())
-        .then(data => {
-          setAllServices(data || []);
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
+      setLoading(false);
     }
   }, [open]);
 
@@ -111,7 +107,6 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
     if (!service.description.trim()) errors.description = true;
     if (!service.price.trim() || parseFloat(service.price) <= 0) errors.price = true;
     if (!service.duration.trim() || parseFloat(service.duration) <= 0) errors.duration = true;
-    if (!service.type.trim()) errors.type = true;
     if (!service.status.trim()) errors.status = true;
     
     setRequiredFields(errors);

@@ -288,11 +288,17 @@ const handleSaveClick = async () => {
   setSubmitAttempted(true);
   const isValid = validateFields();
 
-  // Check for duplicate name (case-insensitive), excluding current service
-  const duplicate = allServices.some(
-    s => s.id !== editedService.id && 
-    s.name.trim().toLowerCase() === editedService.name.trim().toLowerCase()
-  );
+  // **FIX: Check for duplicate name but EXCLUDE the current service being edited**
+  const duplicate = allServices.some(s => {
+    // Skip comparison with the current service itself
+    const currentServiceId = String(editedService.id).replace(/^(pkg-|svc-)/, '');
+    const compareServiceId = String(s.id).replace(/^(pkg-|svc-)/, '');
+    
+    // Only check if it's a DIFFERENT service with the same name
+    return currentServiceId !== compareServiceId && 
+           s.name.trim().toLowerCase() === editedService.name.trim().toLowerCase();
+  });
+  
   setNameExists(duplicate);
 
   if (!isValid || duplicate) {
@@ -306,12 +312,18 @@ const handleSaveClick = async () => {
     // Determine if this is a package or regular service
     const isPackage = editedService.type === 'Package Treatment';
     
-    // **FIX: Clean the ID to ensure it's just the numeric value**
-    const cleanId = String(editedService.id).replace(/^pkg-/, '');
+    // Clean the ID properly - remove BOTH 'pkg-' AND 'svc-' prefixes
+    const originalId = String(editedService.id);
+    const cleanId = originalId.replace(/^(pkg-|svc-)/, '');
     const numericId = parseInt(cleanId);
     
+    // VALIDATION: Check if we got a valid numeric ID
+    if (isNaN(numericId) || numericId <= 0) {
+      throw new Error(`Invalid service ID: ${originalId} (cleaned: ${cleanId})`);
+    }
+    
     console.log('🔍 Saving service/package:');
-    console.log('  - Original ID:', editedService.id);
+    console.log('  - Original ID:', originalId);
     console.log('  - Clean ID:', cleanId);
     console.log('  - Numeric ID:', numericId);
     console.log('  - Is Package:', isPackage);
@@ -323,7 +335,7 @@ const handleSaveClick = async () => {
       endpoint = `${API_BASE}/packages/${numericId}`;
       requestData = {
         name: editedService.name.trim(),
-        description: editedService.description,
+        description: editedService.description.trim(),
         price: parseFloat(editedService.price) || 0,
         duration: parseInt(editedService.duration) || 0,
         status: editedService.status
@@ -333,7 +345,7 @@ const handleSaveClick = async () => {
       endpoint = `${API_BASE}/service-table/${numericId}`;
       requestData = {
         name: editedService.name.trim(),
-        description: editedService.description,
+        description: editedService.description.trim(),
         price: parseFloat(editedService.price) || 0,
         duration: parseInt(editedService.duration) || 0,
         type: editedService.type,
@@ -350,20 +362,24 @@ const handleSaveClick = async () => {
       body: JSON.stringify(requestData)
     });
 
-    if (response.ok) {
-      setIsEditing(false);
-      if (onServiceUpdated) onServiceUpdated();
-      showToast(`${isPackage ? 'Package' : 'Service'} updated successfully!`);
-      
-      // If this is a package, refresh the package services
-      if (isPackage) {
-        fetchPackageDetails(numericId); // Use the clean numeric ID
-      }
-    } else {
+    if (!response.ok) {
       const errorData = await response.json();
       console.error('❌ Server error:', errorData);
       throw new Error(errorData.error || `Failed to update ${isPackage ? 'package' : 'service'}`);
     }
+
+    const result = await response.json();
+    console.log('✅ Save successful:', result);
+    
+    setIsEditing(false);
+    if (onServiceUpdated) onServiceUpdated();
+    showSnackbar(`${isPackage ? 'Package' : 'Service'} updated successfully!`);
+    
+    // If this is a package, refresh the package services
+    if (isPackage) {
+      await fetchPackageDetails(numericId);
+    }
+    
   } catch (err) {
     console.error('❌ Save Error:', err);
     showToast(`Failed to save changes: ${err.message}`, 'error');
@@ -371,6 +387,9 @@ const handleSaveClick = async () => {
     setLoading(false);
   }
 };
+
+
+
 
 
 
