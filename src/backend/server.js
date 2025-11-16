@@ -464,136 +464,289 @@ db.run(`
 
 //APPOINTMENTS AYAW SAG HILABTI//
 
-// Replace your GET appointments/date-range endpoint (around line 156) with this corrected version:
+// FIND the GET /appointments/date-range endpoint (around line 1000) and UPDATE:
+
+// FIND the GET /appointments/date-range endpoint (around line 494) and REPLACE with:
+
 app.get('/appointments/date-range', (req, res) => {
   const { startDate, endDate } = req.query;
+  console.log(`📅 GET /appointments/date-range - Fetching appointments between ${startDate} and ${endDate}`);
 
-  const selectQuery = `
-  SELECT 
-    a.id, a.patientId, a.appointmentDate, a.timeStart, a.timeEnd, a.status, a.comments,
-    p.firstName || ' ' || p.lastName AS patientName,
-    (
-      SELECT GROUP_CONCAT(
-        COALESCE(pkg.name, s.name) || 
-        CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END ||
-        CASE WHEN pkg.id IS NOT NULL THEN ' 📦' ELSE '' END,
-        ', '
-      )
-      FROM appointment_services aps
-      LEFT JOIN services s ON aps.serviceId = s.id
-      LEFT JOIN packages pkg ON aps.serviceId = pkg.id
-      WHERE aps.appointmentId = a.id
-    ) AS serviceNames
-  FROM appointments a
-  LEFT JOIN patients p ON a.patientId = p.id
-  WHERE a.appointmentDate BETWEEN ? AND ?
-`;
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'Missing startDate or endDate parameter' });
+  }
 
-
-  db.all(selectQuery, [startDate, endDate], (err, rows) => {
-    if (err) return res.status(500).json({ error: "Failed range query." });
-    res.json(rows);
-  });
-});
-
-
-
-// GET all appointments with patient names and service info
-app.get('/appointments', (req, res) => {
-  console.log('🔍 GET /appointments - Fetching all appointments');
-
-  const selectQuery = `
+  const query = `
     SELECT 
-      a.id, 
-      a.patientId, 
-      a.appointmentDate, 
-      a.timeStart, 
-      a.timeEnd, 
-      a.status, 
+      a.id,
+      a.patientId,
+      a.serviceId,
+      a.appointmentDate,
+      a.timeStart,
+      a.timeEnd,
       a.comments,
+      a.status,
       a.logged,
-      p.firstName || ' ' || p.lastName AS patientName,
+      a.createdAt,
+      a.updatedAt,
+      COALESCE(p.firstName || ' ' || p.lastName, 'Unknown Patient') as patientName,
+      p.firstName,
+      p.lastName,
+      
       (
-        SELECT GROUP_CONCAT(
-          COALESCE(pkg.name, s.name) || 
-          CASE WHEN aps.quantity > 1 THEN ' (x' || aps.quantity || ')' ELSE '' END ||
-          CASE WHEN pkg.id IS NOT NULL THEN ' 📦' ELSE '' END,
-          ', '
+        SELECT GROUP_CONCAT(serviceName || ' (x' || qty || ')', ', ')
+        FROM (
+          SELECT s.name as serviceName, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.name || ' 📦' as serviceName, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
         )
-        FROM appointment_services aps
-        LEFT JOIN services s ON aps.serviceId = s.id
-        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
-        WHERE aps.appointmentId = a.id
-      ) AS serviceNames
+      ) as serviceNames,
+      
+      (
+        SELECT GROUP_CONCAT(serviceId || ':' || quantity)
+        FROM appointment_services
+        WHERE appointmentId = a.id
+      ) as serviceIds,
+      
+      (
+        SELECT SUM(price * qty)
+        FROM (
+          SELECT s.price, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.price, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
+        )
+      ) as totalPrice,
+      
+      (
+        SELECT SUM(duration * qty)
+        FROM (
+          SELECT s.duration, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.duration, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
+        )
+      ) as totalDuration
+      
     FROM appointments a
-    LEFT JOIN patients p ON p.id = a.patientId
-    ORDER BY a.appointmentDate DESC, a.timeStart ASC
+    LEFT JOIN patients p ON a.patientId = p.id
+    WHERE a.appointmentDate BETWEEN ? AND ?
+    ORDER BY a.appointmentDate ASC, a.timeStart ASC
   `;
-
-  db.all(selectQuery, [], (err, rows) => {
+  
+  db.all(query, [startDate, endDate], (err, rows) => {
     if (err) {
       console.error('❌ Error fetching appointments:', err);
       return res.status(500).json({ error: 'Failed to fetch appointments' });
     }
-
+    
+    // Log to verify logged field is present
     console.log(`✅ Found ${rows.length} appointments`);
+    if (rows.length > 0) {
+      console.log('Sample appointment with logged field:', {
+        id: rows[0].id,
+        status: rows[0].status,
+        logged: rows[0].logged
+      });
+    }
+    
     res.json(rows);
   });
 });
 
 
-// REPLACE your GET /appointments/:id endpoint completely:
+
+
+
+// GET all appointments with patient names and service info
+// FIND GET /appointments/:id (around line 1348) and UPDATE the query:
+
 app.get('/appointments/:id', (req, res) => {
   const { id } = req.params;
-
-  const selectQuery = `
+  console.log(`📋 GET /appointments/${id} - Fetching appointment details`);
+  
+  const query = `
     SELECT 
-      a.*,
-      p.firstName || ' ' || p.lastName AS patientName,
-
-      -- **CRITICAL FIX: Don't expand packages, just show what's in appointment_services**
+      a.id,
+      a.patientId,
+      a.serviceId,
+      a.appointmentDate,
+      a.timeStart,
+      a.timeEnd,
+      a.comments,
+      a.status,
+      a.logged,
+      a.createdAt,
+      a.updatedAt,
+      COALESCE(p.firstName || ' ' || p.lastName, 'Unknown Patient') as patientName,
+      p.firstName,
+      p.lastName,
+      
       (
-        SELECT GROUP_CONCAT(
-          CASE 
-            WHEN pkg.id IS NOT NULL THEN pkg.name || ' 📦 (x' || aps.quantity || ')'
-            ELSE s.name || ' (x' || aps.quantity || ')'
-          END,
-          ', '
+        SELECT GROUP_CONCAT(serviceName || ' (x' || qty || ')', ', ')
+        FROM (
+          SELECT s.name as serviceName, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.name || ' 📦' as serviceName, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
         )
-        FROM appointment_services aps
-        LEFT JOIN services s ON aps.serviceId = s.id
-        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
-        WHERE aps.appointmentId = a.id
-      ) AS serviceNames,
-
-      -- **CRITICAL FIX: Return service IDs with source type prefix**
+      ) as serviceNames,
+      
       (
-        SELECT GROUP_CONCAT(
-          CASE 
-            WHEN pkg.id IS NOT NULL THEN 'pkg-' || aps.serviceId || ':' || aps.quantity
-            ELSE 'svc-' || aps.serviceId || ':' || aps.quantity
-          END
+        SELECT GROUP_CONCAT(serviceId || ':' || quantity)
+        FROM appointment_services
+        WHERE appointmentId = a.id
+      ) as serviceIds,
+      
+      (
+        SELECT SUM(price * qty)
+        FROM (
+          SELECT s.price, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.price, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
         )
-        FROM appointment_services aps
-        LEFT JOIN packages pkg ON aps.serviceId = pkg.id
-        WHERE aps.appointmentId = a.id
-      ) AS serviceIds
-
+      ) as totalPrice,
+      
+      (
+        SELECT SUM(duration * qty)
+        FROM (
+          SELECT s.duration, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.duration, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
+        )
+      ) as totalDuration
+      
     FROM appointments a
     LEFT JOIN patients p ON a.patientId = p.id
     WHERE a.id = ?
   `;
-
-  db.get(selectQuery, [id], (err, row) => {
-    if (err || !row) {
-      console.error('Error fetching appointment:', err);
-      return res.status(500).json({ error: "Failed to fetch appointment." });
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching appointment:', err);
+      return res.status(500).json({ error: 'Failed to fetch appointment' });
     }
     
-    console.log(`✅ Fetched appointment ${id}:`, row);
+    if (!row) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    console.log(`✅ Appointment ${id} fetched:`, {
+      id: row.id,
+      status: row.status,
+      logged: row.logged,
+      serviceNames: row.serviceNames
+    });
+    
     res.json(row);
   });
 });
+
+
+// FIND the GET /appointments/:id endpoint (around line 1100) and UPDATE the SELECT query:
+
+app.get('/appointments/:id', (req, res) => {
+  const { id } = req.params;
+  console.log(`📋 GET /appointments/${id} - Fetching appointment details`);
+  
+  const query = `
+    SELECT 
+      a.*,
+      COALESCE(p.firstName || ' ' || p.lastName, 'Unknown Patient') as patientName,
+      p.firstName,
+      p.lastName,
+      a.logged,  /* ADD THIS LINE - Include logged status */
+      
+      (
+        SELECT GROUP_CONCAT(serviceName || ' (x' || qty || ')', ', ')
+        FROM (
+          SELECT s.name as serviceName, aps.quantity as qty
+          FROM appointment_services aps
+          JOIN services s ON aps.serviceId = s.id
+          WHERE aps.appointmentId = a.id
+          
+          UNION ALL
+          
+          SELECT pkg.name || ' 📦' as serviceName, aps2.quantity as qty
+          FROM appointment_services aps2
+          JOIN packages pkg ON aps2.serviceId = pkg.id
+          WHERE aps2.appointmentId = a.id
+        )
+      ) as serviceNames,
+      
+      /* ... rest of query stays the same ... */
+    FROM appointments a
+    LEFT JOIN patients p ON a.patientId = p.id
+    WHERE a.id = ?
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching appointment:', err);
+      return res.status(500).json({ error: 'Failed to fetch appointment' });
+    }
+    
+    if (!row) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    console.log(`✅ Appointment ${id} fetched:`, {
+      id: row.id,
+      status: row.status,
+      logged: row.logged,  /* LOG THIS */
+      serviceNames: row.serviceNames
+    });
+    
+    res.json(row);
+  });
+});
+
+
 
 
 
@@ -4965,4 +5118,413 @@ app.delete('/packages/:packageId/services/:serviceId', (req, res) => {
       res.json({ success: true });
     }
   );
+});
+
+
+
+
+
+
+
+
+
+
+// Add these billing endpoints AFTER your visit_logs endpoints (around line 1500)
+
+// =====================================================
+// BILLING ENDPOINTS
+// =====================================================
+
+// Create billings table
+db.run(`
+  CREATE TABLE IF NOT EXISTS billings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    appointmentId INTEGER NOT NULL,
+    patientId INTEGER NOT NULL,
+    dateCreated TEXT NOT NULL,
+    appointmentDate TEXT,
+    timeStart TEXT,
+    timeEnd TEXT,
+    firstName TEXT NOT NULL,
+    lastName TEXT NOT NULL,
+    totalBill REAL NOT NULL DEFAULT 0,
+    amountPaid REAL NOT NULL DEFAULT 0,
+    balance REAL NOT NULL DEFAULT 0,
+    status TEXT DEFAULT 'Unpaid',
+    services TEXT,
+    additionalCharges TEXT,
+    discounts TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (appointmentId) REFERENCES appointments (id),
+    FOREIGN KEY (patientId) REFERENCES patients (id)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating billings table:', err);
+  } else {
+    console.log('✅ Billings table created/verified');
+  }
+});
+
+// Create invoices table
+db.run(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    billingId INTEGER NOT NULL,
+    appointmentId INTEGER NOT NULL,
+    patientId INTEGER NOT NULL,
+    invoiceNumber TEXT UNIQUE NOT NULL,
+    invoiceDate TEXT NOT NULL,
+    dueDate TEXT NOT NULL,
+    amountPaid REAL NOT NULL,
+    paymentMethod TEXT NOT NULL,
+    notes TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (billingId) REFERENCES billings (id),
+    FOREIGN KEY (appointmentId) REFERENCES appointments (id),
+    FOREIGN KEY (patientId) REFERENCES patients (id)
+  )
+`, (err) => {
+  if (err) {
+    console.error('Error creating invoices table:', err);
+  } else {
+    console.log('✅ Invoices table created/verified');
+  }
+});
+
+// GET all billings
+app.get('/billings', (req, res) => {
+  console.log('💰 GET /billings - Fetching all billings');
+  
+  const query = `
+    SELECT 
+      b.*,
+      p.firstName || ' ' || p.lastName as patientName
+    FROM billings b
+    LEFT JOIN patients p ON b.patientId = p.id
+    ORDER BY b.createdAt DESC
+  `;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching billings:', err);
+      return res.status(500).json({ error: 'Failed to fetch billings' });
+    }
+    
+    // Parse JSON fields
+    const billings = rows.map(row => ({
+      ...row,
+      services: row.services ? JSON.parse(row.services) : [],
+      additionalCharges: row.additionalCharges ? JSON.parse(row.additionalCharges) : [],
+      discounts: row.discounts ? JSON.parse(row.discounts) : []
+    }));
+    
+    console.log(`✅ Found ${billings.length} billings`);
+    res.json(billings);
+  });
+});
+
+// GET billing by ID
+app.get('/billings/:id', (req, res) => {
+  const { id } = req.params;
+  console.log(`💰 GET /billings/${id} - Fetching billing details`);
+  
+  const query = `
+    SELECT 
+      b.*,
+      p.firstName || ' ' || p.lastName as patientName
+    FROM billings b
+    LEFT JOIN patients p ON b.patientId = p.id
+    WHERE b.id = ?
+  `;
+  
+  db.get(query, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching billing:', err);
+      return res.status(500).json({ error: 'Failed to fetch billing' });
+    }
+    
+    if (!row) {
+      return res.status(404).json({ error: 'Billing not found' });
+    }
+    
+    // Parse JSON fields
+    const billing = {
+      ...row,
+      services: row.services ? JSON.parse(row.services) : [],
+      additionalCharges: row.additionalCharges ? JSON.parse(row.additionalCharges) : [],
+      discounts: row.discounts ? JSON.parse(row.discounts) : []
+    };
+    
+    console.log(`✅ Found billing ${id}`);
+    res.json(billing);
+  });
+});
+
+// POST - Create new billing
+app.post('/billings', (req, res) => {
+  const {
+    appointmentId,
+    patientId,
+    dateCreated,
+    appointmentDate,
+    timeStart,
+    timeEnd,
+    firstName,
+    lastName,
+    totalBill,
+    amountPaid = 0,
+    balance,
+    status = 'Unpaid',
+    services = [],
+    additionalCharges = [],
+    discounts = []
+  } = req.body;
+  
+  console.log('💰 POST /billings - Creating new billing');
+  console.log('Request body:', req.body);
+  
+  if (!appointmentId || !patientId || !dateCreated || !firstName || !lastName || totalBill === undefined) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  
+  const query = `
+    INSERT INTO billings (
+      appointmentId, patientId, dateCreated, appointmentDate, timeStart, timeEnd,
+      firstName, lastName, totalBill, amountPaid, balance, status,
+      services, additionalCharges, discounts
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.run(query, [
+    appointmentId,
+    patientId,
+    dateCreated,
+    appointmentDate,
+    timeStart,
+    timeEnd,
+    firstName,
+    lastName,
+    totalBill,
+    amountPaid,
+    balance || totalBill,
+    status,
+    JSON.stringify(services),
+    JSON.stringify(additionalCharges),
+    JSON.stringify(discounts)
+  ], function(err) {
+    if (err) {
+      console.error('❌ Error creating billing:', err);
+      return res.status(500).json({ error: 'Failed to create billing' });
+    }
+    
+    const billingId = this.lastID;
+    console.log(`✅ Billing created with ID: ${billingId}`);
+    
+    // Fetch and return the created billing
+    db.get('SELECT * FROM billings WHERE id = ?', [billingId], (fetchErr, row) => {
+      if (fetchErr) {
+        console.error('❌ Error fetching created billing:', fetchErr);
+        return res.status(500).json({ error: 'Billing created but failed to retrieve' });
+      }
+      
+      const billing = {
+        ...row,
+        services: row.services ? JSON.parse(row.services) : [],
+        additionalCharges: row.additionalCharges ? JSON.parse(row.additionalCharges) : [],
+        discounts: row.discounts ? JSON.parse(row.discounts) : []
+      };
+      
+      res.status(201).json({
+        success: true,
+        message: 'Billing created successfully',
+        billing: billing
+      });
+    });
+  });
+});
+
+// POST - Create invoice for a billing
+app.post('/invoices', (req, res) => {
+  const {
+    billingId,
+    appointmentId,
+    patientId,
+    invoiceNumber,
+    invoiceDate,
+    dueDate,
+    amountPaid,
+    paymentMethod,
+    notes
+  } = req.body;
+  
+  console.log('📄 POST /invoices - Creating new invoice');
+  console.log('Request body:', req.body);
+  
+  if (!billingId || !appointmentId || !patientId || !invoiceNumber || !invoiceDate || !amountPaid || !paymentMethod) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  
+  // Insert invoice
+  const insertQuery = `
+    INSERT INTO invoices (
+      billingId, appointmentId, patientId, invoiceNumber, invoiceDate, dueDate,
+      amountPaid, paymentMethod, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.run(insertQuery, [
+    billingId,
+    appointmentId,
+    patientId,
+    invoiceNumber,
+    invoiceDate,
+    dueDate,
+    amountPaid,
+    paymentMethod,
+    notes
+  ], function(err) {
+    if (err) {
+      console.error('❌ Error creating invoice:', err);
+      return res.status(500).json({ error: 'Failed to create invoice' });
+    }
+    
+    const invoiceId = this.lastID;
+    console.log(`✅ Invoice created with ID: ${invoiceId}`);
+    
+    // Update billing with payment
+    db.get('SELECT totalBill, amountPaid FROM billings WHERE id = ?', [billingId], (fetchErr, billing) => {
+      if (fetchErr) {
+        console.error('❌ Error fetching billing:', fetchErr);
+        return res.status(500).json({ error: 'Invoice created but failed to update billing' });
+      }
+      
+      const newAmountPaid = (parseFloat(billing.amountPaid) || 0) + parseFloat(amountPaid);
+      const newBalance = parseFloat(billing.totalBill) - newAmountPaid;
+      const newStatus = newBalance <= 0 ? 'Paid' : newBalance < parseFloat(billing.totalBill) ? 'Partial' : 'Unpaid';
+      
+      const updateQuery = `
+        UPDATE billings 
+        SET amountPaid = ?, balance = ?, status = ?, updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+      
+      db.run(updateQuery, [newAmountPaid, newBalance, newStatus, billingId], (updateErr) => {
+        if (updateErr) {
+          console.error('❌ Error updating billing:', updateErr);
+          return res.status(500).json({ error: 'Invoice created but failed to update billing' });
+        }
+        
+        console.log(`✅ Billing ${billingId} updated: amountPaid=${newAmountPaid}, balance=${newBalance}, status=${newStatus}`);
+        
+        // Return created invoice
+        db.get('SELECT * FROM invoices WHERE id = ?', [invoiceId], (getErr, invoice) => {
+          if (getErr) {
+            console.error('❌ Error fetching invoice:', getErr);
+            return res.status(500).json({ error: 'Invoice created but failed to retrieve' });
+          }
+          
+          res.status(201).json({
+            success: true,
+            message: 'Invoice created successfully',
+            invoice: invoice,
+            updatedBilling: {
+              amountPaid: newAmountPaid,
+              balance: newBalance,
+              status: newStatus
+            }
+          });
+        });
+      });
+    });
+  });
+});
+
+// GET invoices for a billing
+app.get('/billings/:billingId/invoices', (req, res) => {
+  const { billingId } = req.params;
+  console.log(`📄 GET /billings/${billingId}/invoices - Fetching invoices`);
+  
+  const query = 'SELECT * FROM invoices WHERE billingId = ? ORDER BY createdAt DESC';
+  
+  db.all(query, [billingId], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching invoices:', err);
+      return res.status(500).json({ error: 'Failed to fetch invoices' });
+    }
+    
+    console.log(`✅ Found ${rows.length} invoices for billing ${billingId}`);
+    res.json(rows);
+  });
+});
+
+
+// GET all invoices for a specific billing
+app.get('/billings/:billingId/invoices', (req, res) => {
+  const { billingId } = req.params;
+  console.log(`📄 GET /billings/${billingId}/invoices - Fetching invoices`);
+  
+  const query = `
+    SELECT 
+      i.*,
+      b.firstName || ' ' || b.lastName as patientName,
+      b.totalBill
+    FROM invoices i
+    LEFT JOIN billings b ON i.billingId = b.id
+    WHERE i.billingId = ?
+    ORDER BY i.createdAt DESC
+  `;
+  
+  db.all(query, [billingId], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching invoices:', err);
+      return res.status(500).json({ error: 'Failed to fetch invoices' });
+    }
+    
+    console.log(`✅ Found ${rows.length} invoices for billing ${billingId}`);
+    res.json(rows);
+  });
+});
+
+
+// ADD this endpoint after your GET /billings/:id endpoint (around line 2650)
+
+// GET billing by appointment ID
+app.get('/billings/appointment/:appointmentId', (req, res) => {
+  const { appointmentId } = req.params;
+  console.log(`💰 GET /billings/appointment/${appointmentId} - Checking for existing billing`);
+  
+  const query = `
+    SELECT 
+      b.*,
+      p.firstName || ' ' || p.lastName as patientName
+    FROM billings b
+    LEFT JOIN patients p ON b.patientId = p.id
+    WHERE b.appointmentId = ?
+    LIMIT 1
+  `;
+  
+  db.get(query, [appointmentId], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching billing by appointment:', err);
+      return res.status(500).json({ error: 'Failed to fetch billing' });
+    }
+    
+    if (!row) {
+      console.log(`📋 No billing found for appointment ${appointmentId}`);
+      return res.status(404).json({ error: 'Billing not found' });
+    }
+    
+    // Parse JSON fields
+    const billing = {
+      ...row,
+      services: row.services ? JSON.parse(row.services) : [],
+      additionalCharges: row.additionalCharges ? JSON.parse(row.additionalCharges) : [],
+      discounts: row.discounts ? JSON.parse(row.discounts) : []
+    };
+    
+    console.log(`✅ Found billing for appointment ${appointmentId}:`, billing);
+    res.json(billing);
+  });
 });

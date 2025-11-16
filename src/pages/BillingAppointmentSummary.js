@@ -14,6 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CreateInvoice from './CreateInvoice';
+const API_BASE = 'http://localhost:3001';
 
 function BillingAppointmentSummary({ 
   open = true, 
@@ -67,6 +68,8 @@ function BillingAppointmentSummary({
   const [services, setServices] = useState(initialServices);
   const [additionalCharges, setAdditionalCharges] = useState([]);
   const [discounts, setDiscounts] = useState([]);
+
+  const [selectedBilling, setSelectedBilling] = useState(null);
 
 
   // Calculate totals dynamically
@@ -150,6 +153,12 @@ function BillingAppointmentSummary({
     setAdditionalCharges([...additionalCharges, { id: newId, name: '', quantity: 1, price: '' }]);
   };
 
+
+  
+const handlePayBill = () => {
+  setConfirmDialogOpen(true);
+};
+
   // Update charge handler
   const handleUpdateCharge = (id, field, value) => {
     if (field === 'price') {
@@ -212,64 +221,98 @@ function BillingAppointmentSummary({
     setDiscounts(discounts.filter(d => d.id !== id));
   };
 
-  const handlePayBill = () => {
-    // Show confirmation dialog instead of proceeding directly
-    setConfirmDialogOpen(true);
-  };
-  
-  const handleConfirmPayBill = () => {
+  // REPLACE the entire handleConfirmPayBill function (around line 270)
+
+  const handleConfirmPayBill = async () => {
     // Close confirmation dialog
     setConfirmDialogOpen(false);
     
-    // Prepare billing entry data
-    const billingEntry = {
-      id: Date.now(), // Generate a unique ID
-      appointmentId: initialBillingData.appointmentId, // Link to appointment
-      patientId: initialBillingData.patientId, // Link to patient
-      dateCreated: initialBillingData.dateCreated,
-      appointmentDate: initialBillingData.appointmentDate,
-      timeStart: initialBillingData.timeStart,
-      timeEnd: initialBillingData.timeEnd,
-      firstName: initialBillingData.firstName,
-      lastName: initialBillingData.lastName,
-      totalBill: calculations.total,
-      amountPaid: 0, // Will be updated when invoice is created
-      balance: calculations.total,
-      status: 'Unpaid', // Will be 'Paid' or 'Partial' after payment
-      services: calculations.validServices,
-      additionalCharges: calculations.validCharges,
-      discounts: calculations.validDiscounts,
-    };
+    console.log('💰 Pay Bill clicked for appointment:', initialBillingData.appointmentId);
   
-    console.log('💰 Creating billing entry:', billingEntry);
-  
-    // Save billing entry to local storage (frontend only)
     try {
-      const existingBillings = JSON.parse(localStorage.getItem('billings') || '[]');
-      existingBillings.push(billingEntry);
-      localStorage.setItem('billings', JSON.stringify(existingBillings));
-      console.log('✅ Billing entry saved:', billingEntry);
+      // First, check if billing already exists for this appointment
+      const checkResponse = await fetch(`${API_BASE}/billings/appointment/${initialBillingData.appointmentId}`);
       
-      // Trigger custom event for billing table to refresh
-      window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingEntry }));
-    } catch (error) {
-      console.error('❌ Error saving billing entry:', error);
-    }
+      let existingBilling = null;
+      if (checkResponse.ok) {
+        existingBilling = await checkResponse.json();
+        console.log('📋 Found existing billing:', existingBilling);
+      }
   
-    // Prepare billing data for the invoice
-    const invoiceBillingData = {
-      ...initialBillingData,
-      services,
-      additionalCharges,
-      discounts,
-      billingId: billingEntry.id, // Pass the billing ID to invoice
-      appointmentId: initialBillingData.appointmentId,
-      patientId: initialBillingData.patientId
-    };
-    
-    console.log('📄 Opening invoice with data:', invoiceBillingData);
-    setCreateInvoiceOpen(true);
+      let billingToUse;
+  
+      if (existingBilling) {
+        // Billing already exists - use it
+        console.log('✅ Using existing billing ID:', existingBilling.id);
+        billingToUse = existingBilling;
+      } else {
+        // Create new billing
+        const billingEntry = {
+          appointmentId: initialBillingData.appointmentId,
+          patientId: initialBillingData.patientId,
+          dateCreated: initialBillingData.dateCreated,
+          appointmentDate: initialBillingData.appointmentDate,
+          timeStart: initialBillingData.timeStart,
+          timeEnd: initialBillingData.timeEnd,
+          firstName: initialBillingData.firstName,
+          lastName: initialBillingData.lastName,
+          totalBill: calculations.total,
+          amountPaid: 0,
+          balance: calculations.total,
+          status: 'Unpaid',
+          services: calculations.validServices,
+          additionalCharges: calculations.validCharges,
+          discounts: calculations.validDiscounts,
+        };
+  
+        console.log('💰 Creating new billing entry:', billingEntry);
+  
+        const response = await fetch(`${API_BASE}/billings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(billingEntry),
+        });
+  
+        if (!response.ok) {
+          throw new Error('Failed to create billing');
+        }
+  
+        const result = await response.json();
+        console.log('✅ Billing created successfully:', result);
+  
+        billingToUse = result.billing;
+  
+        // Trigger custom event for billing table to refresh
+        window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingToUse }));
+      }
+  
+      // Store billing data in component state so CreateInvoice can access it
+      const invoiceBillingData = {
+        ...initialBillingData,
+        services: calculations.validServices,
+        additionalCharges: calculations.validCharges,
+        discounts: calculations.validDiscounts,
+        billingId: billingToUse.id,
+        appointmentId: initialBillingData.appointmentId,
+        patientId: initialBillingData.patientId,
+        totalBill: calculations.total
+      };
+      
+      console.log('📄 Opening invoice with data:', invoiceBillingData);
+      
+      // Update selectedBilling with the complete data including billingId
+      setSelectedBilling(invoiceBillingData);
+      setCreateInvoiceOpen(true);
+      
+    } catch (error) {
+      console.error('❌ Error creating/fetching billing:', error);
+      alert('Failed to prepare billing. Please try again.');
+    }
   };
+
+
 
   return (
     <Dialog 
@@ -912,16 +955,23 @@ function BillingAppointmentSummary({
         </Box>
       </Box>
 
-      {/* Create Invoice Modal */}
-      <CreateInvoice
-        open={createInvoiceOpen}
-        onClose={() => setCreateInvoiceOpen(false)}
-        billingData={{
-          services,
-          additionalCharges,
-          discounts,
-        }}
-      />
+     {/* Create Invoice Modal */}
+<CreateInvoice
+  open={createInvoiceOpen}
+  onClose={() => {
+    setCreateInvoiceOpen(false);
+    onClose(); // Close the billing summary modal too
+    // Refresh billing table
+    window.dispatchEvent(new CustomEvent('invoiceCreated'));
+  }}
+  billingData={selectedBilling || {
+    ...initialBillingData,
+    services: calculations.validServices,
+    additionalCharges: calculations.validCharges,
+    discounts: calculations.validDiscounts,
+    totalBill: calculations.total
+  }}
+/>
       
       {/* Confirmation Dialog */}
       <Dialog

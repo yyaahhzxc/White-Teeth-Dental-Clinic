@@ -439,54 +439,55 @@ useEffect(() => {
     const end = endOfWeek(currentDate);
     const startDate = format(start, 'yyyy-MM-dd');
     const endDate = format(end, 'yyyy-MM-dd');
-
+  
     console.log('Fetching appointments for week:', { startDate, endDate });
-
+  
     try {
       const response = await fetch(`${API_BASE}/appointments/date-range?startDate=${startDate}&endDate=${endDate}`);
       if (!response.ok) throw new Error('Failed to fetch appointments');
       const data = await response.json();
       console.log('Raw appointment data:', data);
-
-      // CRITICAL FIX: This is the full transformation logic with added safety checks.
+      
+      // IMPORTANT: Log to verify logged field is present
+      data.forEach(apt => {
+        console.log(`Appointment ${apt.id}: logged=${apt.logged}`);
+      });
+  
       const transformed = data.map(apt => {
-        // Safely handle missing dates to prevent crashes.
         if (!apt.appointmentDate) {
           console.warn('Skipping appointment with null date:', apt.id);
           return null; 
         }
         const aptDate = normalizeDateFromStorage(apt.appointmentDate);
         
-        // This creates the full object your calendar component expects.
         const transformedApt = {
           id: apt.id,
           patientName: apt.patientName,
-          procedure: apt.serviceNames || 'No services listed', // Fallback for procedure
-          time: apt.timeStart || '00:00', // Fallback for time
+          procedure: apt.serviceNames || 'No services listed',
+          time: apt.timeStart || '00:00',
           day: getDay(aptDate),
           date: aptDate,
           status: apt.status,
+          logged: apt.logged, // CRITICAL: Include logged field
           comments: apt.comments,
           timeEnd: apt.timeEnd,
           patientId: apt.patientId,
           serviceNames: apt.serviceNames,
-          // Ensure all original properties are preserved as well
           ...apt 
         };
-        console.log('Transformed appointment:', transformedApt);
         return transformedApt;
-      }).filter(Boolean); // Filter out any null appointments that were skipped
-
+      }).filter(Boolean);
+  
       console.log('All transformed appointments:', transformed);
       setAppointments(transformed);
     } catch (error) {
       console.error('Error fetching appointments:', error);
-      setAppointments([]); // Clear appointments on error to prevent stale data
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
   };
-
+  
 
 
 // Add function to fetch history appointments (around line 450)
@@ -777,57 +778,80 @@ const handleSaveClick = async () => {
   console.log('=== APPOINTMENT CLICK DEBUG ===');
   console.log('Clicked appointment:', appointment);
   
-  const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
-  let appointmentCopy = { ...appointment };
-  
-  if (appointment.appointmentDate && appointment.status !== 'done' && appointment.status !== 'cancelled') {
-    const aptDateStr = appointment.appointmentDate.split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
-    const isToday = aptDateStr === todayStr;
+  try {
+    // Fetch fresh appointment details from backend
+    const response = await fetch(`${API_BASE}/appointments/${appointment.id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch appointment details');
+    }
     
-    if (isToday && appointment.timeStart && appointment.timeEnd) {
-      const [startHour, startMin] = appointment.timeStart.split(':').map(Number);
-      const [endHour, endMin] = appointment.timeEnd.split(':').map(Number);
-      const startTotal = startHour * 60 + startMin;
-      const endTotal = endHour * 60 + endMin;
+    const freshAppointmentData = await response.json();
+    console.log('📋 Fresh appointment data from backend:', freshAppointmentData);
+    
+    // Determine status with real-time ongoing detection
+    const nowTotal = currentTime.getHours() * 60 + currentTime.getMinutes();
+    let appointmentToShow = { ...freshAppointmentData };
+    
+    if (freshAppointmentData.appointmentDate && 
+        freshAppointmentData.status !== 'done' && 
+        freshAppointmentData.status !== 'cancelled') {
+      const aptDateStr = freshAppointmentData.appointmentDate.split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isToday = aptDateStr === todayStr;
       
-      if (nowTotal >= startTotal && nowTotal < endTotal) {
-        appointmentCopy.status = 'ongoing';
+      if (isToday && freshAppointmentData.timeStart && freshAppointmentData.timeEnd) {
+        const [startHour, startMin] = freshAppointmentData.timeStart.split(':').map(Number);
+        const [endHour, endMin] = freshAppointmentData.timeEnd.split(':').map(Number);
+        const startTotal = startHour * 60 + startMin;
+        const endTotal = endHour * 60 + endMin;
+        
+        if (nowTotal >= startTotal && nowTotal < endTotal) {
+          appointmentToShow.status = 'ongoing';
+        }
       }
     }
-  }
-  
-  if (services.length === 0) {
-    console.log('⚠️ Services not loaded, fetching...');
-    await fetchServices();
-  }
-  
-  console.log('Services available:', services.length);
-  
-  setLoadingServiceDetails(true);
-  try {
-    // **USE NEW DETAILED ENDPOINT**
-    const response = await fetch(`${API_BASE}/appointment-services/${appointmentCopy.id}/detailed`);
     
-    if (response.ok) {
-      const detailedServices = await response.json();
-      console.log('📦 Fetched detailed services (with package contents):', detailedServices);
-      setAppointmentServiceDetails(detailedServices);
-    } else {
-      console.error('Failed to fetch detailed services');
-      setAppointmentServiceDetails([]);
+    // Load services
+    if (services.length === 0) {
+      console.log('⚠️ Services not loaded, fetching...');
+      await fetchServices();
     }
     
+    console.log('Services available:', services.length);
+    
+    // Fetch detailed service information
+    setLoadingServiceDetails(true);
+    try {
+      const servicesResponse = await fetch(`${API_BASE}/appointment-services/${appointmentToShow.id}/detailed`);
+      
+      if (servicesResponse.ok) {
+        const detailedServices = await servicesResponse.json();
+        console.log('📦 Fetched detailed services (with package contents):', detailedServices);
+        setAppointmentServiceDetails(detailedServices);
+      } else {
+        console.error('Failed to fetch detailed services');
+        setAppointmentServiceDetails([]);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error loading service details:', error);
+      setAppointmentServiceDetails([]);
+    } finally {
+      setLoadingServiceDetails(false);
+    }
+    
+    // CRITICAL FIX: Use fresh data from backend (includes logged status)
+    console.log('✅ Setting selected appointment with logged status:', appointmentToShow.logged);
+    setSelectedAppointment(appointmentToShow);
+    setModalOpen(true);
+    
   } catch (error) {
-    console.error('❌ Error loading service details:', error);
-    setAppointmentServiceDetails([]);
-  } finally {
-    setLoadingServiceDetails(false);
+    console.error('❌ Error fetching appointment:', error);
+    showToast('Failed to load appointment details', 'error');
   }
-  
-  setSelectedAppointment(appointmentCopy);
-  setModalOpen(true);
 };
+
+
 
 
 

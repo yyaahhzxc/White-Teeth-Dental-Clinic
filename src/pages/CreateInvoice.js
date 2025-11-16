@@ -13,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import ViewInvoice from '../view-invoice';
 import toastService from '../services/toastService';
+const API_BASE = 'http://localhost:3001';
 
 function CreateInvoice({ 
   open = true, 
@@ -64,50 +65,118 @@ function CreateInvoice({
     }
   };
 
-  const handleCreateInvoice = () => {
-    console.log('Creating invoice with:', {
-      paymentMethod,
-      amountPaid,
-      remainingBalance: calculations.remainingBalance,
-      billingData,
-    });
+  const handleCreateInvoice = async () => {
+    // Validate inputs
+    if (!paymentMethod) {
+      toastService.show('Please select a payment method', 'error');
+      return;
+    }
     
-    // Dispatch invoice created event to lock the billing form
-    window.dispatchEvent(new Event('invoiceCreated'));
-    
-    // Show global toast using the dedicated service
-    toastService.show('Invoice created successfully!');
-    
-    // Open the ViewInvoice modal
-    setShowViewInvoice(true);
+    if (!amountPaid || parseFloat(amountPaid) <= 0) {
+      toastService.show('Please enter a valid amount', 'error');
+      return;
+    }
+  
+    if (!billingData?.billingId) {
+      toastService.show('Billing ID not found. Please try again.', 'error');
+      console.error('❌ Missing billingId in billingData:', billingData);
+      return;
+    }
+  
+    // Validate reference number for non-cash payments
+    if ((paymentMethod === 'Card' || paymentMethod === 'GCash') && !referenceNumber) {
+      toastService.show('Please enter a reference number', 'error');
+      return;
+    }
+  
+    try {
+      // Generate invoice details
+      const today = new Date();
+      const invoiceNumber = `INV-${today.getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+      const invoiceDate = today.toISOString().split('T')[0];
+      const dueDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days from now
+  
+      console.log('💾 Creating invoice:', {
+        billingId: billingData.billingId,
+        appointmentId: billingData.appointmentId,
+        patientId: billingData.patientId,
+        invoiceNumber,
+        amountPaid: parseFloat(amountPaid),
+        paymentMethod
+      });
+  
+      // Create invoice in backend
+      const response = await fetch(`${API_BASE}/invoices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          billingId: billingData.billingId,
+          appointmentId: billingData.appointmentId,
+          patientId: billingData.patientId,
+          invoiceNumber: invoiceNumber,
+          invoiceDate: invoiceDate,
+          dueDate: dueDate,
+          amountPaid: parseFloat(amountPaid),
+          paymentMethod: paymentMethod,
+          notes: referenceNumber ? `Reference: ${referenceNumber}` : ''
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create invoice');
+      }
+  
+      const result = await response.json();
+      console.log('✅ Invoice created successfully:', result);
+  
+      // Dispatch invoice created event to refresh billing table
+      window.dispatchEvent(new CustomEvent('invoiceCreated'));
+  
+      // Show success toast
+      toastService.show('Invoice created successfully!', 'success');
+  
+      // Open the ViewInvoice modal with updated invoice data
+      setShowViewInvoice(true);
+  
+    } catch (error) {
+      console.error('❌ Error creating invoice:', error);
+      toastService.show(`Failed to create invoice: ${error.message}`, 'error');
+    }
   };
+
+
 
   // Format invoice data for ViewInvoice component
   const invoiceData = useMemo(() => {
-    const today = new Date();
-    const formattedDate = today.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-    const invoiceNumber = `INV-${today.getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-    
-    return {
-      billedTo: 'Patient Name', // TODO: Get from billing data when available
-      invoiceNumber: invoiceNumber,
-      dentist: 'Dr. Dentist Name', // TODO: Get from billing data when available
-      date: formattedDate,
-      services: calculations.validServices,
-      additionalCharges: calculations.validCharges,
-      discounts: calculations.validDiscounts,
-      servicesTotal: calculations.servicesTotal,
-      chargesTotal: calculations.chargesTotal,
-      discountsTotal: calculations.discountsTotal,
-      subtotalAfterServices: calculations.subtotalAfterServices,
-      subtotalAfterCharges: calculations.subtotalAfterCharges,
-      total: calculations.total,
-      amountPaid: parseFloat(amountPaid) || 0,
-      balance: calculations.remainingBalance,
-      paymentMethod: paymentMethod,
-      referenceNumber: referenceNumber,
-    };
-  }, [calculations, amountPaid, paymentMethod, referenceNumber]);
+  const today = new Date();
+  const formattedDate = today.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const invoiceNumber = `INV-${today.getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+  
+  return {
+    billedTo: billingData.firstName && billingData.lastName 
+      ? `${billingData.firstName} ${billingData.lastName}` 
+      : 'Patient Name',
+    invoiceNumber: invoiceNumber,
+    dentist: 'Dr. Sarah Gerona', // TODO: Get from appointment data when available
+    date: formattedDate,
+    services: calculations.validServices,
+    additionalCharges: calculations.validCharges,
+    discounts: calculations.validDiscounts,
+    servicesTotal: calculations.servicesTotal,
+    chargesTotal: calculations.chargesTotal,
+    discountsTotal: calculations.discountsTotal,
+    subtotalAfterServices: calculations.subtotalAfterServices,
+    subtotalAfterCharges: calculations.subtotalAfterCharges,
+    total: calculations.total,
+    amountPaid: parseFloat(amountPaid) || 0,
+    balance: calculations.remainingBalance,
+    paymentMethod: paymentMethod,
+    referenceNumber: referenceNumber,
+  };
+}, [calculations, amountPaid, paymentMethod, referenceNumber, billingData]);
 
   return (
     <>
