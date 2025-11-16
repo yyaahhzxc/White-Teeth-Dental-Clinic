@@ -3912,6 +3912,92 @@ app.delete('/users/:id', requireRole('admin'), (req, res) => {
   });
 });
 
+// =====================================================
+// DASHBOARD STATISTICS ENDPOINTS
+// =====================================================
+
+// Get dashboard statistics for appointment counts
+app.get('/dashboard/stats', (req, res) => {
+  console.log('📊 GET /dashboard/stats - Fetching dashboard statistics');
+  
+  const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+  
+  const stats = {
+    completedToday: 0,
+    upcomingTotal: 0,
+    upcomingToday: 0
+  };
+  
+  let queriesCompleted = 0;
+  const totalQueries = 3;
+  
+  // Query 1: Count completed appointments today
+  const completedTodayQuery = `
+    SELECT COUNT(*) as count 
+    FROM appointments 
+    WHERE appointmentDate = ? 
+    AND status = 'completed'
+  `;
+  
+  db.get(completedTodayQuery, [today], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching completed appointments today:', err);
+    } else {
+      stats.completedToday = row.count || 0;
+      console.log(`✅ Completed appointments today: ${stats.completedToday}`);
+    }
+    
+    queriesCompleted++;
+    if (queriesCompleted === totalQueries) {
+      res.json(stats);
+    }
+  });
+  
+  // Query 2: Count all upcoming appointments (scheduled or confirmed, future dates)
+  const upcomingTotalQuery = `
+    SELECT COUNT(*) as count 
+    FROM appointments 
+    WHERE (status = 'scheduled' OR status = 'Scheduled' OR status = 'confirmed')
+    AND appointmentDate >= ?
+  `;
+  
+  db.get(upcomingTotalQuery, [today], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching total upcoming appointments:', err);
+    } else {
+      stats.upcomingTotal = row.count || 0;
+      console.log(`✅ Total upcoming appointments: ${stats.upcomingTotal}`);
+    }
+    
+    queriesCompleted++;
+    if (queriesCompleted === totalQueries) {
+      res.json(stats);
+    }
+  });
+  
+  // Query 3: Count upcoming appointments today (scheduled for today, not completed)
+  const upcomingTodayQuery = `
+    SELECT COUNT(*) as count 
+    FROM appointments 
+    WHERE appointmentDate = ? 
+    AND (status = 'scheduled' OR status = 'Scheduled' OR status = 'confirmed')
+  `;
+  
+  db.get(upcomingTodayQuery, [today], (err, row) => {
+    if (err) {
+      console.error('❌ Error fetching upcoming appointments today:', err);
+    } else {
+      stats.upcomingToday = row.count || 0;
+      console.log(`✅ Upcoming appointments today: ${stats.upcomingToday}`);
+    }
+    
+    queriesCompleted++;
+    if (queriesCompleted === totalQueries) {
+      res.json(stats);
+    }
+  });
+});
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

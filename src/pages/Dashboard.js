@@ -33,12 +33,20 @@ import { Typography } from '@mui/material';
 import AddPatientRecord from './add-record';
 import AddService from './add-service';
 import Toast from '../components/Toast';
+import { API_BASE } from '../apiConfig';
 
 function Dashboard() {
   // quick-action state moved into shared QuickActionButton
   const [showPatientAdded, setShowPatientAdded] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
+
+  // Dashboard statistics state
+  const [dashboardStats, setDashboardStats] = useState({
+    completedToday: 0,
+    upcomingTotal: 0,
+    upcomingToday: 0
+  });
 
   // Toast state
   const [toast, setToast] = useState({
@@ -53,6 +61,26 @@ function Dashboard() {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Fetch dashboard statistics
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/dashboard/stats`);
+        if (response.ok) {
+          const data = await response.json();
+          setDashboardStats(data);
+          console.log('✅ Dashboard stats loaded:', data);
+        } else {
+          console.error('❌ Failed to fetch dashboard stats');
+        }
+      } catch (error) {
+        console.error('❌ Error fetching dashboard stats:', error);
+      }
+    };
+
+    fetchDashboardStats();
+  }, []);
 
   useEffect(() => {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn') || location.state?.usr?.justLoggedIn || window.history.state?.usr?.justLoggedIn;
@@ -101,15 +129,15 @@ function Dashboard() {
       {/* Summary Cards */}
       <Box display="flex" gap={2} p={3}>
   <Paper sx={{ flex: 1, bgcolor: '#4caf50', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>3</Typography>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>{dashboardStats.completedToday}</Typography>
     <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Completed<br/>Appointments Today</Typography>
   </Paper>
   <Paper sx={{ flex: 1, bgcolor: '#ff9800', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>15</Typography>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>{dashboardStats.upcomingTotal}</Typography>
     <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Upcoming<br/>Appointments</Typography>
   </Paper>
   <Paper sx={{ flex: 1, bgcolor: '#d13858', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>4</Typography>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>{dashboardStats.upcomingToday}</Typography>
     <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Upcoming<br/>Appointments Today</Typography>
   </Paper>
 </Box>
