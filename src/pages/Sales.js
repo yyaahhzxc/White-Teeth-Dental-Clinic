@@ -4,6 +4,8 @@ import AddExpenseDialog from './add-expense';
 import { ArrowDropDown } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
+const API_BASE = 'http://localhost:3001';
+
 // Local components
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';
@@ -40,6 +42,64 @@ const DashboardContainer = ({ children }) => (
 
 // Simple SVG Pie + legend helper (no external deps)
 const formatCurrency = (n) => `Php ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Format a date value as "MonthName DD, YYYY" (e.g. November 16, 2025)
+const formatLongDate = (value) => {
+  if (!value && value !== 0) return '';
+  try {
+    // If value is already a Date, use it directly
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) return String(value);
+      return value.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    // If value is a YYYY-MM-DD string, construct a local Date to avoid UTC shift
+    const isoDateOnly = String(value).match(/^\d{4}-\d{2}-\d{2}$/);
+    if (isoDateOnly) {
+      const [y, m, d] = String(value).split('-').map(Number);
+      const local = new Date(y, m - 1, d);
+      if (isNaN(local.getTime())) return String(value);
+      return local.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    // Fallback: let Date parse other ISO strings (with time) or other formats
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) {
+    return String(value);
+  }
+};
+
+// Helper: produce a YYYY-MM-DD key for a value (Date or string), using local date
+const toDateKey = (value) => {
+  if (!value && value !== 0) return null;
+  if (value instanceof Date) {
+    const d = value;
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const s = String(value);
+  const isoOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoOnly) return `${isoOnly[1]}-${isoOnly[2]}-${isoOnly[3]}`;
+  const parsed = new Date(s);
+  if (isNaN(parsed.getTime())) return null;
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const todayKey = (() => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+})();
 
 const computeServiceBreakdown = (aggregatedArray) => {
   // Fixed service list and colors (easy to replace with backend values later)
@@ -147,11 +207,29 @@ const [isInitialized, setIsInitialized] = useState(false);
   // start empty; will load from backend
   const [expenses, setExpenses] = useState([]);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
+  // revenues loaded from backend (replaces placeholder revenueData)
+  const [revenues, setRevenues] = useState([]);
+  const [loadingRevenues, setLoadingRevenues] = useState(false);
 
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [activeFilters, setActiveFilters] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const categoryFilteredData = revenueData;
+  // Map backend revenues into the shape expected by aggregateData (date + revenue string)
+  const categoryFilteredData = (revenues || []).map(r => {
+    // server returns recordedAt and amount (number)
+    const date = r.recordedAt || r.date || r.createdAt || r.invoiceDate || r.dateCreated || new Date().toISOString();
+    const amountNum = Number(r.amount || r.amountNumber || 0) || 0;
+    return {
+      id: r.id,
+      date,
+      revenue: `Php ${amountNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      revenueNumber: amountNum,
+      notes: r.notes,
+      billingId: r.billingId,
+      appointmentId: r.appointmentId,
+      patientId: r.patientId,
+    };
+  });
   const [period, setPeriod] = useState('Daily');
   const [activeTab, setActiveTab] = useState('revenue');
 
@@ -178,7 +256,7 @@ const [isInitialized, setIsInitialized] = useState(false);
         const m = String(parsed.getMonth() + 1).padStart(2, '0');
         const d = String(parsed.getDate()).padStart(2, '0');
         keySort = `${y}-${m}-${d}`;
-        label = parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        label = formatLongDate(parsed);
       } else if (period === 'Monthly') {
         const y = parsed.getFullYear();
         const m = String(parsed.getMonth() + 1).padStart(2, '0');
@@ -273,11 +351,84 @@ if (typeof window !== 'undefined') {
   window.forceRefreshExpenses = forceRefreshExpenses;
 }
 
+  // Fetch revenues from backend and update state
+  const fetchRevenues = async () => {
+    setLoadingRevenues(true);
+    try {
+      const res = await fetch(`${API_BASE}/revenues`);
+      if (!res.ok) {
+        console.error('Failed to fetch revenues', res.status);
+        setRevenues([]);
+        setLoadingRevenues(false);
+        return;
+      }
+      const data = await res.json();
+      console.log('Fetched revenues count:', (data || []).length);
+      // Normalize rows: expect amount and recordedAt
+      const mapped = (data || []).map(r => ({
+        id: r.id,
+        amount: Number(r.amount || 0),
+        recordedAt: r.recordedAt || r.createdAt || r.date || null,
+        notes: r.notes || '',
+        billingId: r.billingId,
+        appointmentId: r.appointmentId,
+        patientId: r.patientId,
+      }));
+      setRevenues(mapped);
+    } catch (e) {
+      console.error('Error fetching revenues', e);
+      setRevenues([]);
+    } finally {
+      setLoadingRevenues(false);
+    }
+  };
+
+  useEffect(() => {
+    // initial load
+    fetchRevenues();
+
+    // refresh when a billing/invoice is created elsewhere in the app
+    const onBillingCreated = () => fetchRevenues();
+    const onInvoiceCreated = () => fetchRevenues();
+    window.addEventListener('billingCreated', onBillingCreated);
+    window.addEventListener('invoiceCreated', onInvoiceCreated);
+    return () => {
+      window.removeEventListener('billingCreated', onBillingCreated);
+      window.removeEventListener('invoiceCreated', onInvoiceCreated);
+    };
+  }, []);
+
 
 
 
 
   const aggregated = aggregateData(categoryFilteredData || [], period);
+
+  // Map backend revenues into row-level format (like expensesRows) so the Revenue tab
+  // can show individual revenue rows directly from the `revenues` table.
+  const revenuesRows = (revenues || []).map((r) => ({
+    id: r.id,
+    // ensure date is in a parsable ISO-like format
+    date: (r.recordedAt || r.date || r.createdAt || new Date().toISOString()).split('T')[0],
+    dateSort: (r.recordedAt || r.date || r.createdAt || new Date().toISOString()).split('T')[0],
+    revenueNumber: Number(r.amount || r.amountNumber || 0) || 0,
+    revenue: `Php ${Number(r.amount || r.amountNumber || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    notes: r.notes || '',
+    billingId: r.billingId,
+    appointmentId: r.appointmentId,
+    patientId: r.patientId,
+  }));
+
+  // Apply search/filter/sort/pagination on row-level revenues (for the Revenue tab)
+  const filteredRevenuesRows = (revenuesRows || []).filter((item) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (item.date || '').toLowerCase().includes(q) || (item.notes || '').toLowerCase().includes(q) || (item.revenue || '').toLowerCase().includes(q);
+  });
+
+  const sortedRevenuesRows = sortData(filteredRevenuesRows, sortConfig || {});
+  const totalPagesRevenues = Math.max(1, Math.ceil(sortedRevenuesRows.length / rowsPerPage));
+  const visibleRevenues = sortedRevenuesRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   // --- Expenses aggregation (for breakdown only) ---
   // We keep row-level `expenses` for the table; aggregatedExpenses is derived for charts/stats.
@@ -438,6 +589,12 @@ const handleExpenseSubmit = (savedOrPayload) => {
   const sorted = sortData(filtered, sortConfig || {});
   const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
   const visible = sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  // Decide which dataset to display in the main Revenue table:
+  // - If period === 'Daily', show individual revenue rows (payments/invoices)
+  // - Otherwise (Monthly/Yearly), show aggregated rows
+  const displayRows = period === 'Daily' ? visibleRevenues : visible;
+  const displayTotalPages = period === 'Daily' ? totalPagesRevenues : totalPages;
 
   // Example placeholder row depending on selected period
   const exampleRow = period === 'Daily'
@@ -729,45 +886,51 @@ useEffect(() => {
               <DataTable
                 paperAlign="left"
                 topContent={
-                  <>
+                  <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', px: 3, pt: 3, pb: 2, gap: 2, boxSizing: 'border-box' }}>
                       <SearchBar value={search} onChange={setSearch} placeholder="Search by date" searchFields={["date"]} data={categoryFilteredData} />
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
-                        <FilterButton onClick={() => setShowFilterBox(v => !v)} />
-                        <FormControl size="small" sx={{ minWidth: 120, ml: 1 }}>
-                          <Select
-                            value={period}
-                            onChange={(e) => { setPeriod(e.target.value); setPage(0); }}
-                            displayEmpty
-                            inputProps={{ 'aria-label': 'period-select' }}
-                            sx={{
-                              backgroundColor: '#4A69BD',
-                              color: 'white',
-                              border: '1px solid #4A69BD',
-                              borderRadius: '10px',
-                              height: '38px',
-                              px: 2,
-                              textTransform: 'none',
-                              fontWeight: 500,
-                              fontSize: '16px',
-                              fontFamily: 'DM Sans, sans-serif',
-                              minWidth: 99,
-                              boxShadow: 1,
-                              '& .MuiSvgIcon-root': { color: 'white' },
-                              '&:hover': { backgroundColor: '#2148c0', border: '1px solid #2148c0' },
-                            }}
-                          >
-                            <MenuItem value="Daily">Daily</MenuItem>
-                            <MenuItem value="Monthly">Monthly</MenuItem>
-                            <MenuItem value="Yearly">Yearly</MenuItem>
-                          </Select>
-                        </FormControl>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                        <Box sx={{ color: 'white', fontWeight: 600, mr: 1 }}>
+                          {loadingRevenues ? 'Loading revenues...' : `${revenues.length || 0} revenues`}
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'flex-end', width: 'auto', p: 0, m: 0, flex: 1 }}>
+                          <FilterButton onClick={() => setShowFilterBox(v => !v)} />
+                          <FormControl size="small" sx={{ minWidth: 120, ml: 1 }}>
+                            <Select
+                              value={period}
+                              onChange={(e) => { setPeriod(e.target.value); setPage(0); }}
+                              displayEmpty
+                              inputProps={{ 'aria-label': 'period-select' }}
+                              sx={{
+                                backgroundColor: '#4A69BD',
+                                color: 'white',
+                                border: '1px solid #4A69BD',
+                                borderRadius: '10px',
+                                height: '38px',
+                                px: 2,
+                                textTransform: 'none',
+                                fontWeight: 500,
+                                fontSize: '16px',
+                                fontFamily: 'DM Sans, sans-serif',
+                                minWidth: 99,
+                                boxShadow: 1,
+                                '& .MuiSvgIcon-root': { color: 'white' },
+                                '&:hover': { backgroundColor: '#2148c0', border: '1px solid #2148c0' },
+                              }}
+                            >
+                              <MenuItem value="Daily">Daily</MenuItem>
+                              <MenuItem value="Monthly">Monthly</MenuItem>
+                              <MenuItem value="Yearly">Yearly</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Box>
                       </Box>
                     </Box>
                     <Collapse in={showFilterBox} timeout={{ enter: 300, exit: 200 }}>
                       <FilterContent filterCategories={filterCategories} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
                     </Collapse>
-                  </>
+                  </Box>
                 }
                 tableHeader={
                   <Box sx={{ px: 3, pt: 3, pb: 3 }}>
@@ -794,9 +957,9 @@ useEffect(() => {
                 tableRows={
                   <Box sx={{ px: 3, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '200px', maxHeight: '550px', overflow: 'auto' }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pb: 2 }}>
-                      {visible.length > 0 ? visible.map((row) => (
-                        <Box key={`rev-${row.id || row.dateSort || row.label}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                          <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.label || row.date}</Box>
+                      {displayRows && displayRows.length > 0 ? displayRows.map((row) => (
+                        <Box key={`rev-${row.id || row.dateSort || row.label || row.date}`} sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
+                          <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.label || formatLongDate(row.date || row.dateSort)}</Box>
                           <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.revenue}</Box>
                         </Box>
                       )) : (
@@ -812,7 +975,7 @@ useEffect(() => {
                 }
                 pagination={
                   <Box sx={{ mt: 2, mb: 2, px: 3, pt: 0, pb: 0 }}>
-                    <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} rowsPerPage={rowsPerPage} onRowsPerPageChange={handleRowsPerPageChange} />
+                    <Pagination page={page} totalPages={displayTotalPages} onPageChange={handlePageChange} rowsPerPage={rowsPerPage} onRowsPerPageChange={handleRowsPerPageChange} />
                   </Box>
                 }
                 grayMinHeight={'450px'}
@@ -959,7 +1122,7 @@ useEffect(() => {
                               ? `exp-${row.id}`
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
                           } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: '#f9fafc', borderRadius: '10px' }}>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{new Date(row.date).toLocaleDateString()}</Box>
+                            <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{formatLongDate(row.date)}</Box>
                             <Box sx={{ flex: 2, textAlign: 'left', color: '#6d6b80' }}>{row.expense}</Box>
                             <Box sx={{ flex: 1, textAlign: 'left', color: '#6d6b80' }}>{row.category}</Box>
                             <Box sx={{ flex: 1, textAlign: 'right', color: '#6d6b80' }}>{row.amount}</Box>
