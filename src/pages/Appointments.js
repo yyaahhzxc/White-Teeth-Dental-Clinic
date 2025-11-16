@@ -1822,7 +1822,7 @@ const handleCloseModal = () => {
               <Box sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {calendarView === 'Month' ? (
                   <MonthGrid
-                    appointments={categoryFilteredAppointments.filter(apt => statusTab === 'scheduled' ? apt.status === 'scheduled' : apt.status !== 'scheduled')}
+                    appointments={categoryFilteredAppointments}
                     currentDate={currentDate}
                     statusColors={statusColors}
                     onAppointmentClick={handleAppointmentClick}

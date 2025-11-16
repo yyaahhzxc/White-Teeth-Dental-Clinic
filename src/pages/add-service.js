@@ -430,60 +430,8 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
             </Box>
           </Box>
 
-          {/* Type and Status Row */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-            {/* Service Type */}
-            <Box>
-              <Typography variant="body2" sx={{ 
-                mb: 1, 
-                fontWeight: 600, 
-                color: '#374151',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px'
-              }}>
-                Service Type *
-              </Typography>
-              <TextField
-                select
-                fullWidth
-                name="type"
-                value={service.type}
-                onChange={handleChange}
-                disabled={loading}
-                error={!!getFieldError('type')}
-                helperText={getHelperText('type')}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <TypeIcon sx={{ color: '#6b7280', fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    backgroundColor: 'white',
-                    fontFamily: 'Inter, sans-serif',
-                    '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-                    '&.Mui-focused': { boxShadow: '0 4px 12px rgba(33, 72, 192, 0.15)' }
-                  }
-                }}
-              >
-                {serviceTypes.map((type) => (
-                  <MenuItem key={type.value} value={type.value}>
-                    <Box>
-                      <Typography sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                        {type.label}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#6b7280', fontFamily: 'Inter, sans-serif' }}>
-                        {type.desc}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-
+          {/* Status Row */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
             {/* Status */}
             <Box>
               <Typography variant="body2" sx={{ 
