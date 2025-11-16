@@ -6,6 +6,7 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('General');
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -14,12 +15,13 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
       setAmount('');
       setDate(new Date().toISOString().split('T')[0]); // Set today's date
       setCategory('General');
+      setNotes('');
     }
   }, [open]);
 
   const handleSubmit = async () => {
     const parsedAmt = Number(String(amount).replace(/[^0-9.-]+/g, '')) || 0;
-    const payload = { expense: description.trim(), amount: parsedAmt, date, category };
+    const payload = { expense: description.trim(), amount: parsedAmt, date, category, notes: notes.trim() };
 
     try {
       // POST to backend expenses endpoint
@@ -60,6 +62,7 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
           <TextField label="Expense Name" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth variant="outlined" />
           <TextField label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} fullWidth variant="outlined" placeholder="0.00" />
           <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth variant="outlined" />
+          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth variant="outlined" multiline minRows={2} placeholder="Optional notes about this expense" />
           <FormControl fullWidth>
             <InputLabel id="expense-category-label">Category</InputLabel>
             <Select labelId="expense-category-label" label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -68,6 +71,7 @@ export default function AddExpenseDialog({ open = false, onClose = () => {}, onS
               <MenuItem value="Rent">Rent</MenuItem>
               <MenuItem value="Utilities">Utilities</MenuItem>
               <MenuItem value="Payroll">Payroll</MenuItem>
+              <MenuItem value="Others">Others...</MenuItem>
             </Select>
           </FormControl>
         </Box>

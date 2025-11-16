@@ -730,6 +730,7 @@ const handleExpenseSubmit = (savedOrPayload) => {
       date: row.date ? row.date.split('T')[0] : (new Date()).toISOString().split('T')[0],
       expense: row.name || row.expense || 'Expense',
       category: row.category || 'General',
+      notes: row.notes || '',
       amountNumber,
       amount: `Php ${amountNumber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       createdAt: row.createdAt,
@@ -1093,10 +1094,11 @@ useEffect(() => {
                           currentSort={sortConfig}
                           onSort={handleSort}
                           textAlign="left"
-                          sx={{ flex: period !== 'Daily' ? '3' : '2' }}
+                          sx={{ flex: period !== 'Daily' ? '2.5' : '2' }}
                         />
-                        <Box sx={{ flex: period !== 'Daily' ? 0 : 2, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Expense</Box>
-                        <Box sx={{ flex: period !== 'Daily' ? 0 : 1, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Category</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 0.8, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Expense</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 0.8, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Category</Box>
+                        <Box sx={{ flex: period !== 'Daily' ? 0 : 3, px: 2, color: '#6d6b80', display: period !== 'Daily' ? 'none' : 'block' }}>Notes</Box>
                         <SortableHeader
                           label="Amount"
                           sortKey="amountNumber"
@@ -1119,7 +1121,7 @@ useEffect(() => {
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
                           } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
                             <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.label || (period === 'Monthly' ? new Date(row.date).toLocaleString(undefined, { month: 'long', year: 'numeric' }) : String(new Date(row.date).getFullYear()))}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
+                              <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         ) : (
                           <Box key={
@@ -1128,8 +1130,13 @@ useEffect(() => {
                               : `exp-${row.date}-${row.expense}-${row.amountNumber}`
                           } sx={{ display: 'flex', px: 2, py: 1, alignItems: 'center', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafc', borderRadius: '10px' }}>
                             <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{formatLongDate(row.date)}</Box>
-                            <Box sx={{ flex: 2, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.expense}</Box>
-                            <Box sx={{ flex: 1, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.category}</Box>
+                            <Box sx={{ flex: 1, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.expense}</Box>
+                            <Box sx={{ flex: 0.8, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.category}</Box>
+                            <Box sx={{ flex: 3, textAlign: 'left', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80', pr: 1 }}>
+                              <Box component="span" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={row.notes || ''}>
+                                {row.notes && String(row.notes).trim() !== '' ? row.notes : '-'}
+                              </Box>
+                            </Box>
                             <Box sx={{ flex: 1, textAlign: 'right', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#6d6b80' }}>{row.amount}</Box>
                           </Box>
                         )

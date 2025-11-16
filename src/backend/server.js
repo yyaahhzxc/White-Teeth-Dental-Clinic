@@ -507,6 +507,7 @@ db.run(`
     seq INTEGER NOT NULL,
     name TEXT NOT NULL,
     category TEXT,
+    notes TEXT,
     amount REAL NOT NULL,
     date TEXT NOT NULL,             -- ISO date string
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -514,6 +515,18 @@ db.run(`
 `, (err) => {
   if (err) console.error('Error creating expenses table:', err);
   else console.log('✅ Expenses table ready');
+});
+
+// Migration: add notes column to expenses if it doesn't exist
+db.run(`
+  ALTER TABLE expenses
+  ADD COLUMN notes TEXT DEFAULT ''
+`, (err) => {
+  if (err && !err.message.includes('duplicate column name') && !err.message.includes('already exists')) {
+    console.error('❌ Error adding notes column to expenses:', err);
+  } else {
+    console.log('✅ notes column added/verified in expenses table');
+  }
 });
 
 //TABLE CREATION FUNCTIONS
@@ -3975,7 +3988,7 @@ app.post('/users', requireRole('admin'), (req, res) => {
 });
 
 app.post('/expenses', (req, res) => {
-  const { expense: name, amount, date, category } = req.body;
+  const { expense: name, amount, date, category, notes } = req.body;
   if (!name || !amount || !date) {
     return res.status(400).json({ error: 'name, amount and date are required' });
   }
@@ -3989,9 +4002,9 @@ app.post('/expenses', (req, res) => {
     const id = `${year}-${String(seq).padStart(4, '0')}`;
     const createdAt = new Date().toISOString();
 
-    const q = `INSERT INTO expenses (id, year, seq, name, category, amount, date, createdAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    db.run(q, [id, year, seq, name, category || '', amount, date, createdAt], function(insertErr) {
+    const q = `INSERT INTO expenses (id, year, seq, name, category, notes, amount, date, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.run(q, [id, year, seq, name, category || '', notes || '', amount, date, createdAt], function(insertErr) {
       if (insertErr) {
         console.error('Error inserting expense:', insertErr);
         return res.status(500).json({ error: insertErr.message });
@@ -3999,7 +4012,7 @@ app.post('/expenses', (req, res) => {
       // return created expense
       res.status(201).json({
         success: true,
-        expense: { id, year, seq, name, category: category || '', amount, date, createdAt }
+        expense: { id, year, seq, name, category: category || '', notes: notes || '', amount, date, createdAt }
       });
     });
   });
