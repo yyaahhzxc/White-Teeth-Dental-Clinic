@@ -23,11 +23,22 @@ function BillingAppointmentSummary({
 }) {
   // Initialize with billing data from appointment
   const initialBillingData = {
+    appointmentId: billingData.appointmentId || null,
     firstName: billingData.firstName || 'John',
     lastName: billingData.lastName || 'Doe',
-    dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    service: billingData.service || '',
+    dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric', 
+      year: 'numeric' 
+    }),
+    appointmentDate: billingData.appointmentDate || '',
+    timeStart: billingData.timeStart || '',
+    timeEnd: billingData.timeEnd || '',
+    patientId: billingData.patientId || null
   };
+
+  console.log('📋 BillingAppointmentSummary initialized with:', initialBillingData);
+  console.log('🛒 Incoming services:', billingData.services);
 
   // State for CreateInvoice modal
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
@@ -39,14 +50,24 @@ function BillingAppointmentSummary({
   const [isLocked, setIsLocked] = useState(false);
 
   // Initialize services from appointment data
-  const initialServices = billingData.service 
-    ? [{ id: 1, name: billingData.service, quantity: 1, price: 1000.00 }]
-    : [{ id: 1, name: 'Wisdom Tooth Extraction', quantity: 1, price: 1000.00 }];
+  const initialServices = billingData.services && billingData.services.length > 0
+    ? billingData.services.map((service, index) => ({
+        id: index + 1, // Use index for UI purposes
+        serviceId: service.id, // Keep original service ID
+        name: service.name,
+        quantity: service.quantity || 1,
+        price: parseFloat(service.price) || 0,
+        source_type: service.source_type || 'service'
+      }))
+    : [{ id: 1, name: '', quantity: 1, price: 0 }];
+
+  console.log('🔧 Initialized services:', initialServices);
 
   // Left side form state (modifiable)
   const [services, setServices] = useState(initialServices);
   const [additionalCharges, setAdditionalCharges] = useState([]);
   const [discounts, setDiscounts] = useState([]);
+
 
   // Calculate totals dynamically
   const calculations = useMemo(() => {
@@ -200,13 +221,15 @@ function BillingAppointmentSummary({
     // Close confirmation dialog
     setConfirmDialogOpen(false);
     
-    // Don't lock the form yet - allow editing during invoice creation
-    // Lock will happen after invoice is created
-    
     // Prepare billing entry data
     const billingEntry = {
       id: Date.now(), // Generate a unique ID
+      appointmentId: initialBillingData.appointmentId, // Link to appointment
+      patientId: initialBillingData.patientId, // Link to patient
       dateCreated: initialBillingData.dateCreated,
+      appointmentDate: initialBillingData.appointmentDate,
+      timeStart: initialBillingData.timeStart,
+      timeEnd: initialBillingData.timeEnd,
       firstName: initialBillingData.firstName,
       lastName: initialBillingData.lastName,
       totalBill: calculations.total,
@@ -217,20 +240,22 @@ function BillingAppointmentSummary({
       additionalCharges: calculations.validCharges,
       discounts: calculations.validDiscounts,
     };
-
+  
+    console.log('💰 Creating billing entry:', billingEntry);
+  
     // Save billing entry to local storage (frontend only)
     try {
       const existingBillings = JSON.parse(localStorage.getItem('billings') || '[]');
       existingBillings.push(billingEntry);
       localStorage.setItem('billings', JSON.stringify(existingBillings));
-      console.log('Billing entry saved:', billingEntry);
+      console.log('✅ Billing entry saved:', billingEntry);
       
       // Trigger custom event for billing table to refresh
       window.dispatchEvent(new CustomEvent('billingCreated', { detail: billingEntry }));
     } catch (error) {
-      console.error('Error saving billing entry:', error);
+      console.error('❌ Error saving billing entry:', error);
     }
-
+  
     // Prepare billing data for the invoice
     const invoiceBillingData = {
       ...initialBillingData,
@@ -238,7 +263,11 @@ function BillingAppointmentSummary({
       additionalCharges,
       discounts,
       billingId: billingEntry.id, // Pass the billing ID to invoice
+      appointmentId: initialBillingData.appointmentId,
+      patientId: initialBillingData.patientId
     };
+    
+    console.log('📄 Opening invoice with data:', invoiceBillingData);
     setCreateInvoiceOpen(true);
   };
 

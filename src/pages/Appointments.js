@@ -228,6 +228,16 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState(null);
 
+  
+
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(''); // ADD THIS LINE
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false); // ADD THIS LINE
+
+
+
+  
+
   // Toast state
   const [toast, setToast] = useState({
     open: false,
@@ -281,7 +291,7 @@ const [loadingHistory, setLoadingHistory] = useState(false);
   const [logAppointmentOpen, setLogAppointmentOpen] = useState(false);
   
   // Success message state
-  const [successMessage, setSuccessMessage] = useState('Appointment updated successfully!');
+  
 
   // Add state to track if appointment was logged
 
@@ -825,19 +835,15 @@ const handleSaveClick = async () => {
 
 
 const handleCloseModal = () => {
-  setIsModalOpen(false);
+  setModalOpen(false); // Changed from setIsModalOpen
   setSelectedAppointment(null);
   setEditMode(false);
   setEditedAppointment(null);
   setUpdateSuccess(false);
   setSuccessMessage('');
   setLogAppointmentOpen(false);
-  // REMOVE THIS LINE: setAppointmentLogged(false);
   setShowCancelConfirm(false);
-  setSelectedServices([]);
-  setServiceInputValue('');
-  setSelectedPatient(null);
-  setPatientInputValue('');
+
 };
 
   // Handler for marking appointment as done
@@ -923,21 +929,97 @@ const handleCloseModal = () => {
 };
 
 
-  // Handler for proceeding to billing
-  const handleProceedToBilling = () => {
-  console.log('💳 Proceeding to billing for appointment:', selectedAppointment?.id);
+  // FIND AND REPLACE the handleProceedToBilling function (around line 900)
+
+  const handleProceedToBilling = async () => {
+    console.log('💳 Proceeding to billing for appointment:', selectedAppointment?.id);
+    
+    if (!selectedAppointment) {
+      showToast('No appointment selected', 'error');
+      return;
+    }
   
-  // Close the appointment modal
-  handleCloseModal();
+    try {
+      // Fetch complete appointment details with services
+      const response = await fetch(`${API_BASE}/appointments/${selectedAppointment.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch appointment details');
+      }
+      
+      const appointmentData = await response.json();
+      console.log('📋 Appointment data for billing:', appointmentData);
   
-  // Navigate to billing page (you'll need to import useNavigate from react-router-dom)
-  // If you haven't imported it yet, add: import { useNavigate } from 'react-router-dom';
-  // And add: const navigate = useNavigate(); at the top of your component
+      // Fetch patient details
+      const patientResponse = await fetch(`${API_BASE}/patients/${appointmentData.patientId}`);
+      if (!patientResponse.ok) {
+        throw new Error('Failed to fetch patient details');
+      }
+      
+      const patientData = await patientResponse.json();
+      console.log('👤 Patient data:', patientData);
   
-  // For now, let's just show an alert - you can replace this with navigation
-  alert('Navigating to billing page...');
-  // When you're ready to navigate: navigate('/billing', { state: { appointmentId: selectedAppointment.id } });
-};
+      // Fetch services with details using the correct endpoint
+      const servicesResponse = await fetch(`${API_BASE}/appointment-services/${selectedAppointment.id}`);
+      if (!servicesResponse.ok) {
+        throw new Error('Failed to fetch appointment services');
+      }
+      
+      const servicesData = await servicesResponse.json();
+      console.log('🛒 Services data:', servicesData);
+  
+      // Prepare billing data with all necessary information
+      const billingData = {
+        appointmentId: appointmentData.id,
+        firstName: patientData.firstName,
+        lastName: patientData.lastName,
+        dateCreated: new Date().toLocaleDateString('en-US', { 
+          month: 'long', 
+          day: 'numeric', 
+          year: 'numeric' 
+        }),
+        appointmentDate: appointmentData.appointmentDate,
+        timeStart: appointmentData.timeStart,
+        timeEnd: appointmentData.timeEnd,
+        services: servicesData.map(service => ({
+          id: service.id,
+          serviceId: service.id,
+          name: service.name,
+          quantity: service.quantity || 1,
+          price: parseFloat(service.price) || 0,
+          duration: parseInt(service.duration) || 0,
+          source_type: service.source_type || 'service'
+        })),
+        patientId: appointmentData.patientId
+      };
+  
+      console.log('💰 Prepared billing data:', billingData);
+  
+      // Close appointment modal
+      handleCloseModal();
+  
+      // Set billing modal state
+      setBillingModalOpen(true);
+      
+      // Also dispatch event for Billing.js to listen to
+      window.dispatchEvent(new CustomEvent('openBillingModal', { 
+        detail: billingData 
+      }));
+  
+      // Navigate to billing page with state
+      navigate('/billing', { 
+        state: { 
+          openBillingModal: true, 
+          billingData: billingData 
+        } 
+      });
+  
+    } catch (error) {
+      console.error('❌ Error preparing billing:', error);
+      showToast('Failed to prepare billing: ' + error.message, 'error');
+    }
+  };
+
+
 
   const statusColors = {
     cancelled: '#ea4335',
@@ -2737,6 +2819,7 @@ const handleCloseModal = () => {
     Close
   </Button>
   
+  {/* Show Save Changes button when in edit mode */}
   {editMode && (
     <>
       <Button 
@@ -2777,28 +2860,6 @@ const handleCloseModal = () => {
         {updating ? <CircularProgress size={20} color="inherit" /> : 'Save Changes'}
       </Button>
     </>
-  )}
-  
-  {!editMode && selectedAppointment?.status !== 'cancelled' && (
-    <Button 
-      variant="outlined"
-      onClick={handleEditClick}
-      disabled={updating}
-      sx={{ 
-        fontFamily: 'Inter, sans-serif',
-        textTransform: 'none',
-        fontSize: '14px',
-        fontWeight: '500',
-        borderColor: '#1a73e8',
-        color: '#1a73e8',
-        '&:hover': {
-          borderColor: '#1557b0',
-          backgroundColor: 'rgba(26, 115, 232, 0.04)'
-        }
-      }}
-    >
-      Edit Appointment
-    </Button>
   )}
   
   {/* Show Mark as Done button ONLY if status is scheduled/ongoing and NOT in edit mode */}
@@ -2901,6 +2962,7 @@ const handleCloseModal = () => {
     </Button>
   )}
   
+  {/* Show Cancel Appointment button for non-cancelled, non-done appointments, not in edit mode */}
   {!editMode && 
    selectedAppointment?.status !== 'cancelled' && 
    selectedAppointment?.status !== 'done' && (
@@ -2944,17 +3006,22 @@ const handleCloseModal = () => {
       
       {/* Billing Appointment Summary Modal */}
       <BillingAppointmentSummary
-        open={billingModalOpen}
-        onClose={() => setBillingModalOpen(false)}
-        billingData={{
-          firstName: selectedAppointment?.patientName?.split(' ')[0] || '',
-          lastName: selectedAppointment?.patientName?.split(' ').slice(1).join(' ') || '',
-          dateCreated: selectedAppointment?.appointmentDate 
-            ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-            : '',
-          service: selectedAppointment?.procedure || '',
-        }}
-      />
+  open={billingModalOpen}
+  onClose={() => setBillingModalOpen(false)}
+  billingData={{
+    appointmentId: selectedAppointment?.id,
+    firstName: selectedAppointment?.firstName || selectedAppointment?.patientName?.split(' ')[0] || '',
+    lastName: selectedAppointment?.lastName || selectedAppointment?.patientName?.split(' ').slice(1).join(' ') || '',
+    dateCreated: selectedAppointment?.appointmentDate 
+      ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : '',
+    appointmentDate: selectedAppointment?.appointmentDate || '',
+    timeStart: selectedAppointment?.timeStart || '',
+    timeEnd: selectedAppointment?.timeEnd || '',
+    services: appointmentServiceDetails || [],
+    patientId: selectedAppointment?.patientId
+  }}
+/>
       
       <QuickActionButton />
       {/* FilterComponent for data filtering logic */}

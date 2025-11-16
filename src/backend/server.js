@@ -368,7 +368,8 @@ db.run(`
   }
 });
 
-// Create visit logs table
+// FIND AND REPLACE the CREATE TABLE visit_logs statement (around line 150)
+
 db.run(`
   CREATE TABLE IF NOT EXISTS visit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -382,6 +383,8 @@ db.run(`
     proceduresDone TEXT,
     progressNotes TEXT,
     notes TEXT,
+    treatments TEXT,
+    totalCost REAL DEFAULT 0,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patientId) REFERENCES patients (id),
@@ -391,9 +394,50 @@ db.run(`
   if (err) {
     console.error('Error creating visit_logs table:', err);
   } else {
-    console.log('✅ Visit logs table ready');
+    console.log('✅ visit_logs table created/verified');
   }
 });
+
+
+
+// Add this after the CREATE TABLE visit_logs code (around line 170)
+
+console.log('Adding treatments and totalCost columns to visit_logs table...');
+
+db.run(`
+  ALTER TABLE visit_logs 
+  ADD COLUMN treatments TEXT
+`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('❌ Error adding treatments column:', err);
+  } else {
+    console.log('✅ Treatments column added/verified');
+  }
+});
+
+db.run(`
+  ALTER TABLE visit_logs 
+  ADD COLUMN totalCost REAL DEFAULT 0
+`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('❌ Error adding totalCost column:', err);
+  } else {
+    console.log('✅ TotalCost column added/verified');
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Create expenses table (primary key = year + seq in id)
 db.run(`
@@ -4451,21 +4495,26 @@ app.get('/tooth-chart/:patientId/for-logging', (req, res) => {
   );
 });
 
+
 // POST - Log a completed appointment to visit logs
 app.post('/appointments/:id/log', (req, res) => {
   const appointmentId = parseInt(req.params.id);
-  const { treatments, notes } = req.body;
+  const { visitLog, teethData } = req.body;
 
   console.log(`📝 POST /appointments/${appointmentId}/log - Logging appointment`);
-  console.log('Request body:', { treatments, notes });
+  console.log('Request body:', { visitLog, teethData });
 
   if (!appointmentId) {
     return res.status(400).json({ error: 'Appointment ID is required' });
   }
 
-  // Fetch appointment details
+  if (!visitLog) {
+    return res.status(400).json({ error: 'Visit log data is required' });
+  }
+
+  // Fetch appointment details with services
   db.get(
-    `SELECT a.*, p.firstName, p.lastName, p.email, p.phone
+    `SELECT a.*, p.firstName, p.lastName
      FROM appointments a
      LEFT JOIN patients p ON a.patientId = p.id
      WHERE a.id = ?`,
@@ -4484,13 +4533,14 @@ app.post('/appointments/:id/log', (req, res) => {
         return res.status(400).json({ error: 'Only completed appointments can be logged' });
       }
 
-      // Fetch appointment services
+      // Fetch appointment services to calculate total cost and create treatment summary
       db.all(
         `SELECT 
           aps.serviceId,
           aps.quantity,
           COALESCE(pkg.name, s.name) AS serviceName,
           COALESCE(pkg.price, s.price) AS price,
+          COALESCE(pkg.duration, s.duration) AS duration,
           CASE WHEN pkg.id IS NOT NULL THEN 'package' ELSE 'service' END AS source_type
          FROM appointment_services aps
          LEFT JOIN services s ON aps.serviceId = s.id
@@ -4503,26 +4553,35 @@ app.post('/appointments/:id/log', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch services' });
           }
 
-          // Calculate total price
-          const totalPrice = services.reduce((sum, service) => {
+          // Calculate total cost from services
+          const totalCost = services.reduce((sum, service) => {
             return sum + (parseFloat(service.price) * service.quantity);
           }, 0);
 
-          // Create service names string
-          const serviceNames = services.map(s => 
+          // Create treatments string from services
+          const treatments = services.map(s => 
             `${s.serviceName}${s.quantity > 1 ? ` (x${s.quantity})` : ''}${s.source_type === 'package' ? ' 📦' : ''}`
           ).join(', ');
 
-          // Insert into visit_logs
+          console.log(`💰 Calculated total cost: ₱${totalCost}`);
+          console.log(`🔧 Treatments performed: ${treatments}`);
+
+          // Insert into visit_logs with calculated values
           const insertQuery = `
             INSERT INTO visit_logs (
               patientId,
               appointmentId,
               visitDate,
-              treatments,
+              timeStart,
+              timeEnd,
+              attendingDentist,
+              concern,
+              proceduresDone,
+              progressNotes,
               notes,
+              treatments,
               totalCost
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
 
           db.run(
@@ -4530,10 +4589,16 @@ app.post('/appointments/:id/log', (req, res) => {
             [
               appointment.patientId,
               appointmentId,
-              appointment.appointmentDate,
-              treatments || serviceNames,
-              notes || appointment.comments || '',
-              totalPrice
+              visitLog.date,
+              visitLog.timeStart,
+              visitLog.timeEnd,
+              visitLog.attendingDentist || 'Dr. Sarah Gerona',
+              visitLog.concern || '',
+              visitLog.proceduresDone || treatments, // Use treatments from services if not provided
+              visitLog.progressNotes || '',
+              visitLog.notes || '',
+              treatments, // Add treatments from services
+              totalCost   // Add calculated total cost
             ],
             function(insertErr) {
               if (insertErr) {
@@ -4544,25 +4609,83 @@ app.post('/appointments/:id/log', (req, res) => {
               const visitLogId = this.lastID;
               console.log(`✅ Visit log created with ID: ${visitLogId}`);
 
-              // Mark appointment as logged
-              db.run(
-                'UPDATE appointments SET logged = 1 WHERE id = ?',
-                [appointmentId],
-                (updateErr) => {
-                  if (updateErr) {
-                    console.error('❌ Error updating appointment logged status:', updateErr);
-                  } else {
-                    console.log(`✅ Appointment ${appointmentId} marked as logged`);
-                  }
+              // Update tooth chart if provided
+              if (teethData && appointment.patientId) {
+                console.log('🦷 Updating tooth chart...');
+                
+                const selectedTeethJson = JSON.stringify(teethData.selectedTeeth || []);
+                const toothSummariesJson = JSON.stringify(teethData.toothSummaries || {});
+                const now = new Date().toISOString();
 
-                  // Return success even if update fails (visit log was created)
-                  res.status(201).json({
-                    message: 'Visit log created successfully',
-                    visitLogId: visitLogId,
-                    totalCost: totalPrice
-                  });
-                }
-              );
+                // Check if tooth chart exists
+                db.get(
+                  'SELECT id FROM tooth_charts WHERE patientId = ?',
+                  [appointment.patientId],
+                  (checkErr, existing) => {
+                    if (checkErr) {
+                      console.error('❌ Error checking tooth chart:', checkErr);
+                      markAppointmentAsLogged();
+                      return;
+                    }
+
+                    if (existing) {
+                      // Update existing tooth chart
+                      db.run(
+                        'UPDATE tooth_charts SET selectedTeeth = ?, toothSummaries = ?, updatedAt = ? WHERE patientId = ?',
+                        [selectedTeethJson, toothSummariesJson, now, appointment.patientId],
+                        (updateErr) => {
+                          if (updateErr) {
+                            console.error('❌ Error updating tooth chart:', updateErr);
+                          } else {
+                            console.log('✅ Tooth chart updated');
+                          }
+                          markAppointmentAsLogged();
+                        }
+                      );
+                    } else {
+                      // Create new tooth chart
+                      db.run(
+                        'INSERT INTO tooth_charts (patientId, selectedTeeth, toothSummaries, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+                        [appointment.patientId, selectedTeethJson, toothSummariesJson, now, now],
+                        (createErr) => {
+                          if (createErr) {
+                            console.error('❌ Error creating tooth chart:', createErr);
+                          } else {
+                            console.log('✅ Tooth chart created');
+                          }
+                          markAppointmentAsLogged();
+                        }
+                      );
+                    }
+                  }
+                );
+              } else {
+                markAppointmentAsLogged();
+              }
+
+              // Helper function to mark appointment as logged
+              function markAppointmentAsLogged() {
+                db.run(
+                  'UPDATE appointments SET logged = 1 WHERE id = ?',
+                  [appointmentId],
+                  (updateErr) => {
+                    if (updateErr) {
+                      console.error('❌ Error updating appointment logged status:', updateErr);
+                    } else {
+                      console.log(`✅ Appointment ${appointmentId} marked as logged`);
+                    }
+
+                    // Return success with treatment and cost details
+                    res.status(201).json({
+                      success: true,
+                      message: 'Visit log created successfully',
+                      visitLogId: visitLogId,
+                      treatments: treatments,
+                      totalCost: totalCost
+                    });
+                  }
+                );
+              }
             }
           );
         }

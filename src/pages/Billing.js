@@ -86,12 +86,27 @@ function Billing() {
 
   // Check if we should open billing modal from navigation state
   useEffect(() => {
+    // Handle navigation state (from route navigation)
     if (location.state?.openBillingModal && location.state?.billingData) {
+      console.log('🔔 Opening billing modal from navigation:', location.state.billingData);
       setModalOpen(true);
       setSelectedBilling(location.state.billingData);
       // Clear the state to prevent reopening on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
+  
+    // Handle custom event (from same-page action)
+    const handleOpenBillingModal = (event) => {
+      console.log('🔔 Opening billing modal from event:', event.detail);
+      setModalOpen(true);
+      setSelectedBilling(event.detail);
+    };
+  
+    window.addEventListener('openBillingModal', handleOpenBillingModal);
+    
+    return () => {
+      window.removeEventListener('openBillingModal', handleOpenBillingModal);
+    };
   }, [location, navigate]);
 
   // Filter categories for billing
