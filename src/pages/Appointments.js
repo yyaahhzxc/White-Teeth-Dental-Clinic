@@ -775,7 +775,7 @@ const handleSaveClick = async () => {
   };
 
  // REPLACE handleAppointmentClick completely (around line 870):
-const handleAppointmentClick = async (appointment) => {
+ const handleAppointmentClick = async (appointment) => {
   console.log('=== APPOINTMENT CLICK DEBUG ===');
   console.log('Clicked appointment:', appointment);
   
@@ -808,84 +808,18 @@ const handleAppointmentClick = async (appointment) => {
   
   setLoadingServiceDetails(true);
   try {
-    const details = await fetchAppointmentDetails(appointmentCopy.id);
-    console.log('📦 Fetched appointment details:', details);
+    // **USE NEW DETAILED ENDPOINT**
+    const response = await fetch(`${API_BASE}/appointment-services/${appointmentCopy.id}/detailed`);
     
-    if (details && details.serviceIds) {
-      // **CRITICAL FIX: Parse serviceIds correctly with prefixes**
-      const serviceEntries = details.serviceIds.split(',');
-      console.log('Service entries from backend:', serviceEntries);
-      
-      const parsedServices = serviceEntries.map((entry, index) => {
-        const [idWithPrefix, qty] = entry.split(':');
-        const quantity = parseInt(qty) || 1;
-        
-        console.log(`Parsing entry ${index}:`, { idWithPrefix, quantity });
-        
-        // **Extract the prefix to determine type**
-        const isPackage = idWithPrefix.startsWith('pkg-');
-        const isSingleService = idWithPrefix.startsWith('svc-');
-        
-        // Remove prefix to get numeric ID
-        const numericId = parseInt(idWithPrefix.replace(/^(pkg-|svc-)/, ''));
-        
-        console.log(`Entry details:`, { isPackage, isSingleService, numericId });
-        
-        // Find in services list (services list has prefixes like 'pkg-1' or 'svc-1')
-        const service = services.find(s => {
-          // Compare with the original ID format from services list
-          if (isPackage && s.id === `pkg-${numericId}`) return true;
-          if (isSingleService && s.id === `svc-${numericId}`) return true;
-          return false;
-        });
-        
-        if (!service) {
-          console.warn(`⚠️ Service not found for: ${idWithPrefix}`);
-          return null;
-        }
-        
-        console.log(`✅ Found service:`, service.name, service.type);
-        
-        return {
-          serviceId: service.id, // Use prefixed ID from services list
-          originalId: numericId,
-          name: service.name,
-          description: service.description || '',
-          price: service.price || 0,
-          duration: service.duration || 0,
-          type: service.type || 'Single Treatment',
-          status: service.status || 'Active',
-          quantity: quantity,
-          isPackage: isPackage
-        };
-      }).filter(Boolean);
-      
-      console.log('✅ Parsed service details:', parsedServices);
-      setAppointmentServiceDetails(parsedServices);
+    if (response.ok) {
+      const detailedServices = await response.json();
+      console.log('📦 Fetched detailed services (with package contents):', detailedServices);
+      setAppointmentServiceDetails(detailedServices);
     } else {
-      if (appointmentCopy.serviceId) {
-        const numericServiceId = parseInt(appointmentCopy.serviceId);
-        const service = services.find(s => {
-          if (s.id === `svc-${numericServiceId}`) return true;
-          if (s.id === `pkg-${numericServiceId}`) return true;
-          return false;
-        });
-        
-        if (service) {
-          setAppointmentServiceDetails([{
-            serviceId: service.id,
-            name: service.name,
-            description: service.description || '',
-            price: service.price || 0,
-            duration: service.duration || 0,
-            type: service.type || 'Single Treatment',
-            status: service.status || 'Active',
-            quantity: 1,
-            isPackage: service.type === 'Package Treatment'
-          }]);
-        }
-      }
+      console.error('Failed to fetch detailed services');
+      setAppointmentServiceDetails([]);
     }
+    
   } catch (error) {
     console.error('❌ Error loading service details:', error);
     setAppointmentServiceDetails([]);
@@ -896,6 +830,7 @@ const handleAppointmentClick = async (appointment) => {
   setSelectedAppointment(appointmentCopy);
   setModalOpen(true);
 };
+
 
 
 
