@@ -473,6 +473,7 @@ app.get('/appointments/date-range', (req, res) => {
   console.log(`📅 GET /appointments/date-range - Fetching appointments between ${startDate} and ${endDate}`);
 
   if (!startDate || !endDate) {
+    console.error('❌ Missing startDate or endDate parameter');
     return res.status(400).json({ error: 'Missing startDate or endDate parameter' });
   }
 
@@ -552,27 +553,52 @@ app.get('/appointments/date-range', (req, res) => {
       
     FROM appointments a
     LEFT JOIN patients p ON a.patientId = p.id
-    WHERE a.appointmentDate BETWEEN ? AND ?
+    WHERE DATE(a.appointmentDate) BETWEEN DATE(?) AND DATE(?)
     ORDER BY a.appointmentDate ASC, a.timeStart ASC
   `;
   
   db.all(query, [startDate, endDate], (err, rows) => {
     if (err) {
       console.error('❌ Error fetching appointments:', err);
-      return res.status(500).json({ error: 'Failed to fetch appointments' });
+      return res.status(500).json({ 
+        error: 'Failed to fetch appointments',
+        details: err.message 
+      });
     }
     
     // Log to verify logged field is present
     console.log(`✅ Found ${rows.length} appointments`);
     if (rows.length > 0) {
-      console.log('Sample appointment with logged field:', {
+      console.log('Sample appointment:', {
         id: rows[0].id,
         status: rows[0].status,
-        logged: rows[0].logged
+        logged: rows[0].logged,
+        appointmentDate: rows[0].appointmentDate
       });
     }
     
     res.json(rows);
+  });
+});
+
+
+app.get('/test/appointments-check', (req, res) => {
+  console.log('🧪 TEST endpoint hit');
+  
+  db.get('SELECT COUNT(*) as count FROM appointments', [], (err, row) => {
+    if (err) {
+      console.error('❌ Database error:', err);
+      return res.status(500).json({ 
+        error: 'Database error', 
+        message: err.message 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Backend is working',
+      appointmentsCount: row.count 
+    });
   });
 });
 
@@ -2177,18 +2203,18 @@ app.put('/service-table/:id', (req, res) => {
 });
 
 
-// Add this AFTER your GET /service-table endpoint (around line 1035)
 app.post('/service-table', (req, res) => {
   const { name, description, price, duration, type, status } = req.body;
   
   console.log('📝 POST /service-table - Creating new service');
   console.log('Request body:', req.body);
   
-  // Validate required fields
-  if (!name || !description || !price || !duration || !type || !status) {
+  // Validate required fields (type is now optional, defaults to 'Single Treatment')
+  if (!name || !description || !price || !duration || !status) {
     return res.status(400).json({ 
       error: 'Missing required fields',
-      required: ['name', 'description', 'price', 'duration', 'type', 'status']
+      required: ['name', 'description', 'price', 'duration', 'status'],
+      received: { name, description, price, duration, status }
     });
   }
 
@@ -2198,16 +2224,16 @@ app.post('/service-table', (req, res) => {
     [name.trim()], 
     (err, existing) => {
       if (err) {
-        console.error('❌ Error checking for duplicates:', err);
-        return res.status(500).json({ error: err.message });
+        console.error('❌ Error checking for duplicate:', err);
+        return res.status(500).json({ error: 'Database error' });
       }
 
       if (existing) {
-        console.log('⚠️ Service name already exists');
-        return res.status(409).json({ error: 'A service with this name already exists' });
+        console.log('❌ Service name already exists');
+        return res.status(409).json({ error: 'Service with this name already exists' });
       }
 
-      // Insert the new service
+      // Insert the new service with default type
       const insertQuery = `
         INSERT INTO services (name, description, price, duration, type, status) 
         VALUES (?, ?, ?, ?, ?, ?)
@@ -2220,43 +2246,29 @@ app.post('/service-table', (req, res) => {
           description.trim(),
           parseFloat(price),
           parseInt(duration),
-          type,
+          type || 'Single Treatment', // Default to 'Single Treatment' if not provided
           status
         ],
         function(insertErr) {
           if (insertErr) {
-            console.error('❌ Error creating service:', insertErr);
-            return res.status(500).json({ error: insertErr.message });
+            console.error('❌ Error inserting service:', insertErr);
+            return res.status(500).json({ error: 'Failed to create service' });
           }
 
           const newServiceId = this.lastID;
-          console.log(`✅ Service created with ID: ${newServiceId}`);
+          console.log('✅ Service created successfully with ID:', newServiceId);
 
-          // Log the activity
-          logActivity(
-            'Service Created',
-            `New service "${name}" created`,
-            'services',
-            newServiceId,
-            req.user?.id,
-            req.user?.username || 'system',
-            null,
-            { name, description, price, duration, type, status },
-            req
-          );
-
-          // Return the created service
+          // Fetch the created service
           db.get('SELECT * FROM services WHERE id = ?', [newServiceId], (selectErr, newService) => {
             if (selectErr) {
               console.error('❌ Error fetching created service:', selectErr);
               return res.status(500).json({ error: 'Service created but failed to retrieve' });
             }
 
+            console.log('✅ Returning created service:', newService);
             res.status(201).json({
-              success: true,
               message: 'Service created successfully',
-              service: newService,
-              id: newServiceId
+              service: newService
             });
           });
         }
@@ -2264,7 +2276,6 @@ app.post('/service-table', (req, res) => {
     }
   );
 });
-
 
 
 

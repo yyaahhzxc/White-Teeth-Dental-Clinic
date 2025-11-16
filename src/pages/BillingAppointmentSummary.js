@@ -23,20 +23,25 @@ function BillingAppointmentSummary({
   onSaveBilling = () => {} // Callback to save billing data to parent component
 }) {
   // Initialize with billing data from appointment
-  const initialBillingData = {
-    appointmentId: billingData.appointmentId || null,
-    firstName: billingData.firstName || 'John',
-    lastName: billingData.lastName || 'Doe',
-    dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric', 
-      year: 'numeric' 
-    }),
-    appointmentDate: billingData.appointmentDate || '',
-    timeStart: billingData.timeStart || '',
-    timeEnd: billingData.timeEnd || '',
-    patientId: billingData.patientId || null
-  };
+ const initialBillingData = {
+  appointmentId: billingData.appointmentId || null,
+  firstName: billingData.firstName || 'John',
+  lastName: billingData.lastName || 'Doe',
+  dateCreated: billingData.dateCreated || new Date().toLocaleDateString('en-US', { 
+    month: 'long', 
+    day: 'numeric', 
+    year: 'numeric' 
+  }),
+  appointmentDate: billingData.appointmentDate || '',
+  timeStart: billingData.timeStart || '',
+  timeEnd: billingData.timeEnd || '',
+  patientId: billingData.patientId || null,
+  // ADD THESE LINES - Include billing financial data
+  totalBill: billingData.totalBill || 0,
+  amountPaid: billingData.amountPaid || 0,
+  balance: billingData.balance || 0,
+  billingId: billingData.id || billingData.billingId || null,
+};
 
   console.log('📋 BillingAppointmentSummary initialized with:', initialBillingData);
   console.log('🛒 Incoming services:', billingData.services);
@@ -910,23 +915,75 @@ const handlePayBill = () => {
               </>
             )}
 
-            {/* Total */}
+            {/* Total Bill and Remaining Balance */}
             <Box sx={{ 
               display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              flexDirection: 'column',
+              gap: 1.5,
               mt: 1,
               pt: 1.5,
             }}>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 800 }}>
-                TOTAL
-              </Typography>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'black', width: 90, textAlign: 'right' }}>
-                {calculations.total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </Typography>
-            </Box>
-          </Box>
+              {/* Original Total Bill */}
+              {initialBillingData.totalBill > 0 && initialBillingData.totalBill !== calculations.total && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#666', fontWeight: 600 }}>
+                    Original Total
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#666', fontWeight: 600, width: 90, textAlign: 'right' }}>
+                    {initialBillingData.totalBill.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              )}
 
+              {/* Amount Already Paid */}
+              {initialBillingData.amountPaid > 0 && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#4CAF50', fontWeight: 600 }}>
+                    Amount Paid
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#4CAF50', fontWeight: 600, width: 90, textAlign: 'right' }}>
+                    -{initialBillingData.amountPaid.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Current Total / Remaining Balance */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                pt: 1,
+                borderTop: '2px solid #e0e0e0',
+              }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 800 }}>
+                  {initialBillingData.amountPaid > 0 ? 'REMAINING BALANCE' : 'TOTAL'}
+                </Typography>
+                <Typography sx={{ 
+                  fontFamily: 'Inter, sans-serif', 
+                  fontSize: '15.117px', 
+                  color: initialBillingData.amountPaid > 0 ? '#F44336' : '#1a1c21', 
+                  fontWeight: 900, 
+                  width: 90, 
+                  textAlign: 'right' 
+                }}>
+                  {initialBillingData.balance > 0 
+                    ? initialBillingData.balance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : calculations.total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
+                </Typography>
+              </Box>
+            </Box>
+
+          </Box>
+          
           {/* Pay Bill Button */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, pt: 2, pb: 2 }}>
             <Button

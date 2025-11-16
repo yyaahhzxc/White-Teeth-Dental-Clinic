@@ -10,11 +10,12 @@ import {
   Typography,
   Autocomplete,
   CircularProgress,
+  Snackbar,
+  Alert,
   IconButton
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { API_BASE } from '../apiConfig';
-import Toast from '../components/Toast';
 
 // Utility function
 const normalizeDateForStorage = (dateString) => {
@@ -54,16 +55,12 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Toast state
-  const [toast, setToast] = useState({
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
-    type: 'info'
+    severity: 'success'
   });
-
-  const showToast = (message, type = 'info') => {
-    setToast({ open: true, message, type });
-  };
 
   // Helper functions
   const addMinutesToTime = (timeString, minutes) => {
@@ -96,7 +93,11 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
   useEffect(() => {
     if (selectedServices.length > 0 && timeStart && appointmentDate) {
       if (!isValidBusinessTime(timeStart)) {
-        showToast('Start time must be between 8:00 AM and 5:00 PM', 'error');
+        setSnackbar({
+          open: true,
+          message: 'Start time must be between 8:00 AM and 5:00 PM',
+          severity: 'error'
+        });
         setTimeStart('');
         return;
       }
@@ -119,7 +120,11 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       const [endHours, endMinutes] = calculatedEndTime.split(':').map(Number);
       
       if (endHours > 17 || (endHours === 17 && endMinutes > 0)) {
-        showToast(`Appointment would end after 5:00 PM (calculated end: ${calculatedEndTime}). Please select an earlier start time or fewer services.`, 'warning');
+        setSnackbar({
+          open: true,
+          message: `Appointment would end after 5:00 PM (calculated end: ${calculatedEndTime}). Please select an earlier start time or fewer services.`,
+          severity: 'warning'
+        });
       }
     } else if (selectedServices.length === 0) {
       setTimeEnd('');
@@ -162,23 +167,43 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
 
   const validateForm = () => {
     if (!selectedPatient) {
-      showToast('Please select a patient', 'error');
+      setSnackbar({
+        open: true,
+        message: 'Please select a patient',
+        severity: 'error'
+      });
       return false;
     }
     if (selectedServices.length === 0) {
-      showToast('Please select at least one service or package', 'error');
+      setSnackbar({
+        open: true,
+        message: 'Please select at least one service or package',
+        severity: 'error'
+      });
       return false;
     }
     if (selectedServices.some(service => !service.id || service.quantity <= 0)) {
-      showToast('Invalid service selected. Please reselect services.', 'error');
+      setSnackbar({
+        open: true,
+        message: 'Invalid service selected. Please reselect services.',
+        severity: 'error'
+      });
       return false;
     }
     if (!appointmentDate || !timeStart || !timeEnd) {
-      showToast('Please fill in all date and time fields', 'error');
+      setSnackbar({
+        open: true,
+        message: 'Please fill in all date and time fields',
+        severity: 'error'
+      });
       return false;
     }
     if (!isValidBusinessTime(timeStart)) {
-      showToast('Start time must be between 8:00 AM and 5:00 PM', 'error');
+      setSnackbar({
+        open: true,
+        message: 'Start time must be between 8:00 AM and 5:00 PM',
+        severity: 'error'
+      });
       return false;
     }
     
@@ -190,163 +215,193 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
       const endTime = endHours * 60 + endMins;
       
       if (endTime <= startTime) {
-        showToast('End time must be after start time', 'error');
+        setSnackbar({
+          open: true,
+          message: 'End time must be after start time',
+          severity: 'error'
+        });
         return false;
       }
     }
     
     const [endHours] = timeEnd.split(':').map(Number);
     if (endHours > 17) {
-      showToast('End time cannot be after 5:00 PM', 'error');
+      setSnackbar({
+        open: true,
+        message: 'End time cannot be after 5:00 PM',
+        severity: 'error'
+      });
       return false;
     }
     return true;
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-  
-    setSubmitting(true);
-    try {
-      // Check for time conflicts
-      const appointmentsResponse = await fetch(`${API_BASE}/appointments`);
-      if (!appointmentsResponse.ok) {
-        throw new Error('Failed to fetch appointments for conflict check');
-      }
-      const allAppointments = await appointmentsResponse.json();
-      
-      const normalizedDate = normalizeDateForStorage(appointmentDate);
-      const [startHour, startMin] = timeStart.split(':').map(Number);
-      const [endHour, endMin] = timeEnd.split(':').map(Number);
-      const newStartMinutes = startHour * 60 + startMin;
-      const newEndMinutes = endHour * 60 + endMin;
-      
-      const conflictingAppointment = allAppointments.find(apt => {
-        const aptDateStr = apt.appointmentDate.split('T')[0];
-        if (aptDateStr !== normalizedDate) return false;
-        
-        if (apt.status === 'done' || apt.status === 'cancelled') return false;
-        
-        if (!apt.timeStart || !apt.timeEnd) return false;
-        const [aptStartH, aptStartM] = apt.timeStart.split(':').map(Number);
-        const [aptEndH, aptEndM] = apt.timeEnd.split(':').map(Number);
-        const aptStartMinutes = aptStartH * 60 + aptStartM;
-        const aptEndMinutes = aptEndH * 60 + aptEndM;
-        
-        return (newStartMinutes < aptEndMinutes && newEndMinutes > aptStartMinutes);
-      });
-      
-      if (conflictingAppointment) {
-        setSnackbar({
-          open: true,
-          message: `Unable to book appointment: conflicting schedule with ${conflictingAppointment.firstName} ${conflictingAppointment.lastName}`,
-          severity: 'error'
-        });
-        setSubmitting(false);
-        return;
-      }
-      
-      // Calculate totals
-      const totalPrice = selectedServices.reduce((total, service) => 
-        total + (parseFloat(service.price) * service.quantity), 0
-      );
-      
-      const totalDuration = selectedServices.reduce((total, service) => 
-        total + (parseInt(service.duration) * service.quantity), 0
-      );
-      
-      // Create service summary with quantities
-      const serviceNames = selectedServices.map(service => 
-        `${service.name}${service.quantity > 1 ? ` (x${service.quantity})` : ''}${service.source_type === 'package' ? ' 📦' : ''}`
-      ).join(', ');
-      
-      // **CRITICAL: Include source_type prefix in serviceIds**
-      const serviceIds = selectedServices.map(service => service.id);
-  
-      // Create serviceQuantities array with source type info
-      const serviceQuantities = selectedServices.map(service => ({
-        serviceId: service.id,
-        quantity: service.quantity,
-        price: parseFloat(service.price),
-        duration: parseInt(service.duration),
-        source_type: service.source_type || 'service' // Include source type
-      }));
-  
-      const appointmentData = {
-        patientId: selectedPatient.id,
-        serviceId: serviceIds[0],
-        serviceName: selectedServices[0].name,
-        serviceIds: serviceIds,
-        serviceNames: serviceNames,
-        serviceQuantities: serviceQuantities,
-        totalPrice: totalPrice,
-        totalDuration: totalDuration,
-        appointmentDate: normalizeDateForStorage(appointmentDate),
-        timeStart: timeStart,
-        timeEnd: timeEnd,
-        comments: comments,
-        status: 'Scheduled'
-      };
-  
-      console.log('=== SUBMIT DEBUG ===');
-      console.log('Selected services with source types:', selectedServices);
-      console.log('Service quantities being sent:', serviceQuantities);
-      console.log('Appointment data:', appointmentData);
-  
-      const response = await fetch(`${API_BASE}/appointments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(appointmentData),
-      });
-  
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log('✅ Appointment created successfully:', responseData);
-        
-        showToast('Appointment created successfully!', 'success');
-  
-        // Clear form
-        setSelectedPatient(null);
-        setInputValue('');
-        setSelectedServices([]);
-        setServiceInputValue('');
-        setAppointmentDate('');
-        setTimeStart('');
-        setTimeEnd('');
-        setComments('');
-  
-        setTimeout(() => {
-          onClose();
-          
-          // Dispatch events for calendar refresh
-          console.log('🚀 Dispatching appointment events for calendar refresh');
-          
-          window.dispatchEvent(new CustomEvent('appointmentCreated', {
-            detail: responseData.appointment
-          }));
-          
-          window.dispatchEvent(new CustomEvent('appointmentAdded', {
-            detail: responseData.appointment
-          }));
-          
-          window.dispatchEvent(new CustomEvent('refreshAppointments'));
-          
-        }, 1000);
-      } else {
-        const errorData = await response.text();
-        console.error('❌ Failed to create appointment:', response.status, errorData);
-        
-        showToast(`Failed to create appointment: ${errorData}`, 'error');
-      }
-    } catch (error) {
-      console.error('❌ Error submitting appointment:', error);
-      showToast(`Error: ${error.message}`, 'error');
-    } finally {
-      setSubmitting(false);
+  // REPLACE the conflict check section in handleSubmit (around line 200-230):
+
+const handleSubmit = async () => {
+  if (!validateForm()) return;
+
+  setSubmitting(true);
+  try {
+    const normalizedDate = normalizeDateForStorage(appointmentDate);
+    console.log('🔍 Checking for conflicts on date:', normalizedDate);
+    
+    // **FIX: Use date-range endpoint instead of fetching all appointments**
+    const conflictResponse = await fetch(
+      `${API_BASE}/appointments/date-range?startDate=${normalizedDate}&endDate=${normalizedDate}`
+    );
+    
+    if (!conflictResponse.ok) {
+      const errorText = await conflictResponse.text();
+      console.error('❌ Failed to fetch appointments for conflict check:', errorText);
+      throw new Error('Failed to fetch appointments for conflict check');
     }
-  };
+    
+    const allAppointments = await conflictResponse.json();
+    console.log('📋 Appointments on this date:', allAppointments.length);
+    
+    const [startHour, startMin] = timeStart.split(':').map(Number);
+    const [endHour, endMin] = timeEnd.split(':').map(Number);
+    const newStartMinutes = startHour * 60 + startMin;
+    const newEndMinutes = endHour * 60 + endMin;
+    
+    const conflictingAppointment = allAppointments.find(apt => {
+      // Skip cancelled or done appointments
+      if (apt.status === 'done' || apt.status === 'cancelled') return false;
+      
+      if (!apt.timeStart || !apt.timeEnd) return false;
+      
+      const [aptStartH, aptStartM] = apt.timeStart.split(':').map(Number);
+      const [aptEndH, aptEndM] = apt.timeEnd.split(':').map(Number);
+      const aptStartMinutes = aptStartH * 60 + aptStartM;
+      const aptEndMinutes = aptEndH * 60 + aptEndM;
+      
+      // Check for time overlap
+      return (newStartMinutes < aptEndMinutes && newEndMinutes > aptStartMinutes);
+    });
+    
+    if (conflictingAppointment) {
+      console.log('⚠️ Conflict found:', conflictingAppointment);
+      setSnackbar({
+        open: true,
+        message: `Unable to book appointment: conflicting schedule with ${conflictingAppointment.patientName || 'another patient'}`,
+        severity: 'error'
+      });
+      setSubmitting(false);
+      return;
+    }
+    
+    console.log('✅ No conflicts found, creating appointment...');
+    
+    // Calculate totals
+    const totalPrice = selectedServices.reduce((total, service) => 
+      total + (parseFloat(service.price) * service.quantity), 0
+    );
+    
+    const totalDuration = selectedServices.reduce((total, service) => 
+      total + (parseInt(service.duration) * service.quantity), 0
+    );
+    
+    // Create service summary with quantities
+    const serviceNames = selectedServices.map(service => 
+      `${service.name}${service.quantity > 1 ? ` (x${service.quantity})` : ''}${service.source_type === 'package' ? ' 📦' : ''}`
+    ).join(', ');
+    
+    const serviceIds = selectedServices.map(service => service.id);
+
+    // Create serviceQuantities array with source type info
+    const serviceQuantities = selectedServices.map(service => ({
+      serviceId: service.id,
+      quantity: service.quantity,
+      price: parseFloat(service.price),
+      duration: parseInt(service.duration),
+      source_type: service.source_type || 'service'
+    }));
+
+    const appointmentData = {
+      patientId: selectedPatient.id,
+      serviceId: serviceIds[0],
+      serviceName: selectedServices[0].name,
+      serviceIds: serviceIds,
+      serviceNames: serviceNames,
+      serviceQuantities: serviceQuantities,
+      totalPrice: totalPrice,
+      totalDuration: totalDuration,
+      appointmentDate: normalizedDate,
+      timeStart: timeStart,
+      timeEnd: timeEnd,
+      comments: comments,
+      status: 'Scheduled'
+    };
+
+    console.log('📤 Creating appointment:', appointmentData);
+
+    const response = await fetch(`${API_BASE}/appointments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(appointmentData),
+    });
+
+    if (response.ok) {
+      const responseData = await response.json();
+      console.log('✅ Appointment created successfully:', responseData);
+      
+      setSnackbar({
+        open: true,
+        message: 'Appointment created successfully!',
+        severity: 'success'
+      });
+
+      // Clear form
+      setSelectedPatient(null);
+      setInputValue('');
+      setSelectedServices([]);
+      setServiceInputValue('');
+      setAppointmentDate('');
+      setTimeStart('');
+      setTimeEnd('');
+      setComments('');
+
+      setTimeout(() => {
+        onClose();
+        
+        // Dispatch events for calendar refresh
+        console.log('🚀 Dispatching appointment events for calendar refresh');
+        
+        window.dispatchEvent(new CustomEvent('appointmentCreated', {
+          detail: responseData.appointment
+        }));
+        
+        window.dispatchEvent(new CustomEvent('appointmentAdded', {
+          detail: responseData.appointment
+        }));
+        
+        window.dispatchEvent(new CustomEvent('refreshAppointments'));
+        
+      }, 1000);
+    } else {
+      const errorData = await response.text();
+      console.error('❌ Failed to create appointment:', response.status, errorData);
+      
+      setSnackbar({
+        open: true,
+        message: `Failed to create appointment: ${errorData}`,
+        severity: 'error'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error submitting appointment:', error);
+    setSnackbar({
+      open: true,
+      message: `Error: ${error.message}`,
+      severity: 'error'
+    });
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const hasFormData = () => {
     return selectedPatient || selectedServices.length > 0 || appointmentDate || timeStart || timeEnd || comments;
@@ -589,7 +644,7 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                       )}
                     </Box>
                   </Box>
-                )}
+                )}  
                 noOptionsText="No active services or packages found"
                 size="medium"
               />
@@ -945,7 +1000,11 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
                     if (hours <= 17) {
                       setTimeEnd(newTime);
                     } else {
-                      showToast('End time cannot be after 5:00 PM', 'error');
+                      setSnackbar({
+                        open: true,
+                        message: 'End time cannot be after 5:00 PM',
+                        severity: 'error'
+                      });
                     }
                   }}
                   fullWidth
@@ -1091,13 +1150,24 @@ function AddAppointmentDialog({ open, onClose, onAddPatient }) {
         </DialogActions>
       </Dialog>
 
-      {/* Toast */}
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        type={toast.type}
-        onClose={() => setToast({ ...toast, open: false })}
-      />
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ 
+            width: '100%',
+            fontFamily: 'Inter, sans-serif'
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

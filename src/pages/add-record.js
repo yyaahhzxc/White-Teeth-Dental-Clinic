@@ -34,7 +34,7 @@ const isValidContactNumber = (number) => {
   return /^09\d{9}$/.test(number) || /^639\d{9}$/.test(number);
 };
 
-const AddPatientRecord = ({ open, onClose }) => {
+const AddPatientRecord = ({ open, onClose, onPatientAdded }) => {
   const [tabIndex, setTabIndex] = useState(0);
 
   // Toast states
@@ -147,7 +147,7 @@ const [toothChartData, setToothChartData] = useState({
   }
 
   try {
-    // 1. Save patient info (this will log "Patient Added")
+    // 1. Save patient info
     const patient = {
       firstName,
       lastName,
@@ -164,7 +164,6 @@ const [toothChartData, setToothChartData] = useState({
       contactPersonNumber,
       contactPersonAddress,
       dateCreated: new Date().toISOString(),
-      // Include tooth chart data in patient creation (this won't create separate log)
       toothChart: {
         selectedTeeth: toothChartData.selectedTeeth,
         toothSummaries: toothChartData.toothSummaries,
@@ -172,16 +171,16 @@ const [toothChartData, setToothChartData] = useState({
       }
     };
 
-  const res = await fetch(`${API_BASE}/patients`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patient),
-      });
+    const res = await fetch(`${API_BASE}/patients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patient),
+    });
 
-      const savedPatient = await res.json();
+    const savedPatient = await res.json();
 
-     // 2. Save medical info with skipLogging=true (prevent duplicate logging)
-     const medicalInfo = {
+    // 2. Save medical info
+    const medicalInfo = {
       patientId: savedPatient.id,
       allergies,
       bloodType,
@@ -191,38 +190,37 @@ const [toothChartData, setToothChartData] = useState({
       additionalNotes,
       bloodPressure,
       diabetic,
-      skipLogging: true // ADD THIS - prevents separate medical info log
+      skipLogging: true
     };
 
-  await fetch(`${API_BASE}/medical-information`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(medicalInfo),
-      });
+    await fetch(`${API_BASE}/medical-information`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(medicalInfo),
+    });
 
-      // Show success toast
-      setToast({ open: true, message: 'Patient added successfully!', type: 'success' });
-      setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 2000);
-
-      // 3. Reset form + close after a short delay
-      setTimeout(() => {
-        onClose();
-        setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
-        setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
-        setDateOfBirth(''); setSex('');
-        setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
-        setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
-        setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
-        setTabIndex(0);
-        setToothChartData({ selectedTeeth: [], toothSummaries: {} });
-      }, 2000);
-
-    } catch (err) {
-      console.error("Error adding patient:", err);
-      setToast({ open: true, message: 'Error adding patient. Please try again.', type: 'error' });
-      setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 3000);
+    // Show success toast
+    setToast({ open: true, message: 'Patient added successfully!', type: 'success' });
+    
+    // **FIX: Notify parent component to refresh patient list**
+    if (onPatientAdded) {
+      onPatientAdded();
     }
-  };
+
+    setTimeout(() => {
+      setToast({ open: false, message: '', type: 'info' });
+      
+      // 3. Reset form + close
+      onClose();
+      clearAllFields();
+    }, 2000);
+
+  } catch (err) {
+    console.error("Error adding patient:", err);
+    setToast({ open: true, message: 'Error adding patient. Please try again.', type: 'error' });
+    setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 3000);
+  }
+};
 
   // Add state for confirmation dialog
   const [confirmOpen, setConfirmOpen] = useState(false);

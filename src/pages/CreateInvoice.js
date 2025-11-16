@@ -76,6 +76,12 @@ function CreateInvoice({
       toastService.show('Please enter a valid amount', 'error');
       return;
     }
+
+    const remainingBalance = billingData.balance || billingData.totalBill || 0;
+  if (parseFloat(amountPaid) > remainingBalance) {
+    toastService.show(`Payment amount (₱${parseFloat(amountPaid).toLocaleString()}) cannot exceed remaining balance (₱${remainingBalance.toLocaleString()})`, 'error');
+    return;
+  }
   
     if (!billingData?.billingId) {
       toastService.show('Billing ID not found. Please try again.', 'error');

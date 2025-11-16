@@ -232,6 +232,8 @@ const handleViewInvoice = (billing) => {
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedBilling(null);
+    // Refresh billing table to show updated balances
+    fetchBillings();
   };
 
   return (
@@ -432,20 +434,38 @@ const handleViewInvoice = (billing) => {
                 visibleBillings.map((billing, index) => (
                   <Box 
                     key={billing.id}
-                    onClick={() => {
+                    onClick={async () => {
                       console.log('🖱️ Billing row clicked:', billing);
                       
-                      // If billing has balance, open BillingAppointmentSummary to create invoice
+                      // If billing has balance, refresh data from backend before opening modal
                       if (billing.balance > 0) {
-                        console.log('💰 Opening billing summary for payment');
-                        setSelectedBilling(billing);
-                        setModalOpen(true);
+                        console.log('💰 Refreshing billing data before opening payment modal');
+                        
+                        try {
+                          // Fetch fresh billing data from backend
+                          const response = await fetch(`${API_BASE}/billings/${billing.id}`);
+                          if (!response.ok) {
+                            throw new Error('Failed to fetch billing details');
+                          }
+                          
+                          const freshBillingData = await response.json();
+                          console.log('✅ Fresh billing data:', freshBillingData);
+                          
+                          setSelectedBilling(freshBillingData);
+                          setModalOpen(true);
+                        } catch (error) {
+                          console.error('❌ Error fetching fresh billing data:', error);
+                          // Fallback to cached data if fetch fails
+                          setSelectedBilling(billing);
+                          setModalOpen(true);
+                        }
                       } else {
                         // If fully paid, show invoice gallery
                         console.log('📄 Opening invoice gallery (fully paid)');
                         handleViewInvoice(billing);
                       }
                     }}
+
                     sx={{ 
                       display: 'flex', 
                       px: 2,
