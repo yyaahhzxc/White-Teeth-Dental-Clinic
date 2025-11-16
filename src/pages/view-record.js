@@ -240,6 +240,15 @@ if (toothChartChanged) {
       return;
     }
 
+    let updateCount = 0;
+    let hasAnyChanges = patientDataChanged || medicalDataChanged || toothChartChanged;
+
+    if (!hasAnyChanges) {
+      showToast('No changes detected.', 'info');
+      setEditMode(false);
+      return;
+    }
+
        // Only update what actually changed
        if (patientDataChanged) {
         console.log('📝 Updating patient data...');
