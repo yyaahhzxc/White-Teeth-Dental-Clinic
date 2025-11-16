@@ -32,11 +32,6 @@ const statusOptions = [
   { value: 'Inactive', label: 'Inactive', color: '#f44336' }
 ];
 
-const serviceTypes = [
-  { value: 'Single Treatment', label: 'Single Treatment', desc: 'One-time service' },
-  { value: 'Package Treatment', label: 'Package Treatment', desc: 'Multiple sessions' }
-];
-
 import { API_BASE } from '../apiConfig';
 
 const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
@@ -283,7 +278,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
               onChange={handleChange}
               placeholder="e.g., Teeth Cleaning, Root Canal Treatment"
               disabled={loading}
-              error={!!(getFieldError('name') || nameExists)}
+              error={getFieldError('name') || nameExists}
               helperText={getHelperText('name')}
               InputProps={{
                 startAdornment: (
@@ -324,7 +319,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
               multiline
               rows={3}
               disabled={loading}
-              error={!!getFieldError('description')}
+              error={getFieldError('description')}
               helperText={getHelperText('description', 'Provide a clear description of what this service includes')}
               InputProps={{
                 startAdornment: (
@@ -366,7 +361,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
                 placeholder="0.00"
                 type="number"
                 disabled={loading}
-                error={!!(getFieldError('price') || (service.price && parseFloat(service.price) <= 0))}
+                error={getFieldError('price') || (service.price && parseFloat(service.price) <= 0)}
                 helperText={getHelperText('price')}
                 InputProps={{
                   startAdornment: (
@@ -407,7 +402,7 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
                 placeholder="30"
                 type="number"
                 disabled={loading}
-                error={!!(getFieldError('duration') || (service.duration && parseFloat(service.duration) <= 0))}
+                error={getFieldError('duration') || (service.duration && parseFloat(service.duration) <= 0)}
                 helperText={getHelperText('duration')}
                 InputProps={{
                   startAdornment: (
@@ -430,117 +425,64 @@ const AddService = ({ open, onClose, handleAddService, showSnackbar }) => {
             </Box>
           </Box>
 
-          {/* Type and Status Row */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-            {/* Service Type */}
-            <Box>
-              <Typography variant="body2" sx={{ 
-                mb: 1, 
-                fontWeight: 600, 
-                color: '#374151',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px'
-              }}>
-                Service Type *
-              </Typography>
-              <TextField
-                select
-                fullWidth
-                name="type"
-                value={service.type}
-                onChange={handleChange}
-                disabled={loading}
-                error={!!getFieldError('type')}
-                helperText={getHelperText('type')}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <TypeIcon sx={{ color: '#6b7280', fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    backgroundColor: 'white',
-                    fontFamily: 'Inter, sans-serif',
-                    '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-                    '&.Mui-focused': { boxShadow: '0 4px 12px rgba(33, 72, 192, 0.15)' }
-                  }
-                }}
-              >
-                {serviceTypes.map((type) => (
-                  <MenuItem key={type.value} value={type.value}>
-                    <Box>
-                      <Typography sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                        {type.label}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#6b7280', fontFamily: 'Inter, sans-serif' }}>
-                        {type.desc}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-
-            {/* Status */}
-            <Box>
-              <Typography variant="body2" sx={{ 
-                mb: 1, 
-                fontWeight: 600, 
-                color: '#374151',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px'
-              }}>
-                Status *
-              </Typography>
-              <TextField
-                select
-                fullWidth
-                name="status"
-                value={service.status}
-                onChange={handleChange}
-                disabled={loading}
-                error={!!getFieldError('status')}
-                helperText={getHelperText('status')}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <StatusIcon sx={{ color: '#6b7280', fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    backgroundColor: 'white',
-                    fontFamily: 'Inter, sans-serif',
-                    '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-                    '&.Mui-focused': { boxShadow: '0 4px 12px rgba(33, 72, 192, 0.15)' }
-                  }
-                }}
-              >
-                {statusOptions.map((status) => (
-                  <MenuItem key={status.value} value={status.value}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box
-                        sx={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          backgroundColor: status.color
-                        }}
-                      />
-                      <Typography sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                        {status.label}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
+          {/* Status (moved from grid) */}
+          <Box>
+            <Typography variant="body2" sx={{ 
+              mb: 1, 
+              fontWeight: 600, 
+              color: '#374151',
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '14px'
+            }}>
+              Status *
+            </Typography>
+            <TextField
+              select
+              fullWidth
+              name="status"
+              value={service.status}
+              onChange={handleChange}
+              disabled={loading}
+              error={getFieldError('status')}
+              helperText={getHelperText('status')}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <StatusIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px',
+                  backgroundColor: 'white',
+                  fontFamily: 'Inter, sans-serif',
+                  '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
+                  '&.Mui-focused': { boxShadow: '0 4px 12px rgba(33, 72, 192, 0.15)' }
+                }
+              }}
+            >
+              {statusOptions.map((status) => (
+                <MenuItem key={status.value} value={status.value}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box
+                      sx={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        backgroundColor: status.color
+                      }}
+                    />
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+                      {status.label}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </TextField>
           </Box>
+
+     
         </Box>
       </DialogContent>
 
