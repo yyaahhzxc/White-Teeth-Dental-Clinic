@@ -32,14 +32,24 @@ import QuickActionButton from '../components/QuickActionButton';
 import { Typography } from '@mui/material';
 import AddPatientRecord from './add-record';
 import AddService from './add-service';
+import Toast from '../components/Toast';
 
 function Dashboard() {
   // quick-action state moved into shared QuickActionButton
-  const [showLoginAlert, setShowLoginAlert] = useState(false);
-  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
   const [showPatientAdded, setShowPatientAdded] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
+
+  // Toast state
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    type: 'info'
+  });
+
+  const showToast = (message, type = 'info') => {
+    setToast({ open: true, message, type });
+  };
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,8 +57,7 @@ function Dashboard() {
   useEffect(() => {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn') || location.state?.usr?.justLoggedIn || window.history.state?.usr?.justLoggedIn;
     if (justLoggedIn) {
-      setShowLoginAlert(true);
-      setTimeout(() => setShowLoginAlert(false), 1500);
+      showToast('Login successful!', 'success');
       // clear navigation + session flag so this only shows once per successful login
       try { sessionStorage.removeItem('justLoggedIn'); } catch (e) {}
       try { navigate(location.pathname, { replace: true, state: {} }); } catch (e) {}
@@ -61,13 +70,10 @@ function Dashboard() {
     }
     // listen for login/logout changes so we can show a logout snackbar and clear the login alert
     const onUserChanged = () => {
-      // hide any lingering login alert
-      setShowLoginAlert(false);
       try {
         const raw = localStorage.getItem('user');
         if (!raw) {
-          setShowLogoutAlert(true);
-          setTimeout(() => setShowLogoutAlert(false), 1500);
+          showToast('Logged out', 'info');
         }
       } catch (e) {}
     };
@@ -86,16 +92,6 @@ function Dashboard() {
   {/* Overlay for quick actions was removed; quick-action state now lives inside `QuickActionButton`. */}
 
       {/* Alerts */}
-      <Fade in={showLoginAlert} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: '#C8E6C9', color: '#38883C', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
-          Login successful!
-        </Box>
-      </Fade>
-      <Fade in={showLogoutAlert} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: '#FFE0B2', color: '#8A4B00', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
-          Logged out
-        </Box>
-      </Fade>
       <Fade in={showPatientAdded} timeout={{ enter: 400, exit: 400 }}>
         <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: '#C8E6C9', color: '#38883C', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Patient added successfully!
@@ -104,17 +100,17 @@ function Dashboard() {
 
       {/* Summary Cards */}
       <Box display="flex" gap={2} p={3}>
-  <Paper sx={{ flex: 1, bgcolor: '#178E5C', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
-    <Typography variant="h4">3</Typography>
-    <Typography>Completed Appointments Today</Typography>
+  <Paper sx={{ flex: 1, bgcolor: '#4caf50', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>3</Typography>
+    <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Completed<br/>Appointments Today</Typography>
   </Paper>
-  <Paper sx={{ flex: 1, bgcolor: '#FFAA1D', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
-    <Typography variant="h4">15</Typography>
-    <Typography>Upcoming Appointments</Typography>
+  <Paper sx={{ flex: 1, bgcolor: '#ff9800', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>15</Typography>
+    <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Upcoming<br/>Appointments</Typography>
   </Paper>
-  <Paper sx={{ flex: 1, bgcolor: '#D9003C', color: 'white', p: 4, borderRadius: 2, height: 220 }}>
-    <Typography variant="h4">4</Typography>
-    <Typography>Upcoming Appointments Today</Typography>
+  <Paper sx={{ flex: 1, bgcolor: '#d13858', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>4</Typography>
+    <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Upcoming<br/>Appointments Today</Typography>
   </Paper>
 </Box>
 
@@ -123,6 +119,14 @@ function Dashboard() {
 
       {/* Patient Modal */}
       <AddPatientRecord open={showPatientModal} onClose={() => setShowPatientModal(false)} />
+
+      {/* Toast */}
+      <Toast 
+        open={toast.open} 
+        message={toast.message} 
+        type={toast.type} 
+        onClose={() => setToast({ ...toast, open: false })}
+      />
     </Box>
   );
 }

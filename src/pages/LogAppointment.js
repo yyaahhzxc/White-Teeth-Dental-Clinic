@@ -9,11 +9,13 @@ import {
   IconButton,
   Tabs,
   Tab,
-  Snackbar,
-  Alert
+  Popover,
+  InputAdornment
 } from '@mui/material';
 import { Close, AccessTime, CalendarToday, Edit } from '@mui/icons-material';
 import TeethChart from '../components/TeethChart';
+import Toast from '../components/Toast';
+import DateCalendar from '../components/DateCalendar';
 const API_BASE = 'http://localhost:3001';
 
 
@@ -22,7 +24,19 @@ const API_BASE = 'http://localhost:3001';
 function LogAppointment({ open, onClose, appointment, onAppointmentLogged }) {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(false);
+  const [visitDateCalendarAnchor, setVisitDateCalendarAnchor] = useState(null);
+  
+  // Toast state
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    type: 'info'
+  });
+
+  const showToast = (message, type = 'info') => {
+    setToast({ open: true, message, type });
+  };
+
    // Initialize patientData with empty object to avoid null errors
    const [patientData, setPatientData] = useState({
     firstName: '',
@@ -159,7 +173,7 @@ useEffect(() => {
     console.log('Teeth Data:', teethData);
     
     if (!appointment?.id) {
-      alert('No appointment selected');
+      showToast('No appointment selected', 'error');
       setLoading(false);
       return;
     }
@@ -192,11 +206,10 @@ useEffect(() => {
       console.log('✅ Appointment logged successfully:', result);
       
       // Show success message
-      setSuccessMessage(true);
+      showToast('Appointment logged successfully!', 'success');
       
       // Close modal and notify parent after delay
       setTimeout(() => {
-        setSuccessMessage(false);
         onClose();
         if (onAppointmentLogged) {
           onAppointmentLogged();
@@ -205,7 +218,7 @@ useEffect(() => {
       
     } catch (error) {
       console.error('❌ Error logging appointment:', error);
-      alert(`Failed to log appointment: ${error.message}`);
+      showToast(`Failed to log appointment: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -592,10 +605,23 @@ useEffect(() => {
                         </Typography>
                       </Box>
                       <TextField
-                        type="date"
-                        value={visitLog.date}
-                        onChange={(e) => setVisitLog({ ...visitLog, date: e.target.value })}
+                        value={visitLog.date ? (() => {
+                          const [yyyy, mm, dd] = visitLog.date.split('-');
+                          return `${mm}-${dd}-${yyyy}`;
+                        })() : ''}
+                        onClick={(e) => setVisitDateCalendarAnchor(e.currentTarget)}
                         fullWidth
+                        InputProps={{
+                          readOnly: true,
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton onClick={(e) => setVisitDateCalendarAnchor(e.currentTarget)} edge="end">
+                                <CalendarToday sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </InputAdornment>
+                          )
+                        }}
+                        placeholder="mm-dd-yyyy"
                         sx={{
                           '& .MuiInputBase-root': {
                             backgroundColor: 'transparent',
@@ -604,6 +630,45 @@ useEffect(() => {
                           }
                         }}
                       />
+                      <Popover
+                        open={Boolean(visitDateCalendarAnchor)}
+                        anchorEl={visitDateCalendarAnchor}
+                        onClose={() => setVisitDateCalendarAnchor(null)}
+                        anchorOrigin={{
+                          vertical: (() => {
+                            if (!visitDateCalendarAnchor) return 'bottom';
+                            const rect = visitDateCalendarAnchor.getBoundingClientRect();
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const spaceAbove = rect.top;
+                            return spaceBelow > spaceAbove ? 'bottom' : 'top';
+                          })(),
+                          horizontal: 'left',
+                        }}
+                        transformOrigin={{
+                          vertical: (() => {
+                            if (!visitDateCalendarAnchor) return 'top';
+                            const rect = visitDateCalendarAnchor.getBoundingClientRect();
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const spaceAbove = rect.top;
+                            return spaceBelow > spaceAbove ? 'top' : 'bottom';
+                          })(),
+                          horizontal: 'left',
+                        }}
+                      >
+                        <Box sx={{ p: 2 }}>
+                          <DateCalendar
+                            value={visitLog.date ? new Date(visitLog.date) : null}
+                            onChange={(date) => {
+                              const yyyy = date.getFullYear();
+                              const mm = String(date.getMonth() + 1).padStart(2, '0');
+                              const dd = String(date.getDate()).padStart(2, '0');
+                              setVisitLog({ ...visitLog, date: `${yyyy}-${mm}-${dd}` });
+                              setVisitDateCalendarAnchor(null);
+                            }}
+                            maxDate={new Date()}
+                          />
+                        </Box>
+                      </Popover>
                     </Box>
 
                     {/* Time Start */}
@@ -1058,21 +1123,13 @@ useEffect(() => {
         </Box>
       </DialogContent>
 
-      {/* Success Message Snackbar */}
-      <Snackbar 
-        open={successMessage} 
-        autoHideDuration={2000}
-        onClose={() => setSuccessMessage(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={() => setSuccessMessage(false)} 
-          severity="success"
-          sx={{ width: '100%' }}
-        >
-          Appointment logged successfully!
-        </Alert>
-      </Snackbar>
+      {/* Toast */}
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, open: false })}
+      />
     </Dialog>
   );
 }

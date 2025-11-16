@@ -17,11 +17,16 @@ import {
   Box,
   IconButton,
   MenuItem,
-  Dialog as MuiDialog
+  Dialog as MuiDialog,
+  Popover,
+  InputAdornment
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import TeethChart from '../components/TeethChart';
+import Toast from '../components/Toast';
+import DateCalendar from '../components/DateCalendar';
 import { API_BASE } from '../apiConfig';
 
 const isValidContactNumber = (number) => {
@@ -31,6 +36,12 @@ const isValidContactNumber = (number) => {
 
 const AddPatientRecord = ({ open, onClose }) => {
   const [tabIndex, setTabIndex] = useState(0);
+
+  // Toast states
+  const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
+
+  // Calendar popover states
+  const [dobCalendarAnchor, setDobCalendarAnchor] = useState(null);
 
   // Patient Information states
   const [firstName, setFirstName] = useState('');
@@ -81,21 +92,36 @@ const [toothChartData, setToothChartData] = useState({
   // Save Patient + Medical Info
   const handleAddPatient = async () => {
   const errors = {};
+  const missingFields = [];
 
-  // Required fields
-  if (!firstName.trim()) errors.firstName = true;
-  if (!lastName.trim()) errors.lastName = true;
-  if (!contactNumber.trim()) errors.contactNumber = true;
-  if (!address.trim()) errors.address = true;
-  if (!dateOfBirth.trim()) errors.dateOfBirth = true;
-  if (!sex.trim()) errors.sex = true;
-  if (!contactPersonName.trim()) errors.contactPersonName = true;
-  if (!contactPersonRelationship.trim()) errors.contactPersonRelationship = true;
-  if (!contactPersonNumber.trim()) errors.contactPersonNumber = true;
-  if (!contactPersonAddress.trim()) errors.contactPersonAddress = true;
-  if (!bloodType.trim()) errors.bloodType = true;
-  if (!bloodPressure.trim()) errors.bloodPressure = true;
-  if (!diabetic.trim()) errors.diabetic = true;
+  // Required fields validation
+  if (!firstName.trim()) { errors.firstName = true; missingFields.push('First Name'); }
+  if (!lastName.trim()) { errors.lastName = true; missingFields.push('Last Name'); }
+  if (!contactNumber.trim()) { errors.contactNumber = true; missingFields.push('Contact Number'); }
+  if (!address.trim()) { errors.address = true; missingFields.push('Address'); }
+  if (!dateOfBirth.trim()) { errors.dateOfBirth = true; missingFields.push('Date of Birth'); }
+  if (!sex.trim()) { errors.sex = true; missingFields.push('Sex'); }
+  if (!contactPersonName.trim()) { errors.contactPersonName = true; missingFields.push('Emergency Contact Name'); }
+  if (!contactPersonRelationship.trim()) { errors.contactPersonRelationship = true; missingFields.push('Emergency Contact Relationship'); }
+  if (!contactPersonNumber.trim()) { errors.contactPersonNumber = true; missingFields.push('Emergency Contact Number'); }
+  if (!contactPersonAddress.trim()) { errors.contactPersonAddress = true; missingFields.push('Emergency Contact Address'); }
+  if (!bloodType.trim()) { errors.bloodType = true; missingFields.push('Blood Type'); }
+  if (!bloodPressure.trim()) { errors.bloodPressure = true; missingFields.push('Blood Pressure'); }
+  if (!diabetic.trim()) { errors.diabetic = true; missingFields.push('Diabetic Status'); }
+
+  // Date of birth validation - cannot be in the future
+  if (dateOfBirth) {
+    const dob = new Date(dateOfBirth);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (dob > today) {
+      errors.dateOfBirth = true;
+      setToast({ open: true, message: 'Date of birth cannot be in the future', type: 'error' });
+      setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 3000);
+      setRequiredFields(errors);
+      return;
+    }
+  }
 
   // Contact number format validation
   const contactNumberInvalid = contactNumber && !isValidContactNumber(contactNumber);
@@ -104,15 +130,19 @@ const [toothChartData, setToothChartData] = useState({
   setContactNumberError(contactNumberInvalid);
   setContactPersonNumberError(contactPersonNumberInvalid);
 
-  // Mark as error if format is wrong
-  if (contactNumberInvalid) errors.contactNumber = true;
-  if (contactPersonNumberInvalid) errors.contactPersonNumber = true;
+  if (contactNumberInvalid) { errors.contactNumber = true; missingFields.push('Valid Contact Number Format'); }
+  if (contactPersonNumberInvalid) { errors.contactPersonNumber = true; missingFields.push('Valid Emergency Contact Number Format'); }
 
   setRequiredFields(errors);
 
-  if (Object.keys(errors).length > 0) {
+  if (missingFields.length > 0) {
     setRequiredError(true);
-    setTimeout(() => setRequiredError(false), 2000);
+    const message = `Please fill in the following:\n${missingFields.map(f => `- ${f}`).join('\n')}`;
+    setToast({ open: true, message, type: 'error' });
+    setTimeout(() => {
+      setRequiredError(false);
+      setToast({ open: false, message: '', type: 'info' });
+    }, 4000);
     return;
   }
 
@@ -148,8 +178,6 @@ const [toothChartData, setToothChartData] = useState({
         body: JSON.stringify(patient),
       });
 
-
-
       const savedPatient = await res.json();
 
      // 2. Save medical info with skipLogging=true (prevent duplicate logging)
@@ -172,18 +200,27 @@ const [toothChartData, setToothChartData] = useState({
         body: JSON.stringify(medicalInfo),
       });
 
-      // 3. Reset form + close
-      onClose();
-      setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
-      setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
-      setDateOfBirth(''); setSex('');
-      setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
-      setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
-      setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
-      setTabIndex(0);
+      // Show success toast
+      setToast({ open: true, message: 'Patient added successfully!', type: 'success' });
+      setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 2000);
+
+      // 3. Reset form + close after a short delay
+      setTimeout(() => {
+        onClose();
+        setFirstName(''); setLastName(''); setMiddleName(''); setSuffix('');
+        setMaritalStatus(''); setContactNumber(''); setOccupation(''); setAddress('');
+        setDateOfBirth(''); setSex('');
+        setContactPersonName(''); setContactPersonRelationship(''); setContactPersonNumber(''); setContactPersonAddress('');
+        setAllergies(''); setBloodType(''); setBloodborneDiseases(''); setPregnancyStatus('');
+        setMedications(''); setAdditionalNotes(''); setBloodPressure(''); setDiabetic('');
+        setTabIndex(0);
+        setToothChartData({ selectedTeeth: [], toothSummaries: {} });
+      }, 2000);
 
     } catch (err) {
       console.error("Error adding patient:", err);
+      setToast({ open: true, message: 'Error adding patient. Please try again.', type: 'error' });
+      setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 3000);
     }
   };
 
@@ -243,6 +280,7 @@ const [toothChartData, setToothChartData] = useState({
 
   return (
     <>
+      <Toast open={toast.open} message={toast.message} type={toast.type} />
       <Dialog
         open={open}
         onClose={handleRequestClose}
@@ -263,7 +301,7 @@ const [toothChartData, setToothChartData] = useState({
             fontSize: 32,
             fontWeight: 800,
             textAlign: 'center',
-            marginBottom: -4,
+            marginBottom: -2,
           }}
         >
           Add Patient Record
@@ -280,10 +318,63 @@ const [toothChartData, setToothChartData] = useState({
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <Box display="flex" sx={{ borderBottom: 1, borderColor: 'divider', pl: 2 }}>
-          <Tabs value={tabIndex} onChange={handleTabChange}>
-            <Tab label="Patient Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 0 ? '#2149c06d' : '#ffffffff', color: tabIndex === 0 ? '#fff' : '#000' }} />
-            <Tab label="Medical Information" sx={{ fontWeight: 'bold', borderRadius: 8, backgroundColor: tabIndex === 1 ? '#2149c06d' : '#ffffffff', color: tabIndex === 1 ? '#fff' : '#000' }} />
+        <Box display="flex" sx={{ px: 3, pt: 1, pb: 1 }}>
+          <Tabs
+            value={tabIndex}
+            onChange={handleTabChange}
+            sx={{
+              minHeight: '36px',
+              '& .MuiTabs-indicator': {
+                display: 'none'
+              }
+            }}
+          >
+            <Tab
+              label="Patient Information"
+              sx={{
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 700,
+                fontSize: '14px',
+                textTransform: 'none',
+                borderRadius: '12px',
+                border: '1px solid #2148c0',
+                mr: 1.5,
+                minHeight: '32px',
+                py: 0.5,
+                px: 2,
+                backgroundColor: tabIndex === 0 ? '#2148c0' : 'transparent',
+                color: tabIndex === 0 ? '#ffffff !important' : '#2148c0',
+                '&:hover': {
+                  backgroundColor: tabIndex === 0 ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
+                },
+                '&.Mui-selected': {
+                  color: '#ffffff !important'
+                }
+              }}
+            />
+            <Tab
+              label="Medical Information"
+              sx={{
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 700,
+                fontSize: '14px',
+                textTransform: 'none',
+                borderRadius: '12px',
+                border: '1px solid #2148c0',
+                mr: 1.5,
+                minHeight: '32px',
+                py: 0.5,
+                px: 2,
+                backgroundColor: tabIndex === 1 ? '#2148c0' : 'transparent',
+                color: tabIndex === 1 ? '#ffffff !important' : '#2148c0',
+                '&:hover': {
+                  backgroundColor: tabIndex === 1 ? '#2148c0' : 'rgba(33, 72, 192, 0.1)'
+                },
+                '&.Mui-selected': {
+                  color: '#ffffff !important'
+                }
+              }}
+            />
           </Tabs>
         </Box>
         <DialogContent
@@ -334,7 +425,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={8}>
       <TextField 
         fullWidth 
-        label="First Name" 
+        label="First Name *" 
         sx={{ width: 400, backgroundColor: '#ffffff9e' }} 
         value={firstName}
         onChange={(e) => setFirstName(e.target.value)}
@@ -372,7 +463,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={12}>
       <TextField 
         fullWidth 
-        label="Last Name" 
+        label="Last Name *" 
         sx={{ width: 350, backgroundColor: '#ffffff9e' }} 
         value={lastName}
         onChange={(e) => setLastName(e.target.value)}
@@ -384,7 +475,7 @@ const [toothChartData, setToothChartData] = useState({
       <TextField
         select
         fullWidth
-        label="Marital Status"
+        label="Marital Status *"
         sx={{ width: 140, backgroundColor: '#ffffff9e' }}
         value={maritalStatus}
         onChange={(e) => setMaritalStatus(e.target.value)}
@@ -398,7 +489,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={6}>
       <TextField 
         fullWidth 
-        label="Contact Number" 
+        label="Contact Number *" 
         sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
         value={contactNumber}
         onChange={(e) => {
@@ -417,7 +508,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={6}>
       <TextField 
         fullWidth 
-        label="Occupation" 
+        label="Occupation *" 
         sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
         value={occupation}
         onChange={(e) => setOccupation(e.target.value)}
@@ -426,7 +517,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={12}>
       <TextField 
         fullWidth 
-        label="Address" 
+        label="Address *" 
         multiline 
         rows={3} 
         sx={{ mb: 0.8, width: 498, backgroundColor: '#ffffff9e' }} 
@@ -439,18 +530,67 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={12}>
       <TextField 
         fullWidth 
-        label="Date of Birth" 
-        type="date" 
+        label="Date of Birth *" 
         sx={{ width: 250, backgroundColor: '#ffffff9e' }} 
         InputLabelProps={{ shrink: true }}
-        value={dateOfBirth}
-        onChange={(e) => setDateOfBirth(e.target.value)}
-        inputProps={{
-          max: new Date().toISOString().split('T')[0] // Prevent future dates
+        value={dateOfBirth ? (() => {
+          const [yyyy, mm, dd] = dateOfBirth.split('-');
+          return `${mm}-${dd}-${yyyy}`;
+        })() : ''}
+        onClick={(e) => setDobCalendarAnchor(e.currentTarget)}
+        InputProps={{
+          readOnly: true,
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton onClick={(e) => setDobCalendarAnchor(e.currentTarget)} edge="end">
+                <CalendarTodayIcon />
+              </IconButton>
+            </InputAdornment>
+          )
         }}
+        placeholder="mm-dd-yyyy"
         error={requiredError && requiredFields.dateOfBirth}
         helperText={requiredError && requiredFields.dateOfBirth ? '' : ''}
       />
+      <Popover
+        open={Boolean(dobCalendarAnchor)}
+        anchorEl={dobCalendarAnchor}
+        onClose={() => setDobCalendarAnchor(null)}
+        anchorOrigin={{
+          vertical: (() => {
+            if (!dobCalendarAnchor) return 'bottom';
+            const rect = dobCalendarAnchor.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            return spaceBelow > spaceAbove ? 'bottom' : 'top';
+          })(),
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: (() => {
+            if (!dobCalendarAnchor) return 'top';
+            const rect = dobCalendarAnchor.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            return spaceBelow > spaceAbove ? 'top' : 'bottom';
+          })(),
+          horizontal: 'left',
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <DateCalendar
+            value={dateOfBirth ? new Date(dateOfBirth) : null}
+            onChange={(date) => {
+              const yyyy = date.getFullYear();
+              const mm = String(date.getMonth() + 1).padStart(2, '0');
+              const dd = String(date.getDate()).padStart(2, '0');
+              setDateOfBirth(`${yyyy}-${mm}-${dd}`);
+              setDobCalendarAnchor(null);
+            }}
+            maxDate={new Date()}
+          />
+        </Box>
+      </Popover>
     </Grid>
     <Grid item xs={4} sx={{ ml: 3 }}>
       <Typography sx={{
@@ -493,7 +633,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={12}>
       <TextField 
         fullWidth 
-        label="Name" 
+        label="Name *" 
         sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
         value={contactPersonName}
         onChange={(e) => setContactPersonName(e.target.value)}
@@ -505,7 +645,7 @@ const [toothChartData, setToothChartData] = useState({
   <TextField
     select
     fullWidth
-    label="Relationship"
+    label="Relationship *"
     sx={{ width: 245, backgroundColor: '#ffffff9e' }}
     value={contactPersonRelationship}
     onChange={(e) => setContactPersonRelationship(e.target.value)}
@@ -526,7 +666,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={6}>
       <TextField 
         fullWidth 
-        label="Contact Number" 
+        label="Contact Number *" 
         sx={{ width: 245, backgroundColor: '#ffffff9e' }} 
         value={contactPersonNumber}
         onChange={(e) => {
@@ -545,7 +685,7 @@ const [toothChartData, setToothChartData] = useState({
     <Grid item xs={12}>
       <TextField 
         fullWidth 
-        label="Address" 
+        label="Address *" 
         multiline 
         rows={3} 
         sx={{ width: 498, backgroundColor: '#ffffff9e' }} 
@@ -587,7 +727,7 @@ const [toothChartData, setToothChartData] = useState({
                     <TextField
                       select
                       fullWidth
-                      label="Blood Type"
+                      label="Blood Type *"
                       sx={{ width: 140, backgroundColor: '#ffffff9e' }}
                       value={bloodType} 
                       onChange={(e) => setBloodType(e.target.value)}
