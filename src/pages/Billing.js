@@ -6,7 +6,7 @@ import {
   Collapse,
   Chip,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import Header from '../components/header';
 import QuickActionButton from '../components/QuickActionButton';

@@ -347,7 +347,7 @@ function ServiceList() {
                   }}
                 >
                   Add Package
-                </Button>
+                </Popper>
               </Box>
             </Box>
             {/* Filter Bar UI with animation */}

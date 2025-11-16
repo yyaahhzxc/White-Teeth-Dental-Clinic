@@ -39,6 +39,8 @@ function Dashboard() {
   const [showPatientAdded, setShowPatientAdded] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
+  const [showLoginAlert, setShowLoginAlert] = useState(false);
+  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState({
@@ -58,6 +60,8 @@ function Dashboard() {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn') || location.state?.usr?.justLoggedIn || window.history.state?.usr?.justLoggedIn;
     if (justLoggedIn) {
       showToast('Login successful!', 'success');
+      setShowLoginAlert(true);
+      setTimeout(() => setShowLoginAlert(false), 2000);
       // clear navigation + session flag so this only shows once per successful login
       try { sessionStorage.removeItem('justLoggedIn'); } catch (e) {}
       try { navigate(location.pathname, { replace: true, state: {} }); } catch (e) {}
@@ -74,6 +78,8 @@ function Dashboard() {
         const raw = localStorage.getItem('user');
         if (!raw) {
           showToast('Logged out', 'info');
+          setShowLogoutAlert(true);
+          setTimeout(() => setShowLogoutAlert(false), 2000);
         }
       } catch (e) {}
     };

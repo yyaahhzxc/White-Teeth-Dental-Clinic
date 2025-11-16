@@ -379,7 +379,7 @@ export default function HomePage() {
                             <Typography
                                 variant="h1"
                                 sx={{
-                                    color: '#2148c0',
+                                    color: '#2148c0', 
                                     fontSize: { xs: 40, md: '12vh' },
                                     fontWeight: 900,
                                     lineHeight: 1,
