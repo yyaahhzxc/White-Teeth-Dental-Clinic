@@ -58,32 +58,6 @@ const ViewService = ({ open, onClose, service, onServiceUpdated }) => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [packageServices, setPackageServices] = useState([]);
 const [loadingPackageServices, setLoadingPackageServices] = useState(false);
-const [editingServiceId, setEditingServiceId] = useState(null);
-const [editingServiceQty, setEditingServiceQty] = useState(1);
-const [availableServices, setAvailableServices] = useState([]);
-const [addingNewService, setAddingNewService] = useState(false);
-const [newServiceId, setNewServiceId] = useState('');
-const [newServiceQty, setNewServiceQty] = useState(1);
-
-
-
-
-
-
-// Add this function to fetch available services (around line 90):
-const fetchAvailableServices = async () => {
-  try {
-    const response = await fetch(`${API_BASE}/service-table`);
-    if (response.ok) {
-      const services = await response.json();
-      // Filter out Package Treatment types
-      const regularServices = services.filter(s => s.type !== 'Package Treatment');
-      setAvailableServices(regularServices);
-    }
-  } catch (err) {
-    console.error('Error fetching services:', err);
-  }
-};
 
   const showSnackbar = (msg) => {
     setSnackbarMsg(msg);
@@ -136,150 +110,54 @@ const fetchAvailableServices = async () => {
   };
 
 
-  // Replace the fetchPackageDetails function (around line 90):
-
   const fetchPackageDetails = async (packageId) => {
-    if (!packageId) return;
-  
-    // FIX: convert pkg-8 → 8
-    const cleanId = String(packageId).replace("pkg-", "");
-    const numericId = parseInt(cleanId);
-  
-    console.log("🔍 Fetching package services for ID:", numericId);
-  
-    try {
-      const response = await fetch(`${API_BASE}/packages/${numericId}/services`);
-  
-      if (!response.ok) {
-        if (response.status === 400) {
-          console.warn("⚠️ Invalid package ID or package not found");
-          setPackageServices([]);
-          return;
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-  
-      const services = await response.json();
-      setPackageServices(services);
-    } catch (err) {
-      console.error("Error fetching package services:", err);
-      setPackageServices([]);
-    }
-  };
-
-
-
-
-
-  // Add useEffect to fetch package details when service changes
-  useEffect(() => {
-    if (service && service.type === 'Package Treatment') {
-      fetchPackageDetails(service.id);
-      if (isEditing) {
-        fetchAvailableServices();
-      }
-    } else {
-      setPackageServices([]);
-    }
-  }, [service, isEditing]);
-
-
-
-  const handleQuantityChange = async (serviceId, newQuantity) => {
-    if (newQuantity < 1) return;
-    
-    try {
-      const cleanId = String(service.id).replace("pkg-", "");
-      const numericId = parseInt(cleanId);
-      
-      const response = await fetch(`${API_BASE}/packages/${numericId}/services/${serviceId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: newQuantity })
-      });
-  
-      if (response.ok) {
-        // Update local state
-        setPackageServices(prev => 
-          prev.map(s => s.serviceId === serviceId ? { ...s, quantity: newQuantity } : s)
-        );
-        showSnackbar('Quantity updated successfully');
-      } else {
-        throw new Error('Failed to update quantity');
-      }
-    } catch (err) {
-      console.error('Error updating quantity:', err);
-      showSnackbar('Failed to update quantity');
-    }
-  };
-
-
-  const handleRemoveService = async (serviceId) => {
-    try {
-      const cleanId = String(service.id).replace("pkg-", "");
-      const numericId = parseInt(cleanId);
-      
-      const response = await fetch(`${API_BASE}/packages/${numericId}/services/${serviceId}`, {
-        method: 'DELETE'
-      });
-  
-      if (response.ok) {
-        // Update local state
-        setPackageServices(prev => prev.filter(s => s.serviceId !== serviceId));
-        showSnackbar('Service removed from package');
-      } else {
-        throw new Error('Failed to remove service');
-      }
-    } catch (err) {
-      console.error('Error removing service:', err);
-      showSnackbar('Failed to remove service');
-    }
-  };
-  
-  const handleAddService = async () => {
-    if (!newServiceId || newServiceQty < 1) {
-      showSnackbar('Please select a service and quantity');
+    if (!packageId) {
+      console.warn('⚠️ fetchPackageDetails called with no packageId');
       return;
     }
-  
+    
+    setLoadingPackageServices(true);
+    console.log('🔍 Fetching package details for ID:', packageId);
+    
     try {
-      const cleanId = String(service.id).replace("pkg-", "");
-      const numericId = parseInt(cleanId);
+      const response = await fetch(`${API_BASE}/packages/${packageId}`);
       
-      const response = await fetch(`${API_BASE}/packages/${numericId}/services`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serviceId: parseInt(newServiceId),
-          quantity: newServiceQty
-        })
-      });
-  
-      if (response.ok) {
-        const newService = await response.json();
-        setPackageServices(prev => [...prev, newService]);
-        setNewServiceId('');
-        setNewServiceQty(1);
-        setAddingNewService(false);
-        showSnackbar('Service added to package');
-      } else {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to add service');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-    } catch (err) {
-      console.error('Error adding service:', err);
-      showSnackbar(err.message || 'Failed to add service');
+      
+      const data = await response.json();
+      console.log('📦 Package data received:', data);
+      console.log('📦 Package services:', data.packageServices);
+      console.log('📦 Services count:', data.packageServices?.length);
+      
+      // Handle both formats
+      const services = data.packageServices || data.services || [];
+      
+      setPackageServices(services);
+      console.log('✅ Package services set:', services.length, 'services');
+      
+    } catch (error) {
+      console.error('❌ Error fetching package details:', error);
+      setPackageServices([]);
+    } finally {
+      setLoadingPackageServices(false);
     }
   };
-  
 
+  // Add useEffect to fetch package details when service changes
+useEffect(() => {
+  console.log('🔄 Service changed:', service);
+  console.log('  - Service type:', service?.type);
+  console.log('  - Service ID:', service?.id);
 
-
-
-
-
-
-
+  if (service && service.type === 'Package Treatment') {
+    console.log('✅ Fetching package details for:', service.id);
+    fetchPackageDetails(service.id);
+  } else {
+    setPackageServices([]);
+  }
+}, [service]);
 
 // REPLACE the existing handleSaveClick function (around line 100-150) with this:
 // REPLACE the existing handleSaveClick function (around line 100-150) with this:
@@ -305,31 +183,22 @@ const handleSaveClick = async () => {
     // Determine if this is a package or regular service
     const isPackage = editedService.type === 'Package Treatment';
     
-    // **FIX: Clean the ID to ensure it's just the numeric value**
-    const cleanId = String(editedService.id).replace(/^pkg-/, '');
-    const numericId = parseInt(cleanId);
-    
-    console.log('🔍 Saving service/package:');
-    console.log('  - Original ID:', editedService.id);
-    console.log('  - Clean ID:', cleanId);
-    console.log('  - Numeric ID:', numericId);
-    console.log('  - Is Package:', isPackage);
-    
     let endpoint, requestData;
     
     if (isPackage) {
       // For packages, use the packages endpoint
-      endpoint = `${API_BASE}/packages/${numericId}`;
+      endpoint = `${API_BASE}/packages/${editedService.id}`;
       requestData = {
         name: editedService.name.trim(),
         description: editedService.description,
         price: parseFloat(editedService.price) || 0,
         duration: parseInt(editedService.duration) || 0,
         status: editedService.status
+        // Note: Package services are managed separately via package_services table
       };
     } else {
       // For regular services, use the services endpoint
-      endpoint = `${API_BASE}/service-table/${numericId}`;
+      endpoint = `${API_BASE}/service-table/${editedService.id}`;
       requestData = {
         name: editedService.name.trim(),
         description: editedService.description,
@@ -340,8 +209,9 @@ const handleSaveClick = async () => {
       };
     }
     
-    console.log('📤 Saving to endpoint:', endpoint);
-    console.log('📤 Request data:', requestData);
+    console.log('Saving to endpoint:', endpoint);
+    console.log('Request data:', requestData);
+    console.log('Is package:', isPackage);
     
     const response = await fetch(endpoint, {
       method: 'PUT',
@@ -356,15 +226,14 @@ const handleSaveClick = async () => {
       
       // If this is a package, refresh the package services
       if (isPackage) {
-        fetchPackageDetails(numericId); // Use the clean numeric ID
+        fetchPackageDetails(editedService.id);
       }
     } else {
       const errorData = await response.json();
-      console.error('❌ Server error:', errorData);
       throw new Error(errorData.error || `Failed to update ${isPackage ? 'package' : 'service'}`);
     }
   } catch (err) {
-    console.error('❌ Save Error:', err);
+    console.error('Save Error:', err);
     showSnackbar(`Failed to save changes: ${err.message}`);
   } finally {
     setLoading(false);
@@ -429,10 +298,6 @@ const handleSaveClick = async () => {
     const option = statusOptions.find(opt => opt.value === status);
     return option ? option.color : '#6b7280';
   };
-
-
-
-  
 
   return (
     <>
@@ -832,372 +697,212 @@ const handleSaveClick = async () => {
               </Box>
             </Box>
 
-            {/* Package Contents Section */}
-{service?.type === 'Package Treatment' && (
-  <Box sx={{ mt: 4 }}>
-    <Divider sx={{ mb: 3 }} />
-    
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-      <Typography variant="h6" sx={{ 
-        fontFamily: 'Inter, sans-serif',
-        fontWeight: '600',
-        fontSize: '16px',
-        color: '#2148C0',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1
-      }}>
-        <ServiceIcon sx={{ fontSize: 20 }} />
-        Package Contents
-      </Typography>
-      
-      {isEditing && !addingNewService && (
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => setAddingNewService(true)}
-          sx={{
-            borderRadius: '8px',
-            textTransform: 'none',
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: '600',
-            borderColor: '#2148C0',
-            color: '#2148C0',
-            '&:hover': {
-              borderColor: '#1a3ba8',
-              backgroundColor: 'rgba(33, 72, 192, 0.04)'
-            }
-          }}
-        >
-          + Add Service
-        </Button>
-      )}
-    </Box>
-
-    {/* Add New Service Form */}
-    {isEditing && addingNewService && (
-      <Box sx={{ 
-        backgroundColor: '#f0f7ff',
-        borderRadius: '12px',
-        p: 2,
-        mb: 2,
-        border: '2px solid #2148C0'
-      }}>
-        <Typography sx={{ 
-          fontFamily: 'Inter, sans-serif',
-          fontWeight: '600',
-          fontSize: '14px',
-          mb: 2,
-          color: '#2148C0'
-        }}>
-          Add New Service
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-          <TextField
-            select
-            fullWidth
-            value={newServiceId}
-            onChange={(e) => setNewServiceId(e.target.value)}
-            label="Select Service"
-            size="small"
-            sx={{
-              flex: 2,
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '8px',
-                backgroundColor: 'white'
-              }
-            }}
-          >
-            {availableServices
-              .filter(s => !packageServices.find(ps => ps.serviceId === s.id))
-              .map(s => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.name} (₱{s.price})
-                </MenuItem>
-              ))}
-          </TextField>
-          
-          <TextField
-            type="number"
-            value={newServiceQty}
-            onChange={(e) => setNewServiceQty(parseInt(e.target.value) || 1)}
-            label="Quantity"
-            size="small"
-            InputProps={{ inputProps: { min: 1 } }}
-            sx={{
-              width: '100px',
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '8px',
-                backgroundColor: 'white'
-              }
-            }}
-          />
-          
-          <Button
-            variant="contained"
-            onClick={handleAddService}
-            sx={{
-              borderRadius: '8px',
-              textTransform: 'none',
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: '600',
-              background: 'linear-gradient(135deg, #2148C0 0%, #1a3ba8 100%)',
-              minWidth: '80px'
-            }}
-          >
-            Add
-          </Button>
-          
-          <IconButton
-            onClick={() => {
-              setAddingNewService(false);
-              setNewServiceId('');
-              setNewServiceQty(1);
-            }}
-            sx={{ color: '#6b7280' }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </Box>
-      </Box>
-    )}
-    
-    {loadingPackageServices ? (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        py: 3,
-        backgroundColor: '#f9fafb',
-        borderRadius: '12px',
-        border: '1px solid #e5e7eb'
-      }}>
-        <CircularProgress size={32} sx={{ color: '#2148C0' }} />
-      </Box>
-    ) : packageServices.length > 0 ? (
-      <Box sx={{ 
-        backgroundColor: '#f8fafc', 
-        borderRadius: '12px', 
-        border: '1px solid #e2e8f0',
-        overflow: 'hidden',
-        maxHeight: '300px',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        {/* Scrollable Services List */}
-        <Box sx={{ 
-          p: 2, 
-          maxHeight: '210px', 
-          overflowY: 'auto',
-          '&::-webkit-scrollbar': { width: '6px' },
-          '&::-webkit-scrollbar-track': { backgroundColor: '#f1f5f9' },
-          '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: '3px' }
-        }}>
-          {packageServices.map((pkgService, index) => (
-            <Box 
-              key={`pkg-service-${pkgService.serviceId}-${index}`}
-              sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                py: 1.5,
-                px: 2,
-                borderRadius: '8px',
-                backgroundColor: 'white',
-                mb: index < packageServices.length - 1 ? 1.5 : 0,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                border: '1px solid #f1f5f9'
-              }}
-            >
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ 
+            {/* Package Contents Section - Compact version outside main grid */}
+            {service?.type === 'Package Treatment' && (
+              <Box sx={{ mt: 4 }}>
+                <Divider sx={{ mb: 3 }} />
+                
+                <Typography variant="h6" sx={{ 
                   fontFamily: 'Inter, sans-serif',
                   fontWeight: '600',
-                  fontSize: '14px',
-                  color: '#1e293b',
-                  mb: 0.5
+                  fontSize: '16px',
+                  color: '#2148C0',
+                  mb: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
                 }}>
-                  {pkgService.name}
+                  <ServiceIcon sx={{ fontSize: 20 }} />
+                  Package Contents
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography sx={{ 
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '12px',
-                    color: '#059669',
-                    fontWeight: '500'
+                
+                {loadingPackageServices ? (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    py: 3,
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '12px',
+                    border: '1px solid #e5e7eb'
                   }}>
-                    ₱{pkgService.price?.toLocaleString()}
-                  </Typography>
-                  <Typography sx={{ 
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '12px',
-                    color: '#7c3aed',
-                    fontWeight: '500'
+                    <CircularProgress size={32} sx={{ color: '#2148C0' }} />
+                  </Box>
+                ) : packageServices.length > 0 ? (
+                  <Box sx={{ 
+                    backgroundColor: '#f8fafc', 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0',
+                    overflow: 'hidden',
+                    maxHeight: '250px',  // Limit height
+                    display: 'flex',
+                    flexDirection: 'column'
                   }}>
-                    {pkgService.duration}min
-                  </Typography>
-                </Box>
+                    {/* Scrollable Services List */}
+                    <Box sx={{ 
+                      p: 2, 
+                      maxHeight: '160px', 
+                      overflowY: 'auto',
+                      '&::-webkit-scrollbar': { width: '6px' },
+                      '&::-webkit-scrollbar-track': { backgroundColor: '#f1f5f9' },
+                      '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: '3px' }
+                    }}>
+                      {packageServices.map((pkgService, index) => (
+                        <Box 
+                        key={`pkg-service-${pkgService.serviceId}-${index}`}
+                          sx={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            py: 1.5,
+                            px: 2,
+                            borderRadius: '8px',
+                            backgroundColor: 'white',
+                            mb: index < packageServices.length - 1 ? 1.5 : 0,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            border: '1px solid #f1f5f9'
+                          }}
+                        >
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{ 
+                              fontFamily: 'Inter, sans-serif',
+                              fontWeight: '600',
+                              fontSize: '14px',
+                              color: '#1e293b',
+                              mb: 0.5,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {pkgService.name}
+                            </Typography>
+                            <Box sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 2
+                            }}>
+                              <Typography sx={{ 
+                                fontFamily: 'Inter, sans-serif',
+                                fontSize: '12px',
+                                color: '#059669',
+                                fontWeight: '500'
+                              }}>
+                                ₱{pkgService.price?.toLocaleString()}
+                              </Typography>
+                              <Typography sx={{ 
+                                fontFamily: 'Inter, sans-serif',
+                                fontSize: '12px',
+                                color: '#7c3aed',
+                                fontWeight: '500'
+                              }}>
+                                {pkgService.duration}min
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box sx={{ 
+                            backgroundColor: '#2148C0',
+                            color: 'white',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: '16px',
+                            minWidth: '32px',
+                            textAlign: 'center'
+                          }}>
+                            <Typography sx={{ 
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              fontFamily: 'Inter, sans-serif'
+                            }}>
+                              x{pkgService.quantity}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                    
+                    {/* Compact Package Totals */}
+                    <Box sx={{ 
+                      backgroundColor: '#2148C0',
+                      color: 'white',
+                      px: 3,
+                      py: 2,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <Box>
+                        <Typography sx={{ 
+                          fontFamily: 'Inter, sans-serif',
+                          fontSize: '12px',
+                          opacity: 0.9,
+                          mb: 0.25
+                        }}>
+                          Total Price
+                        </Typography>
+                        <Typography sx={{ 
+                          fontFamily: 'Inter, sans-serif',
+                          fontWeight: '700',
+                          fontSize: '16px'
+                        }}>
+                          ₱{packageServices.reduce((total, s) => total + ((s.price || 0) * (s.quantity || 1)), 0).toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography sx={{ 
+                          fontFamily: 'Inter, sans-serif',
+                          fontSize: '12px',
+                          opacity: 0.9,
+                          mb: 0.25
+                        }}>
+                          Services
+                        </Typography>
+                        <Typography sx={{ 
+                          fontFamily: 'Inter, sans-serif',
+                          fontWeight: '700',
+                          fontSize: '16px'
+                        }}>
+                          {packageServices.length}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography sx={{ 
+                          fontFamily: 'Inter, sans-serif',
+                          fontSize: '12px',
+                          opacity: 0.9,
+                          mb: 0.25
+                        }}>
+                          Duration
+                        </Typography>
+                        <Typography sx={{ 
+                          fontFamily: 'Inter, sans-serif',
+                          fontWeight: '700',
+                          fontSize: '16px'
+                        }}>
+                          {packageServices.reduce((total, s) => total + ((s.duration || 0) * (s.quantity || 1)), 0)}min
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    backgroundColor: '#fef3cd',
+                    border: '1px solid #fbbf24',
+                    borderRadius: '12px',
+                    p: 2,
+                    textAlign: 'center'
+                  }}>
+                    <Typography sx={{ 
+                      color: '#92400e',
+                      fontStyle: 'italic',
+                      fontSize: '14px',
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: '500'
+                    }}>
+                      No services found in this package
+                    </Typography>
+                  </Box>
+                )}
               </Box>
-              
-              {isEditing ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleQuantityChange(pkgService.serviceId, pkgService.quantity - 1)}
-                    disabled={pkgService.quantity <= 1}
-                    sx={{
-                      backgroundColor: '#f1f5f9',
-                      width: '28px',
-                      height: '28px',
-                      '&:hover': { backgroundColor: '#e2e8f0' },
-                      '&:disabled': { backgroundColor: '#f9fafb', opacity: 0.5 }
-                    }}
-                  >
-                    <Typography sx={{ fontSize: '16px', fontWeight: '700' }}>−</Typography>
-                  </IconButton>
-                  
-                  <Typography sx={{ 
-                    minWidth: '32px',
-                    textAlign: 'center',
-                    fontSize: '14px',
-                    fontWeight: '700',
-                    fontFamily: 'Inter, sans-serif',
-                    color: '#2148C0'
-                  }}>
-                    {pkgService.quantity}
-                  </Typography>
-                  
-                  <IconButton
-                    size="small"
-                    onClick={() => handleQuantityChange(pkgService.serviceId, pkgService.quantity + 1)}
-                    sx={{
-                      backgroundColor: '#f1f5f9',
-                      width: '28px',
-                      height: '28px',
-                      '&:hover': { backgroundColor: '#e2e8f0' }
-                    }}
-                  >
-                    <Typography sx={{ fontSize: '16px', fontWeight: '700' }}>+</Typography>
-                  </IconButton>
-                  
-                  <IconButton
-                    size="small"
-                    onClick={() => handleRemoveService(pkgService.serviceId)}
-                    sx={{
-                      color: '#ef4444',
-                      ml: 1,
-                      '&:hover': { backgroundColor: '#fef2f2' }
-                    }}
-                  >
-                    <CloseIcon sx={{ fontSize: '18px' }} />
-                  </IconButton>
-                </Box>
-              ) : (
-                <Box sx={{ 
-                  backgroundColor: '#2148C0',
-                  color: 'white',
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: '16px',
-                  minWidth: '32px',
-                  textAlign: 'center'
-                }}>
-                  <Typography sx={{ 
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    fontFamily: 'Inter, sans-serif'
-                  }}>
-                    x{pkgService.quantity}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          ))}
-        </Box>
-        
-        {/* Package Totals */}
-        <Box sx={{ 
-          backgroundColor: '#2148C0',
-          color: 'white',
-          px: 3,
-          py: 2,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <Box>
-            <Typography sx={{ 
-              fontFamily: 'Inter, sans-serif',
-              fontSize: '12px',
-              opacity: 0.9,
-              mb: 0.25
-            }}>
-              Total Price
-            </Typography>
-            <Typography sx={{ 
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: '700',
-              fontSize: '16px'
-            }}>
-              ₱{packageServices.reduce((total, s) => total + ((s.price || 0) * (s.quantity || 1)), 0).toLocaleString()}
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography sx={{ 
-              fontFamily: 'Inter, sans-serif',
-              fontSize: '12px',
-              opacity: 0.9,
-              mb: 0.25
-            }}>
-              Services
-            </Typography>
-            <Typography sx={{ 
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: '700',
-              fontSize: '16px'
-            }}>
-              {packageServices.length}
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography sx={{ 
-              fontFamily: 'Inter, sans-serif',
-              fontSize: '12px',
-              opacity: 0.9,
-              mb: 0.25
-            }}>
-              Duration
-            </Typography>
-            <Typography sx={{ 
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: '700',
-              fontSize: '16px'
-            }}>
-              {packageServices.reduce((total, s) => total + ((s.duration || 0) * (s.quantity || 1)), 0)}min
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-    ) : (
-      <Box sx={{ 
-        backgroundColor: '#fef3cd',
-        border: '1px solid #fbbf24',
-        borderRadius: '12px',
-        p: 2,
-        textAlign: 'center'
-      }}>
-        <Typography sx={{ 
-          color: '#92400e',
-          fontStyle: 'italic',
-          fontSize: '14px',
-          fontFamily: 'Inter, sans-serif',
-          fontWeight: '500'
-        }}>
-          {isEditing ? 'No services in this package. Click "Add Service" to add services.' : 'No services found in this package'}
-        </Typography>
-      </Box>
-    )}
-  </Box>
-)}
+            )}
           </Box>  {/* This closes the main grid */}
         </DialogContent>
 
