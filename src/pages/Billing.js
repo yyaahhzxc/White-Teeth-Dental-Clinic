@@ -90,6 +90,33 @@ useEffect(() => {
   fetchBillings();
 }, []);
 
+// Open billing modal when navigation state or an event requests it
+useEffect(() => {
+  // If navigated with state (from Appointments), open modal
+  try {
+    if (location && location.state && location.state.openBillingModal && location.state.billingData) {
+      console.log('Opening billing modal from navigation state', location.state.billingData);
+      setSelectedBilling(location.state.billingData);
+      setModalOpen(true);
+      // Clear history state so it doesn't re-open on back/refresh
+      try { window.history.replaceState({}, document.title); } catch (e) {}
+    }
+  } catch (e) {}
+
+  // Also listen for in-app events that request opening the billing modal
+  const onOpenBillingModal = (ev) => {
+    const billingData = ev && ev.detail ? ev.detail : null;
+    if (billingData) {
+      console.log('Received openBillingModal event, opening modal', billingData);
+      setSelectedBilling(billingData);
+      setModalOpen(true);
+    }
+  };
+
+  window.addEventListener('openBillingModal', onOpenBillingModal);
+  return () => window.removeEventListener('openBillingModal', onOpenBillingModal);
+}, [location]);
+
 
 
 
