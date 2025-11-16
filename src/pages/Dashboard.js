@@ -47,8 +47,6 @@ function Dashboard() {
     upcomingTotal: 0,
     upcomingToday: 0
   });
-  const [showLoginAlert, setShowLoginAlert] = useState(false);
-  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState({
@@ -88,8 +86,6 @@ function Dashboard() {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn') || location.state?.usr?.justLoggedIn || window.history.state?.usr?.justLoggedIn;
     if (justLoggedIn) {
       showToast('Login successful!', 'success');
-      setShowLoginAlert(true);
-      setTimeout(() => setShowLoginAlert(false), 2000);
       // clear navigation + session flag so this only shows once per successful login
       try { sessionStorage.removeItem('justLoggedIn'); } catch (e) {}
       try { navigate(location.pathname, { replace: true, state: {} }); } catch (e) {}
@@ -106,8 +102,6 @@ function Dashboard() {
         const raw = localStorage.getItem('user');
         if (!raw) {
           showToast('Logged out', 'info');
-          setShowLogoutAlert(true);
-          setTimeout(() => setShowLogoutAlert(false), 2000);
         }
       } catch (e) {}
     };
@@ -126,35 +120,25 @@ function Dashboard() {
   {/* Overlay for quick actions was removed; quick-action state now lives inside `QuickActionButton`. */}
 
       {/* Alerts */}
-      <Fade in={showLoginAlert} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: 'success.light', color: (theme) => theme.palette.text.primary, borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
-          Login successful!
-        </Box>
-      </Fade>
-      <Fade in={showLogoutAlert} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 32, left: '50%', transform: 'translateX(-50%)', bgcolor: 'warning.light', color: (theme) => theme.palette.text.primary, borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
-          Logged out
-        </Box>
-      </Fade>
       <Fade in={showPatientAdded} timeout={{ enter: 400, exit: 400 }}>
-        <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: 'success.light', color: (theme) => theme.palette.text.primary, borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
+        <Box sx={{ position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', bgcolor: '#e8f5e9', color: '#4caf50', borderRadius: 2, py: 1, px: 3, fontWeight: 500, fontSize: '1.1rem', boxShadow: 3, zIndex: 2000 }}>
           Patient added successfully!
         </Box>
       </Fade>
 
       {/* Summary Cards */}
       <Box display="flex" gap={2} p={3}>
-  <Paper sx={{ flex: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.success.dark : theme.palette.success.main, color: (theme) => theme.palette.mode === 'dark' ? '#000' : theme.palette.getContrastText(theme.palette.mode === 'dark' ? theme.palette.success.dark : theme.palette.success.main), p: 4, borderRadius: 2, height: 220 }}>
-    <Typography variant="h4">3</Typography>
-    <Typography>Completed Appointments Today</Typography>
+  <Paper sx={{ flex: 1, bgcolor: '#4caf50', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>{dashboardStats.completedToday}</Typography>
+    <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Completed<br/>Appointments Today</Typography>
   </Paper>
-  <Paper sx={{ flex: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.dark : theme.palette.warning.main, color: (theme) => theme.palette.mode === 'dark' ? '#000' : theme.palette.getContrastText(theme.palette.mode === 'dark' ? theme.palette.warning.dark : theme.palette.warning.main), p: 4, borderRadius: 2, height: 220 }}>
-    <Typography variant="h4">15</Typography>
-    <Typography>Upcoming Appointments</Typography>
+  <Paper sx={{ flex: 1, bgcolor: '#ff9800', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>{dashboardStats.upcomingTotal}</Typography>
+    <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Upcoming<br/>Appointments</Typography>
   </Paper>
-  <Paper sx={{ flex: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : theme.palette.error.main, color: (theme) => theme.palette.mode === 'dark' ? '#000' : theme.palette.getContrastText(theme.palette.mode === 'dark' ? theme.palette.error.dark : theme.palette.error.main), p: 4, borderRadius: 2, height: 220 }}>
-    <Typography variant="h4">4</Typography>
-    <Typography>Upcoming Appointments Today</Typography>
+  <Paper sx={{ flex: 1, bgcolor: '#d13858', color: 'white', p: 3, borderRadius: 2, height: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+    <Typography variant="h1" sx={{ fontWeight: 800, fontSize: '6rem', lineHeight: 1, mb: 0.5 }}>{dashboardStats.upcomingToday}</Typography>
+    <Typography variant="h6" sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>Upcoming<br/>Appointments Today</Typography>
   </Paper>
 </Box>
 
