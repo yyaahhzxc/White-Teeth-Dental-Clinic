@@ -390,14 +390,14 @@ export default function Profile() {
       <Box
         sx={{
           minHeight: '100vh',
-          background: '#2148c0',
+          background: 'transparent',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Typography color="white">Loading...</Typography>
+        <Typography sx={{ color: (theme) => theme.palette.text.primary }}>Loading...</Typography>
       </Box>
     );
   }
@@ -405,7 +405,7 @@ export default function Profile() {
   return (
     <Box sx={{ 
       minHeight: '100vh',
-      background: '#2148c0',
+      background: 'transparent',
       position: 'relative'
     }}>
       {/* Header */}
@@ -421,8 +421,8 @@ export default function Profile() {
           elevation={0}
           sx={{ 
             borderRadius: 5,
-            bgcolor: '#f8f8f8',
-            border: '1px solid #f0f0f0',
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f8f8f8',
+            border: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '1px solid #f0f0f0',
             position: 'relative',
             height: '650px', // Reduced from 680px to 650px to definitely eliminate scrollbar
             width: '1351px', // Fixed width from Figma
@@ -439,7 +439,7 @@ export default function Profile() {
               left: '48px',
               fontWeight: 800,
               fontSize: '48px',
-              color: '#1b1b1b',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1b1b1b',
               fontFamily: 'Inter, sans-serif',
               lineHeight: 1,
               m: 0
@@ -478,8 +478,8 @@ export default function Profile() {
               position: 'absolute',
               left: '59px',
               top: '530px',
-              bgcolor: '#274fc7',
-              color: 'white',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#274fc7',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
               fontWeight: 600,
               px: 0,
               borderRadius: '8px',
@@ -488,7 +488,7 @@ export default function Profile() {
               lineHeight: 1.3,
               width: '126px',
               height: '48px',
-              '&:hover': { bgcolor: '#1e3a9f' },
+              '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1e3a9f' },
               '&:disabled': { 
                 bgcolor: '#ccc', 
                 color: '#888' 
@@ -513,8 +513,8 @@ export default function Profile() {
               position: 'absolute',
               left: '300px',
               top: '530px',
-              borderColor: '#2148c0',
-              color: '#2148c0',
+              borderColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
               fontWeight: 600,
               px: 0,
               borderRadius: '8px',
@@ -523,9 +523,9 @@ export default function Profile() {
               lineHeight: 1.3,
               width: '126px',
               height: '48px',
-              bgcolor: 'white',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
               borderWidth: '1px',
-              '&:hover': { bgcolor: '#f8f8f8', borderColor: '#1e3a9f' },
+              '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f8f8f8', borderColor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1e3a9f' },
               '&:disabled': { 
                 bgcolor: '#f5f5f5', 
                 borderColor: '#ccc', 
@@ -538,46 +538,46 @@ export default function Profile() {
 
           {/* First Name */}
           <Box sx={{ position: 'absolute', left: '535px', top: '147px', width: '341px' }}>
-            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>First Name</Typography>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>First Name</Typography>
             <TextField
               name="firstName"
               value={formData.firstName || ''}
               onChange={handleInputChange}
               variant="outlined"
               disabled={!isEditing}
-              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}
+              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', borderRadius: 1, height: '56px' } }}
             />
           </Box>
 
           {/* Last Name */}
           <Box sx={{ position: 'absolute', left: '918px', top: '144px', width: '341px' }}>
-            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Last Name</Typography>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Last Name</Typography>
             <TextField
               name="lastName"
               value={formData.lastName || ''}
               onChange={handleInputChange}
               variant="outlined"
               disabled={!isEditing}
-              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}
+              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', borderRadius: 1, height: '56px' } }}
             />
           </Box>
 
           {/* Username */}
           <Box sx={{ position: 'absolute', left: '535px', top: '254px', width: '341px' }}>
-            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Username</Typography>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Username</Typography>
             <TextField
               name="username"
               value={formData.username || ''}
               onChange={handleInputChange}
               variant="outlined"
               disabled={!isEditing}
-              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}
+              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', borderRadius: 1, height: '56px' } }}
             />
           </Box>
 
           {/* Password */}
           <Box sx={{ position: 'absolute', left: '918px', top: '260px', width: '341px' }}>
-            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Password</Typography>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Password</Typography>
             <TextField
               name="password"
               type={showPassword ? 'text' : 'password'}
@@ -586,7 +586,7 @@ export default function Profile() {
               variant="outlined"
               disabled={!isEditing}
               placeholder={isEditing && passwordMasked ? "Enter new password..." : ""}
-              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}
+              sx={{ width: '341px', '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', borderRadius: 1, height: '56px' } }}
               InputProps={{
                 endAdornment: isEditing ? (
                   <InputAdornment position="end">
@@ -605,21 +605,22 @@ export default function Profile() {
 
           {/* Employee Role */}
           <Box sx={{ position: 'absolute', left: '535px', top: '367px', width: '341px' }}>
-            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Employee Role</Typography>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>Employee Role</Typography>
             {(isEditing && currentUserRole.toLowerCase() === 'administrator') ? (
-              <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}>
+              <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', borderRadius: 1, height: '56px' } }}>
                 <Select
                   name="employeeRole"
                   value={formData.employeeRole || ''}
                   onChange={handleDropdownChange('employeeRole')}
                   displayEmpty
                   sx={{ height: '56px' }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', color: (theme) => theme.palette.text.primary } } }}
                 >
                   <MenuItem value="">
                     <em>Select Employee Role</em>
                   </MenuItem>
                   {employeeRoleOptions.map((role) => (
-                    <MenuItem key={role} value={role}>
+                    <MenuItem key={role} value={role} sx={{ color: (theme) => theme.palette.text.primary }}>
                       {role}
                     </MenuItem>
                   ))}
@@ -634,7 +635,7 @@ export default function Profile() {
                 sx={{
                   width: '341px',
                   '& .MuiOutlinedInput-root': {
-                    bgcolor: '#f5f5f5', // grayed out background only when editing
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f5f5f5', // grayed out background only when editing
                     borderRadius: 1,
                     height: '56px'
                   }
@@ -642,7 +643,7 @@ export default function Profile() {
                 helperText={"Only administrators can change employee role"}
                 FormHelperTextProps={{
                   sx: {
-                    color: '#666',
+                    color: (theme) => theme.palette.text.secondary,
                     fontSize: '12px',
                     mt: 0.5,
                     fontStyle: 'italic'
@@ -658,7 +659,7 @@ export default function Profile() {
                 sx={{
                   width: '341px',
                   '& .MuiOutlinedInput-root': {
-                    bgcolor: 'white', // normal background when not editing
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', // normal background when not editing
                     borderRadius: 1,
                     height: '56px'
                   }
@@ -669,21 +670,22 @@ export default function Profile() {
 
           {/* User Role */}
           <Box sx={{ position: 'absolute', left: '918px', top: '367px', width: '341px' }}>
-            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>User Role</Typography>
+            <Typography sx={{ fontWeight: 'bold', fontSize: '24px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : 'black', fontFamily: 'Inter, sans-serif', lineHeight: 1, mb: '10px' }}>User Role</Typography>
             {isEditing && currentUserRole.toLowerCase() === 'administrator' ? (
-              <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 1, height: '56px' } }}>
+              <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', borderRadius: 1, height: '56px' } }}>
                 <Select
                   name="role"
                   value={formData.role || ''}
                   onChange={handleDropdownChange('role')}
                   displayEmpty
                   sx={{ height: '56px' }}
+                  MenuProps={{ PaperProps: { sx: { bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white', color: (theme) => theme.palette.text.primary } } }}
                 >
                   <MenuItem value="">
                     <em>Select User Role</em>
                   </MenuItem>
                   {userRoleOptions.map((role) => (
-                    <MenuItem key={role} value={role}>
+                    <MenuItem key={role} value={role} sx={{ color: (theme) => theme.palette.text.primary }}>
                       {role}
                     </MenuItem>
                   ))}
@@ -698,7 +700,7 @@ export default function Profile() {
                 sx={{ 
                   width: '341px', 
                   '& .MuiOutlinedInput-root': { 
-                    bgcolor: isEditing && currentUserRole.toLowerCase() !== 'administrator' ? '#f5f5f5' : 'white', 
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : (isEditing && currentUserRole.toLowerCase() !== 'administrator' ? '#f5f5f5' : 'white'), 
                     borderRadius: 1, 
                     height: '56px' 
                   } 
@@ -706,7 +708,7 @@ export default function Profile() {
                 helperText={isEditing && currentUserRole.toLowerCase() !== 'administrator' ? "Only administrators can change user roles" : ""}
                 FormHelperTextProps={{
                   sx: { 
-                    color: '#666', 
+                    color: (theme) => theme.palette.text.secondary, 
                     fontSize: '12px', 
                     mt: 0.5,
                     fontStyle: 'italic'
@@ -724,12 +726,12 @@ export default function Profile() {
                 position: 'absolute',
                 right: '87px', // Match Figma positioning
                 top: '74px', // Moved up further from 94px
-                bgcolor: '#274fc7',
-                color: 'white',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#274fc7',
+                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
                 width: 43.5,
                 height: 43.5,
                 borderRadius: '7.3px',
-                '&:hover': { bgcolor: '#1e3a9f' }
+                '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1e3a9f' }
               }}
             >
               <EditIcon sx={{ fontSize: 20 }} />
@@ -749,8 +751,8 @@ export default function Profile() {
                 variant="outlined"
                 onClick={handleCancel}
                 sx={{
-                  borderColor: '#2148c0',
-                  color: '#2148c0',
+                  borderColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
                   fontWeight: 600,
                   px: 0,
                   py: 1.5,
@@ -759,11 +761,11 @@ export default function Profile() {
                   fontSize: '16px',
                   width: '120px', // Slightly reduced width
                   height: '43.5',
-                  bgcolor: 'white',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                   '&:hover': {
-                    borderColor: '#1e3a9f',
-                    color: '#1e3a9f',
-                    bgcolor: '#f8f8f8'
+                    borderColor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1e3a9f',
+                    color: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1e3a9f',
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f8f8f8'
                   }
                 }}
               >
@@ -774,8 +776,8 @@ export default function Profile() {
                 onClick={handleSave}
                 disabled={isSaving}
                 sx={{
-                  bgcolor: '#274fc7',
-                  color: 'white',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#274fc7',
+                  color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
                   fontWeight: 600,
                   px: 0,
                   py: 1.5,
@@ -785,7 +787,7 @@ export default function Profile() {
                   width: '120px', // Slightly reduced width
                   height: '43.5',
                   '&:hover': {
-                    bgcolor: '#1e3a9f'
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1e3a9f'
                   }
                 }}
               >
@@ -804,8 +806,8 @@ export default function Profile() {
               variant="outlined"
               onClick={handleLogout}
               sx={{
-                borderColor: '#ff3b30',
-                color: '#ff3b30',
+                borderColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.main : '#ff3b30',
+                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.main : '#ff3b30',
                 fontWeight: 600,
                 px: 3,
                 py: 1.5,
@@ -817,9 +819,9 @@ export default function Profile() {
                 height: '48px',
                 borderWidth: '2px',
                 '&:hover': {
-                  borderColor: '#d12b20',
-                  color: '#d12b20',
-                  bgcolor: 'rgba(255, 59, 48, 0.04)',
+                  borderColor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.error.dark || theme.palette.error.main) : '#d12b20',
+                  color: (theme) => theme.palette.mode === 'dark' ? (theme.palette.error.dark || theme.palette.error.main) : '#d12b20',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(255, 59, 48, 0.04)',
                   borderWidth: '2px'
                 }
               }}

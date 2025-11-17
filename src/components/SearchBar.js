@@ -43,30 +43,30 @@ export default function SearchBar({
       value={value}
       onChange={handleSearchChange}
       sx={{ 
-        flex: 1,
-        minWidth: 200,
-        maxWidth: 400,
-        m: 0,
-        p: 0,
-        '& .MuiOutlinedInput-root': {
-          backgroundColor: '#f3edf7',
-          borderRadius: '10px',
-          height: '38px',
-          '& fieldset': {
-            border: 'none',
-          },
-          '&:hover fieldset': {
-            border: 'none',
-          },
-          '&.Mui-focused fieldset': {
-            border: '1px solid #2148c0',
-          },
-        }
-      }}
+          flex: 1,
+          minWidth: 200,
+          maxWidth: 400,
+          m: 0,
+          p: 0,
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f3edf7',
+            borderRadius: '10px',
+            height: '38px',
+            '& fieldset': {
+              border: 'none',
+            },
+            '&:hover fieldset': {
+              border: 'none',
+            },
+            '&.Mui-focused fieldset': {
+              border: (theme) => `1px solid ${theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0'}`,
+            },
+          }
+        }}
       InputProps={{
         startAdornment: (
           <InputAdornment position="start">
-            <Search sx={{ color: '#7f7f7f' }} />
+            <Search sx={{ color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#7f7f7f' }} />
           </InputAdornment>
         ),
       }}

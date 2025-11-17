@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -9,6 +9,7 @@ import {
   Grid,
   Card,
   CardContent,
+  CircularProgress,
   Badge,
   IconButton,
   Tooltip,
@@ -58,6 +59,8 @@ function Logs() {
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [stats, setStats] = useState({});
+  const [statsUpdating, setStatsUpdating] = useState(false);
+  const statsTimeoutRef = useRef(null);
   const [selectedLog, setSelectedLog] = useState(null);
   const [logDetailOpen, setLogDetailOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,6 +111,9 @@ function Logs() {
         setLogs(data.logs || []);
         setTotalLogs(data.total || 0);
         setTotalPages(data.totalPages || 0);
+        // Do not derive quick-stats from the paginated logs response here.
+        // Quick-stats are fetched from the dedicated `/logs/stats` endpoint
+        // via `fetchStats()` to ensure global counts are accurate.
       } else {
         console.error('Error fetching logs:', data.error);
         setLogs([]);
@@ -124,13 +130,32 @@ function Logs() {
   // Fetch statistics
   const fetchStats = async () => {
     try {
+      // indicate stats are updating (show spinner/highlight briefly)
+      try {
+        setStatsUpdating(true);
+        if (statsTimeoutRef.current) {
+          clearTimeout(statsTimeoutRef.current);
+          statsTimeoutRef.current = null;
+        }
+      } catch (e) {}
+
       const response = await fetch(`${API_BASE}/logs/stats`);
       const data = await response.json();
       setStats(data);
+
+      // keep highlight for a short time so users notice the change
+      statsTimeoutRef.current = setTimeout(() => setStatsUpdating(false), 800);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      try { setStatsUpdating(false); } catch (e) {}
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (statsTimeoutRef.current) clearTimeout(statsTimeoutRef.current);
+    };
+  }, []);
 
   // Initial load and refresh on dependency changes
   useEffect(() => {
@@ -139,14 +164,34 @@ function Logs() {
 
   useEffect(() => {
     fetchStats();
-    
+
     // Set up polling for real-time updates (every 30 seconds)
     const interval = setInterval(() => {
       fetchLogs(false); // Don't show loading spinner for background refresh
       fetchStats();
     }, 30000);
 
-    return () => clearInterval(interval);
+    // Refresh stats/logs when billing or invoice events occur elsewhere in the app
+    const onBillingCreated = () => {
+      console.log('Logs: billingCreated event received — refreshing stats');
+      fetchStats();
+      fetchLogs(false);
+    };
+
+    const onInvoiceCreated = () => {
+      console.log('Logs: invoiceCreated event received — refreshing stats');
+      fetchStats();
+      fetchLogs(false);
+    };
+
+    window.addEventListener('billingCreated', onBillingCreated);
+    window.addEventListener('invoiceCreated', onInvoiceCreated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('billingCreated', onBillingCreated);
+      window.removeEventListener('invoiceCreated', onInvoiceCreated);
+    };
   }, []);
 
   // Handle filter changes
@@ -203,7 +248,13 @@ function Logs() {
           )
         );
         
-        // Refresh stats
+        // Update stats locally to reflect the viewed state immediately
+        setStats(prev => ({
+          ...prev,
+          unviewedLogs: Math.max((prev.unviewedLogs || 0) - 1, 0)
+        }));
+
+        // Also refresh stats from server in background to keep consistency
         fetchStats();
       } catch (error) {
         console.error('Error marking log as viewed:', error);
@@ -270,7 +321,7 @@ function Logs() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#2148c0',
+        backgroundColor: 'transparent',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -300,37 +351,7 @@ function Logs() {
           Activity Logs
         </Typography>
         
-        {/* Quick Stats */}
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Card sx={{ minWidth: 100, textAlign: 'center' }}>
-            <CardContent sx={{ py: 1 }}>
-              <Typography variant="h6" color="primary">
-                {stats.totalLogs || 0}
-              </Typography>
-              <Typography variant="caption">Total Logs</Typography>
-            </CardContent>
-          </Card>
-          
-          <Card sx={{ minWidth: 100, textAlign: 'center' }}>
-            <CardContent sx={{ py: 1 }}>
-              <Badge badgeContent={stats.unviewedLogs || 0} color="error">
-                <Typography variant="h6" color="warning.main">
-                  {stats.unviewedLogs || 0}
-                </Typography>
-              </Badge>
-              <Typography variant="caption">Unviewed</Typography>
-            </CardContent>
-          </Card>
-          
-          <Card sx={{ minWidth: 100, textAlign: 'center' }}>
-            <CardContent sx={{ py: 1 }}>
-              <Typography variant="h6" color="success.main">
-                {stats.todayLogs || 0}
-              </Typography>
-              <Typography variant="caption">Today</Typography>
-            </CardContent>
-          </Card>
-        </Box>
+        
       </Box>
 
       {/* Filters Section */}

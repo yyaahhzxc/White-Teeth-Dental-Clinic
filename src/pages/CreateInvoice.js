@@ -196,7 +196,7 @@ function CreateInvoice({
         }}
         PaperProps={{
           sx: {
-          backgroundColor: '#f9f9f9',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#f9f9f9',
           borderRadius: '10px',
           p: 0,
           width: '600px',
@@ -210,7 +210,7 @@ function CreateInvoice({
         <Typography 
           variant="h4" 
           sx={{ 
-            color: '#2148c0',
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
             fontWeight: 800,
             fontSize: '32px',
             fontFamily: 'Inter, sans-serif',
@@ -249,18 +249,18 @@ function CreateInvoice({
           backgroundColor: 'transparent',
         },
         '&::-webkit-scrollbar-thumb': {
-          backgroundColor: '#c1c1c1',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#c1c1c1',
           borderRadius: '10px',
         },
         '&::-webkit-scrollbar-thumb:hover': {
-          backgroundColor: '#a8a8a8',
+          backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : '#a8a8a8',
         },
       }}>
         {/* Billing Summary Section */}
         <Box sx={{ mb: 3 }}>
           <Typography 
             sx={{ 
-              color: '#2148c0',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
               fontWeight: 'bold',
               fontSize: '32px',
               fontFamily: 'Inter, sans-serif',
@@ -280,13 +280,13 @@ function CreateInvoice({
           }}>
             {/* Header Row */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: '#1a1c21', flex: 1 }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', flex: 1 }}>
                 Service
               </Typography>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: '#1a1c21', width: 70, textAlign: 'center' }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', width: 70, textAlign: 'center' }}>
                 Quantity
               </Typography>
-              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: '#1a1c21', width: 90, textAlign: 'right' }}>
+              <Typography sx={{ fontWeight: 'bold', fontSize: '15.117px', fontFamily: 'Inter, sans-serif', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', width: 90, textAlign: 'right' }}>
                 Amount
               </Typography>
             </Box>
@@ -294,13 +294,13 @@ function CreateInvoice({
             {/* Services Summary */}
             {calculations.validServices.map((service) => (
               <Box key={service.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 3 }}>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, flex: 1 }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, flex: 1 }}>
                   {service.name}
                 </Typography>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
                   {service.quantity}
                 </Typography>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
                   ₱{(parseFloat(service.price) * (service.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Typography>
               </Box>
@@ -308,10 +308,10 @@ function CreateInvoice({
 
             {/* Subtotal after Services */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
                 Subtotal
               </Typography>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
+              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
                 ₱{calculations.servicesTotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Typography>
             </Box>
@@ -319,27 +319,27 @@ function CreateInvoice({
             {/* Additional Charges */}
             {calculations.validCharges.length > 0 && (
               <>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', mt: 1 }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', mt: 1 }}>
                   Additional Charge/s
                 </Typography>
                 {calculations.validCharges.map((charge) => (
                   <Box key={charge.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 3 }}>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, flex: 1 }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, flex: 1 }}>
                       {charge.name}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
                       {charge.quantity}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
                       ₱{(parseFloat(charge.price) * (charge.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </Box>
                 ))}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
                     Subtotal
                   </Typography>
-                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
                     ₱{calculations.subtotalAfterCharges.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </Box>
@@ -349,27 +349,27 @@ function CreateInvoice({
             {/* Discounts */}
             {calculations.validDiscounts.length > 0 && (
               <>
-                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', mt: 1 }}>
+                <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', mt: 1 }}>
                   Discount/s
                 </Typography>
                 {calculations.validDiscounts.map((discount) => (
                   <Box key={discount.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pl: 3 }}>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, flex: 1 }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, flex: 1 }}>
                       {discount.name}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 70, textAlign: 'center' }}>
                       {discount.quantity}
                     </Typography>
-                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
+                    <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 500, width: 90, textAlign: 'right' }}>
                       -₱{(parseFloat(discount.price) * (discount.quantity || 1)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </Typography>
                   </Box>
                 ))}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
                     Subtotal
                   </Typography>
-                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
+                  <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
                     ₱{(calculations.subtotalAfterCharges - calculations.discountsTotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </Box>
@@ -377,11 +377,11 @@ function CreateInvoice({
             )}
 
             {/* Total */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #e0e0e0', pt: 2 }}>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: (theme) => theme.palette.mode === 'dark' ? `1px solid ${theme.palette.divider}` : '2px solid #e0e0e0', pt: 2 }}>
+              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
                 TOTAL
               </Typography>
-              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
+              <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold', width: 90, textAlign: 'right' }}>
                 ₱{calculations.total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Typography>
             </Box>
@@ -392,7 +392,7 @@ function CreateInvoice({
         <Box sx={{ mb: 3 }}>
           <Typography 
             sx={{ 
-              color: '#2148c0',
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
               fontWeight: 600,
               fontSize: '32px',
               fontFamily: 'Inter, sans-serif',
@@ -414,7 +414,7 @@ function CreateInvoice({
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   sx={{
-                    backgroundColor: 'white',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                     fontFamily: 'Raleway, sans-serif',
                     fontSize: '14.81px',
                   }}
@@ -444,7 +444,7 @@ function CreateInvoice({
                   fullWidth
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      backgroundColor: 'white',
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                       fontSize: '14.81px',
                       fontFamily: 'Raleway, sans-serif',
                     }
@@ -468,7 +468,7 @@ function CreateInvoice({
                 fullWidth
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    backgroundColor: 'white',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : 'white',
                     fontSize: '14.81px',
                     fontFamily: 'Raleway, sans-serif',
                   }
@@ -479,10 +479,10 @@ function CreateInvoice({
 
           {/* Remaining Balance */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+            <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
               Remaining Balance:
             </Typography>
-            <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: '#1a1c21', fontWeight: 'bold' }}>
+            <Typography sx={{ fontFamily: 'Inter, sans-serif', fontSize: '15.117px', color: (theme) => theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1a1c21', fontWeight: 'bold' }}>
               ₱{calculations.remainingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Typography>
           </Box>
@@ -492,8 +492,8 @@ function CreateInvoice({
         <Button
           onClick={handleCreateInvoice}
           sx={{
-            backgroundColor: '#2148c0',
-            color: 'white',
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#2148c0',
+            color: (theme) => theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : 'white',
             fontWeight: 'bold',
             fontSize: '20.1px',
             fontFamily: 'Inter, sans-serif',
@@ -501,7 +501,7 @@ function CreateInvoice({
             py: 1.5,
             borderRadius: '25px',
             '&:hover': {
-              backgroundColor: '#1a36a0',
+              backgroundColor: (theme) => theme.palette.mode === 'dark' ? (theme.palette.primary.dark || theme.palette.primary.main) : '#1a36a0',
             }
           }}
         >

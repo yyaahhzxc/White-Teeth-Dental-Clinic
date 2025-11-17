@@ -27,11 +27,20 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
   };
 
   const handlePrint = () => {
-    // Get only the invoice content, excluding modal elements
-    const printContent = document.getElementById('invoice-content');
-    if (!printContent) return;
-    
-    // Create a new window for printing
+    // Clone the dialog content and remove the Print button before printing
+    const dialogContent = document.getElementById('invoice-dialog-content');
+    if (!dialogContent) return;
+
+    // Deep clone so we can safely remove nodes without affecting the UI
+    const clone = dialogContent.cloneNode(true);
+
+    // Remove the print button (if present) from the clone so it doesn't appear in printout
+    const printBtnInClone = clone.querySelector('#invoice-print-button');
+    if (printBtnInClone && printBtnInClone.parentNode) {
+      printBtnInClone.parentNode.removeChild(printBtnInClone);
+    }
+
+    // Prepare print window
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
       <html>
@@ -42,21 +51,24 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
               margin: 0; 
               padding: 20px;
               font-family: Inter, sans-serif;
+              color: #000;
             }
-            @media print {
-              body { padding: 0; }
-            }
+            img { max-width: 100%; height: auto; }
+            @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
-          ${printContent.innerHTML}
+          ${clone.innerHTML}
         </body>
       </html>
     `);
     printWindow.document.close();
     printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+    // Wait a tick for images to load (best-effort)
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 200);
   };
 
   if (!invoice) return null;
@@ -94,6 +106,7 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
       </IconButton>
 
       <DialogContent
+        id="invoice-dialog-content"
         sx={{
           backgroundColor: "#f9fafc",
           p: 0,
@@ -661,6 +674,7 @@ const ViewInvoice = ({ open, onClose, invoice }) => {
         {/* Print Button - Outside the Paper component */}
         <Box textAlign="center" mt={3} mb={2}>
           <Button
+            id="invoice-print-button"
             variant="contained"
             color="primary"
             sx={{

@@ -201,8 +201,8 @@ function Header() {
       <AppBar
         position="static"
         sx={{
-          bgcolor: 'white',
-          color: 'black',
+          bgcolor: 'background.paper',
+          color: 'text.primary',
           position: 'relative',
           boxShadow: 'none',
           margin: 0,
@@ -212,10 +212,10 @@ function Header() {
           <img
             src="/White-Teeth-Logo.png"
             alt="logo"
-            style={{ width: 40, marginRight: 8, cursor: 'pointer' }}
+            style={{ width: '2.5rem', marginRight: '0.5rem', cursor: 'pointer' }}
             onClick={() => navigate('/dashboard')}
           />
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" className="no-scale-header-brand" sx={{ flexGrow: 1 }}>
             White Teeth Dental Clinic
           </Typography>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -241,13 +241,13 @@ function Header() {
                   sx={{
                     position: 'relative',
                     mx: 0.5,
-                    color: isActive ? 'white' : 'black',
-                    bgcolor: isActive ? '#1746A2' : 'transparent',
+                    color: isActive ? 'primary.contrastText' : 'text.primary',
+                    bgcolor: isActive ? 'primary.main' : 'transparent',
                     borderRadius: 2,
                     px: 2,
                     transition: 'background-color 0.8s ease, color 0.8s ease',
                     '&:hover': {
-                      bgcolor: isActive ? '#12357a' : '#f0f0f0',
+                      bgcolor: isActive ? 'primary.dark' : 'action.hover',
                     },
                   }}
                   onClick={() => navigate(routeMap[label])}
@@ -265,7 +265,7 @@ function Header() {
             aria-controls={open ? 'header-user-menu' : undefined}
             aria-haspopup="true"
           >
-            <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: 32, height: 32, bgcolor: userPhoto ? '#1976d2' : 'transparent', border: userPhoto ? '1px solid #155a9c' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
+            <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: '2rem', height: '2rem', bgcolor: userPhoto ? 'primary.main' : 'transparent', border: userPhoto ? '1px solid' : 'none', borderColor: 'primary.dark', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
           </IconButton>
 
           <Menu
@@ -292,7 +292,7 @@ function Header() {
                 cursor: 'pointer',
               }}
             >
-              <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: 56, height: 56, bgcolor: userPhoto ? '#b39ddb' : 'transparent', border: userPhoto ? '2px solid #a38ccc' : 'none', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
+              <Avatar src={userPhoto || '/default-icon.svg'} sx={{ width: '3.5rem', height: '3.5rem', bgcolor: userPhoto ? 'secondary.main' : 'transparent', border: userPhoto ? '2px solid' : 'none', borderColor: 'secondary.dark', boxSizing: 'border-box', '& img': { objectFit: 'cover', width: '100%', height: '100%' } }} />
               <Box>
                 <Typography variant="subtitle1">
                   {currentUser && currentUser.firstName && currentUser.lastName 
@@ -315,9 +315,9 @@ function Header() {
             {(isAdmin || isAdminUser(currentUser)) && (
               <MenuItem onClick={() => { navigateTo('/accounts'); }}>
                 <ListItemIcon>
-                  <PeopleIcon sx={{ color: '#6A1B9A' }} fontSize="small" />
+                  <PeopleIcon sx={{ color: 'secondary.main' }} fontSize="small" />
                 </ListItemIcon>
-                <ListItemText sx={{ color: '#6A1B9A' }}>Users</ListItemText>
+                <ListItemText sx={{ color: 'secondary.main' }}>Users</ListItemText>
               </MenuItem>
             )}
             <MenuItem onClick={() => navigateTo('/logs')}>
