@@ -7,6 +7,11 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Increased limit for photo uploads
 
+// Basic health endpoint for quick availability checks
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 
 
 // Simple in-memory session store (suitable for local/desktop app)
@@ -693,6 +698,59 @@ app.get('/revenues', (req, res) => {
   };
 
   tryNext(0);
+});
+
+// Reports: Top services availed by appointments
+app.get('/reports/top-services', (req, res) => {
+  const { period = 'Daily', limit = 5, startDate, endDate } = req.query;
+  // Build date filter based on period or explicit start/end
+  let dateFilter = '';
+  const params = [];
+
+  if (startDate) {
+    dateFilter += ' AND date(a.appointmentDate) >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    dateFilter += ' AND date(a.appointmentDate) <= ?';
+    params.push(endDate);
+  }
+
+  if (!startDate && !endDate) {
+    if (period === 'Daily') {
+      dateFilter += " AND date(a.appointmentDate) = date('now')";
+    } else if (period === 'Monthly') {
+      dateFilter += " AND strftime('%Y-%m', a.appointmentDate) = strftime('%Y-%m', 'now')";
+    } else if (period === 'Yearly') {
+      dateFilter += " AND strftime('%Y', a.appointmentDate) = strftime('%Y', 'now')";
+    }
+  }
+
+  // Compute revenue instead of raw quantity: price * quantity
+  const sql = `
+    SELECT COALESCE(s.name, pkg.name, 'Unknown') AS name,
+           SUM( (aps.quantity || 0) * (COALESCE(s.price, pkg.price, 0)) ) AS totalAmount
+    FROM appointment_services aps
+    JOIN appointments a ON aps.appointmentId = a.id
+    LEFT JOIN services s ON aps.serviceId = s.id
+    LEFT JOIN packages pkg ON aps.serviceId = pkg.id
+    WHERE 1=1 ${dateFilter}
+    GROUP BY COALESCE(s.name, pkg.name, 'Unknown')
+    ORDER BY totalAmount DESC
+    LIMIT ?
+  `;
+
+  params.push(parseInt(limit, 10) || 5);
+
+  db.all(sql, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching top services (by revenue):', err);
+      return res.status(500).json({ error: 'Failed to fetch top services' });
+    }
+
+    const mapped = (rows || []).map(r => ({ name: r.name || 'Unknown', value: Number(r.totalAmount || 0) }));
+    res.json(mapped);
+  });
 });
 
 
@@ -4374,10 +4432,8 @@ app.get('/dashboard/stats', (req, res) => {
 });
 
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+// NOTE: `app.listen` moved to end of file to ensure all routes are registered
+// before the server starts accepting requests. See bottom of this file.
 
 
 // LOGS PRE //
@@ -5677,6 +5733,13 @@ app.post('/invoices', (req, res) => {
         }
         
         console.log(`✅ Billing ${billingId} updated: amountPaid=${newAmountPaid}, balance=${newBalance}, status=${newStatus}`);
+        // Log billing update (record old and new values)
+        try {
+          const desc = `Billing ${billingId} updated via invoice ${invoiceId}: amountPaid ${billing.amountPaid} -> ${newAmountPaid}`;
+          logActivity('Billing Updated', desc, 'billings', billingId, null, null, billing, { amountPaid: newAmountPaid, balance: newBalance, status: newStatus }, req);
+        } catch (e) {
+          console.error('❌ Error logging billing update activity:', e);
+        }
         
         // Record revenue for this invoice, then return created invoice
         const revenueInsert = `
@@ -5813,3 +5876,9 @@ app.get('/billings/appointment/:appointmentId', (req, res) => {
     res.json(billing);
   });
 });
+
+  // Start the server after all routes and middleware have been registered
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });

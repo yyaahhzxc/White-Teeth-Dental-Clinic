@@ -41,7 +41,9 @@ const DashboardContainer = ({ children }) => (
 // --- Dashboard Sub-Components (as provided in the previous response) ---
 
 // Simple SVG Pie + legend helper (no external deps)
-const formatCurrency = (n) => `Php ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (n) => `${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+// Format amount without currency label for chart labels/tooltips
+const formatAmount = (n) => `${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Format a date value as "MonthName DD, YYYY" (e.g. November 16, 2025)
 const formatLongDate = (value) => {
@@ -197,7 +199,7 @@ function PieSVG({ data = [], size = 150, centerLabelMain = '', centerLabelSub = 
         >
           <Box sx={{ fontWeight: 600, mb: 0.5 }}>{segments[hoveredIndex].name}</Box>
           <Box sx={{ fontSize: '12px' }}>
-            {formatCurrency(segments[hoveredIndex].value)} ({(segments[hoveredIndex].percent * 100).toFixed(1)}%)
+            {formatAmount(segments[hoveredIndex].value)} ({(segments[hoveredIndex].percent * 100).toFixed(1)}%)
           </Box>
         </Box>
       )}
@@ -252,6 +254,8 @@ const [isInitialized, setIsInitialized] = useState(false);
   // revenues loaded from backend (replaces placeholder revenueData)
   const [revenues, setRevenues] = useState([]);
   const [loadingRevenues, setLoadingRevenues] = useState(false);
+  const [breakdownServices, setBreakdownServices] = useState([]);
+  const [loadingServicesBreakdown, setLoadingServicesBreakdown] = useState(false);
 
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [activeFilters, setActiveFilters] = useState([]);
@@ -480,8 +484,8 @@ if (typeof window !== 'undefined') {
     amountNumber: r.revenueNumber,
   }));
 
-  // Service breakdowns (placeholder) for pie chart & stats
-  const breakdownRevenue = computeServiceBreakdown(aggregated);
+  // Service breakdowns (prefer backend data when available)
+  const breakdownRevenue = (breakdownServices && breakdownServices.length) ? breakdownServices : computeServiceBreakdown(aggregated);
   const breakdownExpenses = computeServiceBreakdown(aggregatedExpenses);
 
   // compute category breakdown for expenses (group by category)
@@ -541,11 +545,20 @@ if (typeof window !== 'undefined') {
   const expenseCategoryBreakdown = computeExpenseCategoryBreakdown(expenses, currentExpensePeriodKey);
 
   // choose data for the expenses pie: prefer category breakdown (for the current period), otherwise fallback to service-style placeholders
-  const expensePieData = (expenseCategoryBreakdown && expenseCategoryBreakdown.length) ? expenseCategoryBreakdown : (breakdownExpenses && breakdownExpenses.length ? breakdownExpenses : []);
-
-  // center labels: show top category name and the period descriptor (Today / This Month / This Year)
+  // Special case: when showing Daily and there are no expenses for today, render an uncolored single-segment pie
   const periodDescriptor = period === 'Daily' ? 'Today' : period === 'Monthly' ? 'This Month' : 'This Year';
-  const topCategoryName = expensePieData && expensePieData[0] ? expensePieData[0].name : '';
+  const isDailyEmpty = period === 'Daily' && (!expenseCategoryBreakdown || expenseCategoryBreakdown.length === 0);
+
+  const expensePieData = (() => {
+    if (isDailyEmpty) {
+      return [{ name: 'No expenses', value: 1, color: '#e0e0e0', percent: 1 }];
+    }
+    if (expenseCategoryBreakdown && expenseCategoryBreakdown.length) return expenseCategoryBreakdown;
+    if (breakdownExpenses && breakdownExpenses.length) return breakdownExpenses;
+    return [];
+  })();
+
+  const topCategoryName = (!isDailyEmpty && expensePieData && expensePieData[0]) ? expensePieData[0].name : '';
 
   // Totals for the right panel metrics
   const revenueTotal = (aggregated || []).reduce((s, r) => s + (r.revenueNumber || 0), 0);
@@ -834,6 +847,35 @@ useEffect(() => {
     fetchExpenses();
   }
 }, []); // Empty dependency array - only run once
+
+// Fetch top services from backend for the selected period
+const fetchTopServices = async () => {
+  try {
+    setLoadingServicesBreakdown(true);
+    const res = await fetch(`${API_BASE}/reports/top-services?period=${encodeURIComponent(period)}&limit=6`);
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const rows = await res.json();
+    // map to pie format with colors
+    const colors = ['#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#f44336', '#607d8b'];
+    const total = (rows || []).reduce((s, r) => s + (Number(r.value) || 0), 0) || 0;
+    const mapped = (rows || []).map((r, i) => {
+      // backend now returns monetary amount in `value` (or totalAmount)
+      const amount = Number(r.totalAmount || r.value || 0);
+      return { name: r.name, value: amount, color: colors[i % colors.length], percent: total ? (amount / total) : 0 };
+    });
+    setBreakdownServices(mapped);
+  } catch (e) {
+    console.error('Failed to fetch top services', e);
+    setBreakdownServices([]);
+  } finally {
+    setLoadingServicesBreakdown(false);
+  }
+};
+
+useEffect(() => {
+  // Fetch whenever the selected period changes or when revenues update
+  fetchTopServices();
+}, [period, revenues.length]);
 
 // Tab switching effect - DOES NOT refetch data
 useEffect(() => {
@@ -1252,8 +1294,11 @@ useEffect(() => {
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="body2" fontWeight={600} noWrap>{d.name}</Typography>
                             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                              <Typography variant="body2" fontWeight={500} color="text.primary">{formatCurrency(d.value)}</Typography>
-                              <Typography variant="caption" color="text.secondary">({(d.percent * 100).toFixed(1)}%)</Typography>
+                              <Typography variant="body2" fontWeight={500} color="text.primary">
+                                { /* If this is the empty-daily indicator, show 0.00 instead of the synthetic segment value */ }
+                                { (isDailyEmpty) ? formatAmount(0) : formatAmount(d.value) }
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">({ (isDailyEmpty ? 0.0 : (d.percent * 100)).toFixed(1) }%)</Typography>
                             </Box>
                           </Box>
                         </Box>
