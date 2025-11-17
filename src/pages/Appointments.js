@@ -907,6 +907,7 @@ const handleCancelAppointment = async () => {
   
   // Reset appointmentLogged state when opening a new appointment
   setAppointmentLogged(false);
+  setLoadingServiceDetails(true);
   
   try {
     const response = await fetch(`${API_BASE}/appointments/${appointmentId}`);
@@ -976,10 +977,29 @@ const handleCancelAppointment = async () => {
     
     await fetchAppointmentDetails(appointmentId);
     
+    // Fetch and set service details for display
+    try {
+      const serviceResponse = await fetch(`${API_BASE}/appointment-services/${appointmentId}`);
+      if (serviceResponse.ok) {
+        const serviceDetails = await serviceResponse.json();
+        console.log('📦 Fetched service details:', serviceDetails);
+        setAppointmentServiceDetails(serviceDetails || []);
+      } else {
+        console.warn('Failed to fetch service details');
+        setAppointmentServiceDetails([]);
+      }
+    } catch (serviceError) {
+      console.error('Error fetching service details:', serviceError);
+      setAppointmentServiceDetails([]);
+    } finally {
+      setLoadingServiceDetails(false);
+    }
+    
     setModalOpen(true);
   } catch (error) {
     console.error('Error fetching appointment:', error);
     showToast('Failed to load appointment details', 'error');
+    setLoadingServiceDetails(false);
   }
 };
 

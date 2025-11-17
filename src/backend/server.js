@@ -116,10 +116,63 @@ db.run(`
     console.error('❌ Error creating package_services table:', err);
   } else {
     console.log('✅ Package services junction table created/verified');
+    // Run migration to fix serviceId mismatches
+    fixPackageServiceIds();
   }
 });
 
-
+// Migration: Fix package_services.serviceId that may be stored as strings or with prefixes
+function fixPackageServiceIds() {
+  console.log('🔧 Checking for package_services serviceId mismatches...');
+  
+  db.all('SELECT id, packageId, serviceId FROM package_services', [], (err, rows) => {
+    if (err) {
+      console.error('❌ Error reading package_services:', err);
+      return;
+    }
+    
+    if (!rows || rows.length === 0) {
+      console.log('✅ No package_services to fix');
+      return;
+    }
+    
+    let fixCount = 0;
+    rows.forEach(row => {
+      const rawId = row.serviceId;
+      const isString = typeof rawId === 'string';
+      const hasPrefixMatch = isString && /^(pkg-|svc-)/.test(rawId);
+      
+      if (isString || hasPrefixMatch) {
+        // Strip prefix and convert to integer
+        const cleanId = String(rawId).replace(/^(pkg-|svc-)/, '');
+        const numericId = parseInt(cleanId, 10);
+        
+        if (!isNaN(numericId) && numericId > 0) {
+          db.run(
+            'UPDATE package_services SET serviceId = ? WHERE id = ?',
+            [numericId, row.id],
+            (updateErr) => {
+              if (updateErr) {
+                console.error(`❌ Failed to fix serviceId for package_services.id=${row.id}:`, updateErr);
+              } else {
+                fixCount++;
+                console.log(`✅ Fixed package_services.id=${row.id}: serviceId "${rawId}" → ${numericId}`);
+              }
+            }
+          );
+        } else {
+          console.warn(`⚠️ Could not parse serviceId="${rawId}" for package_services.id=${row.id}`);
+        }
+      }
+    });
+    
+    if (fixCount === 0) {
+      console.log('✅ All package_services serviceId values are correct (no fixes needed)');
+    } else {
+      console.log(`🔧 Applied ${fixCount} serviceId fixes to package_services`);
+    }
+  });
+}
 
 
 
@@ -4683,6 +4736,14 @@ app.get('/logs/stats', (req, res) => {
 
 //FIXED POST API FOR PACKAGE
 
+// Helper function to clean IDs (strip svc-/pkg- prefixes and convert to int)
+function cleanServiceId(rawId) {
+  if (rawId == null) return null;
+  const cleaned = String(rawId).replace(/^(pkg-|svc-)/, '');
+  const numeric = parseInt(cleaned, 10);
+  return isNaN(numeric) || numeric <= 0 ? null : numeric;
+}
+
 // Replace your POST /packages endpoint (around line 2430) with this COMPLETE version:
 
 app.post('/packages', (req, res) => {
@@ -4752,9 +4813,26 @@ app.post('/packages', (req, res) => {
           const errors = [];
 
           services.forEach((service) => {
+            // Clean the serviceId to ensure it's a numeric integer
+            const cleanedServiceId = cleanServiceId(service.serviceId);
+            
+            if (!cleanedServiceId) {
+              console.error(`❌ Invalid serviceId: ${service.serviceId}`);
+              servicesProcessed++;
+              errors.push({ serviceId: service.serviceId, error: 'Invalid service ID' });
+              
+              if (servicesProcessed === services.length) {
+                return res.status(400).json({ 
+                  error: 'Invalid service IDs provided',
+                  details: errors 
+                });
+              }
+              return;
+            }
+            
             db.run(
               insertServiceQuery,
-              [newPackageId, service.serviceId, service.quantity || 1],
+              [newPackageId, cleanedServiceId, service.quantity || 1],
               (serviceErr) => {
                 servicesProcessed++;
 

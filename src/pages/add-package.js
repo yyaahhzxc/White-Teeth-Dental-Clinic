@@ -168,9 +168,12 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
       updated[existingIndex].quantity += serviceQuantity;
       setSelectedServices(updated);
     } else {
-      // Add new service
+      // Add new service (clean any svc-/pkg- prefix from ID)
+      const cleanId = String(serviceToAdd.id).replace(/^(pkg-|svc-)/, '');
+      const numericId = parseInt(cleanId, 10);
+      
       const newService = {
-        serviceId: serviceToAdd.id,
+        serviceId: numericId,
         name: serviceToAdd.name,
         price: serviceToAdd.price || 0,
         duration: serviceToAdd.duration || 0,
@@ -245,10 +248,15 @@ const AddPackage = ({ open, onClose, onAddPackage, showSnackbar }) => {
           price: parseFloat(packageData.price) || totalPrice,
           duration: totalDuration, // Always use calculated duration
           status: packageData.status,
-          services: selectedServices.map(s => ({
-            serviceId: s.serviceId,
-            quantity: s.quantity
-          }))
+          services: selectedServices.map(s => {
+            // Ensure serviceId is clean numeric value
+            const cleanId = String(s.serviceId).replace(/^(pkg-|svc-)/, '');
+            const numericId = parseInt(cleanId, 10);
+            return {
+              serviceId: numericId,
+              quantity: s.quantity
+            };
+          })
         })
       });
 
