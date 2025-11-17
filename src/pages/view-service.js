@@ -146,12 +146,26 @@ const fetchAvailableServices = async () => {
     if (!packageId) return;
   
     // FIX: convert pkg-8 → 8
-    const cleanId = String(packageId).replace("pkg-", "");
+    const cleanId = String(packageId).replace(/^(pkg-|svc-)/, "");
     const numericId = parseInt(cleanId);
   
     console.log("🔍 Fetching package services for ID:", numericId);
   
     try {
+      // First, fetch the updated package info from the database
+      const packageResponse = await fetch(`${API_BASE}/packages/${numericId}`);
+      if (packageResponse.ok) {
+        const packageData = await packageResponse.json();
+        console.log('📦 Fetched updated package data:', packageData);
+        
+        // Update editedService with the fresh package data from database
+        setEditedService(prev => ({
+          ...prev,
+          ...packageData
+        }));
+      }
+      
+      // Then fetch package services
       const response = await fetch(`${API_BASE}/packages/${numericId}/services`);
   
       if (!response.ok) {
@@ -165,6 +179,19 @@ const fetchAvailableServices = async () => {
   
       const services = await response.json();
       setPackageServices(services);
+      
+      // Calculate and update the package's total price and duration
+      const totalPrice = services.reduce((sum, s) => sum + ((s.price || 0) * (s.quantity || 1)), 0);
+      const totalDuration = services.reduce((sum, s) => sum + ((s.duration || 0) * (s.quantity || 1)), 0);
+      
+      // Update editedService with calculated values
+      setEditedService(prev => ({
+        ...prev,
+        price: totalPrice,
+        duration: totalDuration
+      }));
+      
+      console.log('📊 Updated package totals:', { totalPrice, totalDuration });
     } catch (err) {
       console.error("Error fetching package services:", err);
       setPackageServices([]);
@@ -189,49 +216,90 @@ const fetchAvailableServices = async () => {
 
 
 
-  const handleQuantityChange = async (serviceId, newQuantity) => {
+  const handleQuantityChange = (serviceId, newQuantity) => {
     if (newQuantity < 1) return;
     
+    // Just update local state - no API call until save
+    setPackageServices(prev => 
+      prev.map(s => {
+        const cleanId = String(s.serviceId).replace(/^(pkg-|svc-)/, "");
+        const cleanInputId = String(serviceId).replace(/^(pkg-|svc-)/, "");
+        return cleanId === cleanInputId ? { ...s, quantity: newQuantity } : s;
+      })
+    );
+  };
+
+  const savePackageServiceChanges = async () => {
     try {
-      const cleanId = String(service.id).replace("pkg-", "");
-      const numericId = parseInt(cleanId);
+      setLoading(true);
+      const cleanPackageId = String(service.id).replace(/^(pkg-|svc-)/, "");
+      const numericPackageId = parseInt(cleanPackageId);
       
-      const response = await fetch(`${API_BASE}/packages/${numericId}/services/${serviceId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: newQuantity })
+      // Update all service quantities
+      const updatePromises = packageServices.map(pkgService => {
+        const cleanServiceId = String(pkgService.serviceId).replace(/^(pkg-|svc-)/, "");
+        const numericServiceId = parseInt(cleanServiceId);
+        
+        console.log('🔧 Saving quantity:', {
+          packageId: numericPackageId,
+          serviceId: numericServiceId,
+          quantity: pkgService.quantity
+        });
+        
+        return fetch(`${API_BASE}/packages/${numericPackageId}/services/${numericServiceId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quantity: pkgService.quantity })
+        });
       });
-  
-      if (response.ok) {
-        // Update local state
-        setPackageServices(prev => 
-          prev.map(s => s.serviceId === serviceId ? { ...s, quantity: newQuantity } : s)
-        );
-        showToast('Quantity updated successfully');
-      } else {
-        throw new Error('Failed to update quantity');
+      
+      const responses = await Promise.all(updatePromises);
+      const allSuccessful = responses.every(r => r.ok);
+      
+      if (!allSuccessful) {
+        throw new Error('Some updates failed');
       }
+      
+      // Don't show toast here - let the main save function handle it
     } catch (err) {
-      console.error('Error updating quantity:', err);
-      showToast('Failed to update quantity', 'error');
+      console.error('Error saving package services:', err);
+      showToast('Failed to save package services', 'error');
+      throw err; // Re-throw to prevent main save from showing success
+    } finally {
+      setLoading(false);
     }
   };
 
 
   const handleRemoveService = async (serviceId) => {
     try {
-      const cleanId = String(service.id).replace("pkg-", "");
-      const numericId = parseInt(cleanId);
+      // Clean the package ID properly
+      const cleanPackageId = String(service.id).replace(/^(pkg-|svc-)/, "");
+      const numericPackageId = parseInt(cleanPackageId);
       
-      const response = await fetch(`${API_BASE}/packages/${numericId}/services/${serviceId}`, {
+      // Clean the service ID properly
+      const cleanServiceId = String(serviceId).replace(/^(pkg-|svc-)/, "");
+      const numericServiceId = parseInt(cleanServiceId);
+      
+      console.log('🗑️ Removing service:', {
+        packageId: numericPackageId,
+        serviceId: numericServiceId
+      });
+      
+      const response = await fetch(`${API_BASE}/packages/${numericPackageId}/services/${numericServiceId}`, {
         method: 'DELETE'
       });
   
       if (response.ok) {
-        // Update local state
-        setPackageServices(prev => prev.filter(s => s.serviceId !== serviceId));
+        // Update local state using the numeric service ID
+        setPackageServices(prev => prev.filter(s => {
+          const sId = parseInt(String(s.serviceId).replace(/^(pkg-|svc-)/, ""));
+          return sId !== numericServiceId;
+        }));
         showToast('Service removed from package');
       } else {
+        const errorText = await response.text();
+        console.error('❌ Failed to remove:', response.status, errorText);
         throw new Error('Failed to remove service');
       }
     } catch (err) {
@@ -336,11 +404,16 @@ const handleSaveClick = async () => {
     if (isPackage) {
       // For packages, use the packages endpoint
       endpoint = `${API_BASE}/packages/${numericId}`;
+      
+      // **FIX: Recalculate totals BEFORE saving**
+      const totalPrice = packageServices.reduce((sum, s) => sum + ((s.price || 0) * (s.quantity || 1)), 0);
+      const totalDuration = packageServices.reduce((sum, s) => sum + ((s.duration || 0) * (s.quantity || 1)), 0);
+
       requestData = {
         name: editedService.name.trim(),
         description: editedService.description.trim(),
-        price: parseFloat(editedService.price) || 0,
-        duration: parseInt(editedService.duration) || 0,
+        price: totalPrice,
+        duration: totalDuration,
         status: editedService.status
       };
     } else {
@@ -374,14 +447,18 @@ const handleSaveClick = async () => {
     const result = await response.json();
     console.log('✅ Save successful:', result);
     
-    setIsEditing(false);
-    if (onServiceUpdated) onServiceUpdated();
-    showToast(`${isPackage ? 'Package' : 'Service'} updated successfully!`, 'success');
-    
-    // If this is a package, refresh the package services
+    // If this is a package, save the package services changes FIRST, then refresh
     if (isPackage) {
+      await savePackageServiceChanges();
+      // Add a small delay to ensure database is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
       await fetchPackageDetails(numericId);
     }
+    
+    setIsEditing(false);
+    
+    if (onServiceUpdated) onServiceUpdated();
+    showToast(`${isPackage ? 'Package' : 'Service'} updated successfully!`, 'success');
     
   } catch (err) {
     console.error('❌ Save Error:', err);
