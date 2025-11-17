@@ -80,6 +80,7 @@ const [viewLogAppointment, setViewLogAppointment] = useState(null);
 
   // Load billings from backend
 useEffect(() => {
+  console.log('🔄 Billing page mounted - fetching billings...');
   fetchBillings();
 }, []);
 
@@ -88,30 +89,49 @@ useEffect(() => {
 
 const fetchBillings = async () => {
   try {
+    console.log('📡 Fetching billings from:', `${API_BASE}/billings`);
     const response = await fetch(`${API_BASE}/billings`);
+    
+    console.log('📡 Response status:', response.status, response.statusText);
+    
     if (!response.ok) {
-      throw new Error('Failed to fetch billings');
+      throw new Error(`HTTP ${response.status}: Failed to fetch billings`);
     }
+    
     const data = await response.json();
     console.log('📊 Fetched billings from backend:', data);
+    console.log('📊 Number of billings:', data.length);
+    
+    if (data.length === 0) {
+      console.warn('⚠️ No billings found in database - showing empty state');
+      setBillings([]);
+      return;
+    }
     
     // Format dates for display
     const formattedBillings = data.map(billing => ({
       ...billing,
-      dateCreated: billing.dateCreated // Keep as-is if already formatted, or format it
-        ? new Date(billing.dateCreated).toLocaleDateString('en-US', { 
+      // Extract firstName and lastName from patientName if not present
+      firstName: billing.firstName || (billing.patientName ? billing.patientName.split(' ')[0] : 'Unknown'),
+      lastName: billing.lastName || (billing.patientName ? billing.patientName.split(' ').slice(1).join(' ') : ''),
+      dateCreated: billing.billingDate || billing.createdAt
+        ? new Date(billing.billingDate || billing.createdAt).toLocaleDateString('en-US', { 
             month: 'long', 
             day: 'numeric', 
             year: 'numeric' 
           })
-        : billing.dateCreated
+        : 'N/A',
+      totalBill: billing.totalAmount || 0,
+      status: billing.status || 'Unpaid'
     }));
     
+    console.log('✅ Formatted billings:', formattedBillings);
     setBillings(formattedBillings);
   } catch (error) {
     console.error('❌ Error fetching billings:', error);
-    // Fallback to initial data if backend fails
-    setBillings(initialBillings);
+    console.error('❌ Error details:', error.message);
+    // Show empty state instead of fallback data
+    setBillings([]);
   }
 };
 
