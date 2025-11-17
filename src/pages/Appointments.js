@@ -363,13 +363,18 @@ const [loadingHistory, setLoadingHistory] = useState(false);
         // FIX: Check if data has an 'all' property that contains the array
         if (data.all && Array.isArray(data.all)) {
           console.log(`✅ Loaded ${data.all.length} services/packages from combined endpoint`);
-          setServices(data.all);
+          // Filter out inactive services/packages
+          const active = data.all.filter(item => String(item.status || '').toLowerCase() === 'active');
+          console.log(`✅ ${active.length} active items after filtering inactive ones`);
+          setServices(active);
           return;
         }
         // FIX: If data itself is an array, use it directly
         else if (Array.isArray(data)) {
           console.log(`✅ Loaded ${data.length} services/packages`);
-          setServices(data);
+          const active = data.filter(item => String(item.status || '').toLowerCase() === 'active');
+          console.log(`✅ ${active.length} active items after filtering inactive ones`);
+          setServices(active);
           return;
         }
         // FIX: If data has services/packages properties, combine them
@@ -378,8 +383,9 @@ const [loadingHistory, setLoadingHistory] = useState(false);
             ...(Array.isArray(data.services) ? data.services : []),
             ...(Array.isArray(data.packages) ? data.packages : [])
           ];
-          console.log(`✅ Loaded ${combined.length} services/packages`);
-          setServices(combined);
+          const active = combined.filter(item => String(item.status || '').toLowerCase() === 'active');
+          console.log(`✅ Loaded ${combined.length} services/packages, ${active.length} active after filtering`);
+          setServices(active);
           return;
         }
       }
@@ -392,10 +398,11 @@ const [loadingHistory, setLoadingHistory] = useState(false);
         const data = await response.json();
         console.log('Service-table response:', data);
         
-        // FIX: Ensure we're setting an array
+        // FIX: Ensure we're setting an array and filter active services
         if (Array.isArray(data)) {
-          console.log(`✅ Loaded ${data.length} services from service-table`);
-          setServices(data);
+          const active = data.filter(item => String(item.status || '').toLowerCase() === 'active');
+          console.log(`✅ Loaded ${data.length} services from service-table, ${active.length} active`);
+          setServices(active);
         } else {
           console.error('❌ service-table did not return an array:', typeof data);
           setServices([]);
